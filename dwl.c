@@ -26,6 +26,7 @@
 #include <wlr/util/log.h>
 #include <xkbcommon/xkbcommon.h>
 
+#define CLEANMASK(mask)         (mask & ~WLR_MODIFIER_CAPS)
 #define LENGTH(X)               (sizeof X / sizeof X[0])
 
 /* For brevity's sake, struct members are annotated where they are used. */
@@ -197,7 +198,9 @@ static bool handle_keybinding(struct dwl_server *server, uint32_t mods, xkb_keys
 	 */
 	bool handled = false;
 	for (int i = 0; i < LENGTH(keys); i++) {
-		if (sym == keys[i].keysym && mods == keys[i].mod && keys[i].func) {
+		if (sym == keys[i].keysym &&
+				CLEANMASK(mods) == CLEANMASK(keys[i].mod) &&
+				keys[i].func) {
 			keys[i].func(server, &keys[i].arg);
 			handled = true;
 		}
