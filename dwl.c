@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <time.h>
 #include <unistd.h>
+#include <linux/input-event-codes.h>
 #include <wayland-server-core.h>
 #include <wlr/backend.h>
 #include <wlr/render/wlr_renderer.h>
@@ -111,8 +112,17 @@ typedef struct {
 	const Arg arg;
 } Key;
 
+typedef struct {
+	unsigned int mod;
+	unsigned int button;
+	void (*func)(struct dwl_server *, const Arg *);
+	const Arg arg;
+} Button;
+
 static void focusnext(struct dwl_server *, const Arg *);
+static void movemouse(struct dwl_server *, const Arg *);
 static void quit(struct dwl_server *, const Arg *);
+static void resizemouse(struct dwl_server *, const Arg *);
 
 #include "config.h"
 
@@ -513,6 +523,16 @@ static void server_cursor_button(struct wl_listener *listener, void *data) {
 	} else {
 		/* Focus that client if the button was _pressed_ */
 		focus_view(view, surface);
+
+		struct wlr_keyboard *keyboard = wlr_seat_get_keyboard(seat);
+		uint32_t mods = wlr_keyboard_get_modifiers(keyboard);
+		for (int i = 0; i < LENGTH(buttons); i++) {
+			if (event->button == buttons[i].button &&
+					CLEANMASK(mods) == CLEANMASK(buttons[i].mod) &&
+					buttons[i].func) {
+				buttons[i].func(server, &buttons[i].arg);
+			}
+		}
 	}
 }
 
@@ -755,6 +775,33 @@ static void begin_interactive(struct dwl_view *view,
 	server->grab_width = geo_box.width;
 	server->grab_height = geo_box.height;
 	server->resize_edges = edges;
+}
+
+static void movemouse(struct dwl_server *server, const Arg *unused) {
+	double sx, sy;
+	struct wlr_surface *surface;
+	struct dwl_view *view = desktop_view_at(server,
+			server->cursor->x, server->cursor->y, &surface, &sx, &sy);
+	if (!view) {
+		return;
+	}
+	begin_interactive(view, DWL_CURSOR_MOVE, 0);
+}
+
+static void resizemouse(struct dwl_server *server, const Arg *unused) {
+	double sx, sy;
+	struct wlr_surface *surface;
+	struct dwl_view *view = desktop_view_at(server,
+			server->cursor->x, server->cursor->y, &surface, &sx, &sy);
+	if (!view) {
+		return;
+	}
+	struct wlr_box geo_box;
+	wlr_xdg_surface_get_geometry(view->xdg_surface, &geo_box);
+	wlr_cursor_warp_closest(server->cursor, NULL,
+			view->x + geo_box.x + geo_box.width,
+			view->y + geo_box.y + geo_box.height);
+	begin_interactive(view, DWL_CURSOR_RESIZE, WLR_EDGE_BOTTOM|WLR_EDGE_RIGHT);
 }
 
 static void xdg_toplevel_request_move(

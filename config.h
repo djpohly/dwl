@@ -12,3 +12,8 @@ static const Key keys[] = {
 	{ MODKEY, XKB_KEY_Escape, quit,      {0} },
 	{ MODKEY, XKB_KEY_F1,     focusnext, {0} },
 };
+
+static const Button buttons[] = {
+	{ MODKEY, BTN_LEFT,  movemouse,   {0} },
+	{ MODKEY, BTN_RIGHT, resizemouse, {0} },
+};
