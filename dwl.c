@@ -8,6 +8,8 @@
 #include <stdio.h>
 #include <time.h>
 #include <unistd.h>
+#include <sys/signal.h>
+#include <sys/wait.h>
 #include <linux/input-event-codes.h>
 #include <wayland-server-core.h>
 #include <wlr/backend.h>
@@ -865,6 +867,7 @@ static void server_new_xdg_surface(struct wl_listener *listener, void *data) {
 int main(int argc, char *argv[]) {
 	wlr_log_init(WLR_DEBUG, NULL);
 	char *startup_cmd = NULL;
+	pid_t startup_pid = -1;
 
 	int c;
 	while ((c = getopt(argc, argv, "s:h")) != -1) {
@@ -1002,8 +1005,17 @@ int main(int argc, char *argv[]) {
 	 * startup command if requested. */
 	setenv("WAYLAND_DISPLAY", socket, true);
 	if (startup_cmd) {
-		if (fork() == 0) {
+		startup_pid = fork();
+		if (startup_pid < 0) {
+			perror("startup: fork");
+			wl_display_destroy(server.wl_display);
+			return 1;
+		}
+		if (startup_pid == 0) {
 			execl("/bin/sh", "/bin/sh", "-c", startup_cmd, (void *)NULL);
+			perror("startup: execl");
+			wl_display_destroy(server.wl_display);
+			return 1;
 		}
 	}
 	/* Run the Wayland event loop. This does not return until you exit the
@@ -1013,6 +1025,11 @@ int main(int argc, char *argv[]) {
 	wlr_log(WLR_INFO, "Running Wayland compositor on WAYLAND_DISPLAY=%s",
 			socket);
 	wl_display_run(server.wl_display);
+
+	if (startup_cmd) {
+		kill(startup_pid, SIGTERM);
+		waitpid(startup_pid, NULL, 0);
+	}
 
 	/* Once wl_display_run returns, we shut down the server. */
 	wl_display_destroy_clients(server.wl_display);
