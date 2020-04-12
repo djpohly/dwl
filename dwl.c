@@ -94,6 +94,23 @@ struct dwl_keyboard {
 	struct wl_listener key;
 };
 
+typedef union {
+	int i;
+	unsigned int ui;
+	float f;
+	const void *v;
+} Arg;
+
+typedef struct {
+	uint32_t mod;
+	xkb_keysym_t keysym;
+	void (*func)(struct dwl_server *, const Arg *);
+	const Arg arg;
+} Key;
+
+static void focusnext(struct dwl_server *, const Arg *);
+static void quit(struct dwl_server *, const Arg *);
+
 #include "config.h"
 
 static void focus_view(struct dwl_view *view, struct wlr_surface *surface) {
@@ -151,31 +168,37 @@ static void keyboard_handle_modifiers(
 		&keyboard->device->keyboard->modifiers);
 }
 
-static bool handle_keybinding(struct dwl_server *server, xkb_keysym_t sym) {
+static void quit(struct dwl_server *server, const Arg *unused) {
+	wl_display_terminate(server->wl_display);
+}
+
+static void focusnext(struct dwl_server *server, const Arg *unused) {
+	/* Cycle to the next view */
+	if (wl_list_length(&server->views) < 2) {
+		return;
+	}
+	struct dwl_view *current_view = wl_container_of(
+		server->views.next, current_view, link);
+	struct dwl_view *next_view = wl_container_of(
+		current_view->link.next, next_view, link);
+	focus_view(next_view, next_view->xdg_surface->surface);
+	/* Move the previous view to the end of the list */
+	wl_list_remove(&current_view->link);
+	wl_list_insert(server->views.prev, &current_view->link);
+}
+
+static bool handle_keybinding(struct dwl_server *server, uint32_t mods, xkb_keysym_t sym) {
 	/*
 	 * Here we handle compositor keybindings. This is when the compositor is
 	 * processing keys, rather than passing them on to the client for its own
 	 * processing.
-	 *
-	 * This function assumes Alt is held down.
 	 */
 	switch (sym) {
 	case XKB_KEY_Escape:
-		wl_display_terminate(server->wl_display);
+		quit(server, NULL);
 		break;
 	case XKB_KEY_F1:
-		/* Cycle to the next view */
-		if (wl_list_length(&server->views) < 2) {
-			break;
-		}
-		struct dwl_view *current_view = wl_container_of(
-			server->views.next, current_view, link);
-		struct dwl_view *next_view = wl_container_of(
-			current_view->link.next, next_view, link);
-		focus_view(next_view, next_view->xdg_surface->surface);
-		/* Move the previous view to the end of the list */
-		wl_list_remove(&current_view->link);
-		wl_list_insert(server->views.prev, &current_view->link);
+		focusnext(server, NULL);
 		break;
 	default:
 		return false;
@@ -200,12 +223,11 @@ static void keyboard_handle_key(
 			keyboard->device->keyboard->xkb_state, keycode, &syms);
 
 	bool handled = false;
-	uint32_t modifiers = wlr_keyboard_get_modifiers(keyboard->device->keyboard);
-	if ((modifiers & WLR_MODIFIER_ALT) && event->state == WLR_KEY_PRESSED) {
-		/* If alt is held down and this button was _pressed_, we attempt to
-		 * process it as a compositor keybinding. */
+	uint32_t mods = wlr_keyboard_get_modifiers(keyboard->device->keyboard);
+	if (event->state == WLR_KEY_PRESSED) {
+		/* On _press_, attempt to process a compositor keybinding. */
 		for (int i = 0; i < nsyms; i++) {
-			handled = handle_keybinding(server, syms[i]);
+			handled = handle_keybinding(server, mods, syms[i]) || handled;
 		}
 	}
 
