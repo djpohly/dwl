@@ -3,5 +3,5 @@ static const struct xkb_rule_names xkb_rules = {
 	.model = NULL,
 	.layout = "dvorak",
 	.variant = NULL,
-	.options = NULL,
+	.options = "ctrl:nocaps,altwin:swap_lalt_lwin,terminate:ctrl_alt_bksp",
 };
