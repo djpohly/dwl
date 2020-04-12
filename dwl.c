@@ -752,7 +752,7 @@ static void xdg_surface_destroy(struct wl_listener *listener, void *data) {
 static void begin_interactive(struct dwl_view *view,
 		enum dwl_cursor_mode mode, uint32_t edges) {
 	/* This function sets up an interactive move or resize operation, where the
-	 * compositor stops propegating pointer events to clients and instead
+	 * compositor stops propagating pointer events to clients and instead
 	 * consumes them itself, to move or resize windows. */
 	struct dwl_server *server = view->server;
 	struct wlr_surface *focused_surface =
