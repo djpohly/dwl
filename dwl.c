@@ -26,6 +26,8 @@
 #include <wlr/util/log.h>
 #include <xkbcommon/xkbcommon.h>
 
+#define LENGTH(X)               (sizeof X / sizeof X[0])
+
 /* For brevity's sake, struct members are annotated where they are used. */
 enum dwl_cursor_mode {
 	DWL_CURSOR_PASSTHROUGH,
@@ -193,17 +195,14 @@ static bool handle_keybinding(struct dwl_server *server, uint32_t mods, xkb_keys
 	 * processing keys, rather than passing them on to the client for its own
 	 * processing.
 	 */
-	switch (sym) {
-	case XKB_KEY_Escape:
-		quit(server, NULL);
-		break;
-	case XKB_KEY_F1:
-		focusnext(server, NULL);
-		break;
-	default:
-		return false;
+	bool handled = false;
+	for (int i = 0; i < LENGTH(keys); i++) {
+		if (sym == keys[i].keysym && mods == keys[i].mod && keys[i].func) {
+			keys[i].func(server, &keys[i].arg);
+			handled = true;
+		}
 	}
-	return true;
+	return handled;
 }
 
 static void keyboard_handle_key(
