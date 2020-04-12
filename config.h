@@ -8,9 +8,13 @@ static const struct xkb_rule_names xkb_rules = {
 
 #define MODKEY WLR_MODIFIER_ALT
 
+/* commands */
+static const char *termcmd[]  = { "kitty", "-o", "linux_display_server=wayland", NULL };
+
 static const Key keys[] = {
-	{ MODKEY, XKB_KEY_Escape, quit,      {0} },
-	{ MODKEY, XKB_KEY_F1,     focusnext, {0} },
+	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_Return, spawn,     {.v = termcmd } },
+	{ MODKEY,                    XKB_KEY_Escape, quit,      {0} },
+	{ MODKEY,                    XKB_KEY_F1,     focusnext, {0} },
 };
 
 static const Button buttons[] = {

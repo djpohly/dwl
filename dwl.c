@@ -125,6 +125,7 @@ static void focusnext(struct dwl_server *, const Arg *);
 static void movemouse(struct dwl_server *, const Arg *);
 static void quit(struct dwl_server *, const Arg *);
 static void resizemouse(struct dwl_server *, const Arg *);
+static void spawn(struct dwl_server *, const Arg *);
 
 #include "config.h"
 
@@ -185,6 +186,16 @@ static void keyboard_handle_modifiers(
 
 static void quit(struct dwl_server *server, const Arg *unused) {
 	wl_display_terminate(server->wl_display);
+}
+
+static void spawn(struct dwl_server *server, const Arg *arg) {
+	if (fork() == 0) {
+		setsid();
+		execvp(((char **)arg->v)[0], (char **)arg->v);
+		fprintf(stderr, "dwl: execvp %s", ((char **)arg->v)[0]);
+		perror(" failed");
+		exit(EXIT_FAILURE);
+	}
 }
 
 static void focusnext(struct dwl_server *server, const Arg *unused) {
