@@ -149,6 +149,7 @@ static void tile(Monitor *m);
 static void unmapnotify(struct wl_listener *listener, void *data);
 static Client * xytoclient(double x, double y,
 		struct wlr_surface **surface, double *sx, double *sy);
+static Monitor *xytomon(double x, double y);
 
 /* variables */
 static struct wl_display *wl_display;
@@ -301,9 +302,6 @@ createmon(struct wl_listener *listener, void *data)
 	m->frame.notify = rendermon;
 	wl_signal_add(&wlr_output->events.frame, &m->frame);
 	wl_list_insert(&mons, &m->link);
-
-	if (!selmon)
-		selmon = m;
 
 	/* Adds this to the output layout. The add_auto function arranges outputs
 	 * from left-to-right in the order they appear. A more sophisticated
@@ -813,6 +811,10 @@ run(char *startup_cmd)
 		exit(1);
 	}
 
+	/* Now that outputs are initialized, choose initial selmon based on
+	 * cursor position */
+	selmon = xytomon(cursor->x, cursor->y);
+
 	/* Set the WAYLAND_DISPLAY environment variable to our socket and run the
 	 * startup command if requested. */
 	setenv("WAYLAND_DISPLAY", socket, true);
@@ -1060,6 +1062,17 @@ xytoclient(double x, double y,
 			return c;
 		}
 	}
+	return NULL;
+}
+
+Monitor *
+xytomon(double x, double y)
+{
+	struct wlr_output *o = wlr_output_layout_output_at(output_layout, x, y);
+	Monitor *m;
+	wl_list_for_each(m, &mons, link)
+		if (m->wlr_output == o)
+			return m;
 	return NULL;
 }
 
