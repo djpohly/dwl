@@ -104,8 +104,7 @@ static void motionabsolute(struct wl_listener *listener, void *data);
 static void motionnotify(uint32_t time);
 static void motionrelative(struct wl_listener *listener, void *data);
 static void movemouse(const Arg *arg);
-static void moveresize(struct dwl_view *view, unsigned int mode,
-		uint32_t edges);
+static void moveresize(struct dwl_view *view, unsigned int mode);
 static void quit(const Arg *arg);
 static void render(struct wlr_surface *surface, int sx, int sy, void *data);
 static void renderoutput(struct wl_listener *listener, void *data);
@@ -143,7 +142,6 @@ static unsigned int cursor_mode;
 static struct dwl_view *grabbed_view;
 static double grab_x, grab_y;
 static int grab_width, grab_height;
-static uint32_t resize_edges;
 
 static struct wlr_output_layout *output_layout;
 static struct wl_list outputs;
@@ -398,43 +396,14 @@ void
 handleresize(uint32_t time)
 {
 	/*
-	 * Resizing the grabbed view can be a little bit complicated, because we
-	 * could be resizing from any corner or edge. This not only resizes the view
-	 * on one or two axes, but can also move the view if you resize from the top
-	 * or left edges (or top-left corner).
-	 *
 	 * Note that I took some shortcuts here. In a more fleshed-out compositor,
 	 * you'd wait for the client to prepare a buffer at the new size, then
 	 * commit any movement that was prepared.
 	 */
-	struct dwl_view *view = grabbed_view;
 	double dx = cursor->x - grab_x;
 	double dy = cursor->y - grab_y;
-	double x = view->x;
-	double y = view->y;
-	int width = grab_width;
-	int height = grab_height;
-	if (resize_edges & WLR_EDGE_TOP) {
-		y = grab_y + dy;
-		height -= dy;
-		if (height < 1) {
-			y += height;
-		}
-	} else if (resize_edges & WLR_EDGE_BOTTOM) {
-		height += dy;
-	}
-	if (resize_edges & WLR_EDGE_LEFT) {
-		x = grab_x + dx;
-		width -= dx;
-		if (width < 1) {
-			x += width;
-		}
-	} else if (resize_edges & WLR_EDGE_RIGHT) {
-		width += dx;
-	}
-	view->x = x;
-	view->y = y;
-	wlr_xdg_toplevel_set_size(view->xdg_surface, width, height);
+	wlr_xdg_toplevel_set_size(grabbed_view->xdg_surface,
+			grab_width + dx, grab_height + dy);
 }
 
 void
@@ -630,11 +599,11 @@ movemouse(const Arg *arg)
 	if (!view) {
 		return;
 	}
-	moveresize(view, CurMove, 0);
+	moveresize(view, CurMove);
 }
 
 void
-moveresize(struct dwl_view *view, unsigned int mode, uint32_t edges)
+moveresize(struct dwl_view *view, unsigned int mode)
 {
 	/* This function sets up an interactive move or resize operation, where the
 	 * compositor stops propagating pointer events to clients and instead
@@ -658,7 +627,6 @@ moveresize(struct dwl_view *view, unsigned int mode, uint32_t edges)
 	}
 	grab_width = geo_box.width;
 	grab_height = geo_box.height;
-	resize_edges = edges;
 }
 
 void
@@ -801,7 +769,7 @@ resizemouse(const Arg *arg)
 	wlr_cursor_warp_closest(cursor, NULL,
 			view->x + geo_box.x + geo_box.width,
 			view->y + geo_box.y + geo_box.height);
-	moveresize(view, CurResize, WLR_EDGE_BOTTOM|WLR_EDGE_RIGHT);
+	moveresize(view, CurResize);
 }
 
 void
