@@ -101,8 +101,6 @@ static void cursorframe(struct wl_listener *listener, void *data);
 static void destroynotify(struct wl_listener *listener, void *data);
 static void focus(Client *c, struct wlr_surface *surface);
 static void focusnext(const Arg *arg);
-static void handlemove(uint32_t time);
-static void handleresize(uint32_t time);
 static void inputdevice(struct wl_listener *listener, void *data);
 static bool keybinding(uint32_t mods, xkb_keysym_t sym);
 static void keypress(struct wl_listener *listener, void *data);
@@ -380,28 +378,6 @@ focusnext(const Arg *arg)
 }
 
 void
-handlemove(uint32_t time)
-{
-	/* Move the grabbed client to the new position. */
-	grabbed_client->x = cursor->x - grab_x;
-	grabbed_client->y = cursor->y - grab_y;
-}
-
-void
-handleresize(uint32_t time)
-{
-	/*
-	 * Note that I took some shortcuts here. In a more fleshed-out compositor,
-	 * you'd wait for the client to prepare a buffer at the new size, then
-	 * commit any movement that was prepared.
-	 */
-	double dx = cursor->x - grab_x;
-	double dy = cursor->y - grab_y;
-	wlr_xdg_toplevel_set_size(grabbed_client->xdg_surface,
-			grab_width + dx, grab_height + dy);
-}
-
-void
 inputdevice(struct wl_listener *listener, void *data)
 {
 	/* This event is raised by the backend when a new input device becomes
@@ -525,10 +501,20 @@ motionnotify(uint32_t time)
 {
 	/* If the mode is non-passthrough, delegate to those functions. */
 	if (cursor_mode == CurMove) {
-		handlemove(time);
+		/* Move the grabbed client to the new position. */
+		grabbed_client->x = cursor->x - grab_x;
+		grabbed_client->y = cursor->y - grab_y;
 		return;
 	} else if (cursor_mode == CurResize) {
-		handleresize(time);
+		/*
+		 * Note that I took some shortcuts here. In a more fleshed-out
+		 * compositor, you'd wait for the client to prepare a buffer at
+		 * the new size, then commit any movement that was prepared.
+		 */
+		double dx = cursor->x - grab_x;
+		double dy = cursor->y - grab_y;
+		wlr_xdg_toplevel_set_size(grabbed_client->xdg_surface,
+				grab_width + dx, grab_height + dy);
 		return;
 	}
 
