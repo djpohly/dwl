@@ -204,8 +204,7 @@ buttonpress(struct wl_listener *listener, void *data)
 void
 createkeyboard(struct wlr_input_device *device)
 {
-	struct dwl_keyboard *keyboard =
-		calloc(1, sizeof(struct dwl_keyboard));
+	struct dwl_keyboard *keyboard = calloc(1, sizeof(*keyboard));
 	keyboard->device = device;
 
 	/* We need to prepare an XKB keymap and assign it to the keyboard. This
@@ -242,8 +241,7 @@ createnotify(struct wl_listener *listener, void *data)
 	}
 
 	/* Allocate a dwl_view for this surface */
-	struct dwl_view *view =
-		calloc(1, sizeof(struct dwl_view));
+	struct dwl_view *view = calloc(1, sizeof(*view));
 	view->xdg_surface = xdg_surface;
 
 	/* Listen to the various events it can emit */
@@ -280,8 +278,7 @@ createoutput(struct wl_listener *listener, void *data)
 	}
 
 	/* Allocates and configures our state for this output */
-	struct dwl_output *output =
-		calloc(1, sizeof(struct dwl_output));
+	struct dwl_output *output = calloc(1, sizeof(*output));
 	output->wlr_output = wlr_output;
 	/* Sets up a listener for the frame notify event. */
 	output->frame.notify = renderoutput;
