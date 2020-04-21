@@ -94,8 +94,8 @@ struct render_data {
 static void axisnotify(struct wl_listener *listener, void *data);
 static void buttonpress(struct wl_listener *listener, void *data);
 static void createkeyboard(struct wlr_input_device *device);
-static void createnotify(struct wl_listener *listener, void *data);
 static void createmon(struct wl_listener *listener, void *data);
+static void createnotify(struct wl_listener *listener, void *data);
 static void createpointer(struct wlr_input_device *device);
 static void cursorframe(struct wl_listener *listener, void *data);
 static void destroynotify(struct wl_listener *listener, void *data);
@@ -120,9 +120,9 @@ static void resizemouse(const Arg *arg);
 static void setcursor(struct wl_listener *listener, void *data);
 static void spawn(const Arg *arg);
 static void unmapnotify(struct wl_listener *listener, void *data);
-static bool xytosurface(Client *c, double lx, double ly,
-		struct wlr_surface **surface, double *sx, double *sy);
 static Client * xytoclient(double lx, double ly,
+		struct wlr_surface **surface, double *sx, double *sy);
+static bool xytosurface(Client *c, double lx, double ly,
 		struct wlr_surface **surface, double *sx, double *sy);
 
 /* variables */
@@ -231,32 +231,6 @@ createkeyboard(struct wlr_input_device *device)
 }
 
 void
-createnotify(struct wl_listener *listener, void *data)
-{
-	/* This event is raised when wlr_xdg_shell receives a new xdg surface from a
-	 * client, either a toplevel (application window) or popup. */
-	struct wlr_xdg_surface *xdg_surface = data;
-	if (xdg_surface->role != WLR_XDG_SURFACE_ROLE_TOPLEVEL) {
-		return;
-	}
-
-	/* Allocate a Client for this surface */
-	Client *c = calloc(1, sizeof(*c));
-	c->xdg_surface = xdg_surface;
-
-	/* Listen to the various events it can emit */
-	c->map.notify = maprequest;
-	wl_signal_add(&xdg_surface->events.map, &c->map);
-	c->unmap.notify = unmapnotify;
-	wl_signal_add(&xdg_surface->events.unmap, &c->unmap);
-	c->destroy.notify = destroynotify;
-	wl_signal_add(&xdg_surface->events.destroy, &c->destroy);
-
-	/* Add it to the list of clients. */
-	wl_list_insert(&clients, &c->link);
-}
-
-void
 createmon(struct wl_listener *listener, void *data)
 {
 	/* This event is rasied by the backend when a new output (aka a display or
@@ -295,6 +269,32 @@ createmon(struct wl_listener *listener, void *data)
 	 * clients can see to find out information about the output (such as
 	 * DPI, scale factor, manufacturer, etc). */
 	wlr_output_create_global(wlr_output);
+}
+
+void
+createnotify(struct wl_listener *listener, void *data)
+{
+	/* This event is raised when wlr_xdg_shell receives a new xdg surface from a
+	 * client, either a toplevel (application window) or popup. */
+	struct wlr_xdg_surface *xdg_surface = data;
+	if (xdg_surface->role != WLR_XDG_SURFACE_ROLE_TOPLEVEL) {
+		return;
+	}
+
+	/* Allocate a Client for this surface */
+	Client *c = calloc(1, sizeof(*c));
+	c->xdg_surface = xdg_surface;
+
+	/* Listen to the various events it can emit */
+	c->map.notify = maprequest;
+	wl_signal_add(&xdg_surface->events.map, &c->map);
+	c->unmap.notify = unmapnotify;
+	wl_signal_add(&xdg_surface->events.unmap, &c->unmap);
+	c->destroy.notify = destroynotify;
+	wl_signal_add(&xdg_surface->events.destroy, &c->destroy);
+
+	/* Add it to the list of clients. */
+	wl_list_insert(&clients, &c->link);
 }
 
 void
@@ -804,6 +804,21 @@ unmapnotify(struct wl_listener *listener, void *data)
 	c->mapped = false;
 }
 
+Client *
+xytoclient(double lx, double ly,
+		struct wlr_surface **surface, double *sx, double *sy)
+{
+	/* This iterates over all of our surfaces and attempts to find one under the
+	 * cursor. This relies on clients being ordered from top-to-bottom. */
+	Client *c;
+	wl_list_for_each(c, &clients, link) {
+		if (xytosurface(c, lx, ly, surface, sx, sy)) {
+			return c;
+		}
+	}
+	return NULL;
+}
+
 bool
 xytosurface(Client *c, double lx, double ly,
 		struct wlr_surface **surface, double *sx, double *sy)
@@ -833,21 +848,6 @@ xytosurface(Client *c, double lx, double ly,
 	}
 
 	return false;
-}
-
-Client *
-xytoclient(double lx, double ly,
-		struct wlr_surface **surface, double *sx, double *sy)
-{
-	/* This iterates over all of our surfaces and attempts to find one under the
-	 * cursor. This relies on clients being ordered from top-to-bottom. */
-	Client *c;
-	wl_list_for_each(c, &clients, link) {
-		if (xytosurface(c, lx, ly, surface, sx, sy)) {
-			return c;
-		}
-	}
-	return NULL;
 }
 
 int
