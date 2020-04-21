@@ -32,12 +32,8 @@
 #define CLEANMASK(mask)         (mask & ~WLR_MODIFIER_CAPS)
 #define LENGTH(X)               (sizeof X / sizeof X[0])
 
-/* For brevity's sake, struct members are annotated where they are used. */
-enum dwl_cursor_mode {
-	DWL_CURSOR_PASSTHROUGH,
-	DWL_CURSOR_MOVE,
-	DWL_CURSOR_RESIZE,
-};
+/* enums */
+enum { CurNormal, CurMove, CurResize }; /* cursor */
 
 struct dwl_server {
 	struct wl_display *wl_display;
@@ -60,7 +56,7 @@ struct dwl_server {
 	struct wl_listener new_input;
 	struct wl_listener request_cursor;
 	struct wl_list keyboards;
-	enum dwl_cursor_mode cursor_mode;
+	unsigned int cursor_mode;
 	struct dwl_view *grabbed_view;
 	double grab_x, grab_y;
 	int grab_width, grab_height;
@@ -146,7 +142,7 @@ static void motionnotify(struct dwl_server *server, uint32_t time);
 static void motionrelative(struct wl_listener *listener, void *data);
 static void movemouse(struct dwl_server *server, const Arg *arg);
 static void moverequest(struct wl_listener *listener, void *data);
-static void moveresize(struct dwl_view *view, enum dwl_cursor_mode mode,
+static void moveresize(struct dwl_view *view, unsigned int mode,
 		uint32_t edges);
 static void quit(struct dwl_server *server, const Arg *arg);
 static void render(struct wlr_surface *surface, int sx, int sy, void *data);
@@ -204,7 +200,7 @@ buttonpress(struct wl_listener *listener, void *data)
 			server->cursor->x, server->cursor->y, &surface, &sx, &sy);
 	if (event->state == WLR_BUTTON_RELEASED) {
 		/* If you released any buttons, we exit interactive move/resize mode. */
-		server->cursor_mode = DWL_CURSOR_PASSTHROUGH;
+		server->cursor_mode = CurNormal;
 	} else {
 		/* Focus that client if the button was _pressed_ */
 		focus(view, surface);
@@ -603,10 +599,10 @@ void
 motionnotify(struct dwl_server *server, uint32_t time)
 {
 	/* If the mode is non-passthrough, delegate to those functions. */
-	if (server->cursor_mode == DWL_CURSOR_MOVE) {
+	if (server->cursor_mode == CurMove) {
 		handlemove(server, time);
 		return;
-	} else if (server->cursor_mode == DWL_CURSOR_RESIZE) {
+	} else if (server->cursor_mode == CurResize) {
 		handleresize(server, time);
 		return;
 	}
@@ -675,7 +671,7 @@ movemouse(struct dwl_server *server, const Arg *arg)
 	if (!view) {
 		return;
 	}
-	moveresize(view, DWL_CURSOR_MOVE, 0);
+	moveresize(view, CurMove, 0);
 }
 
 void
@@ -687,11 +683,11 @@ moverequest(struct wl_listener *listener, void *data)
 	 * provied serial against a list of button press serials sent to this
 	 * client, to prevent the client from requesting this whenever they want. */
 	struct dwl_view *view = wl_container_of(listener, view, request_move);
-	moveresize(view, DWL_CURSOR_MOVE, 0);
+	moveresize(view, CurMove, 0);
 }
 
 void
-moveresize(struct dwl_view *view, enum dwl_cursor_mode mode, uint32_t edges)
+moveresize(struct dwl_view *view, unsigned int mode, uint32_t edges)
 {
 	/* This function sets up an interactive move or resize operation, where the
 	 * compositor stops propagating pointer events to clients and instead
@@ -707,7 +703,7 @@ moveresize(struct dwl_view *view, enum dwl_cursor_mode mode, uint32_t edges)
 	server->cursor_mode = mode;
 	struct wlr_box geo_box;
 	wlr_xdg_surface_get_geometry(view->xdg_surface, &geo_box);
-	if (mode == DWL_CURSOR_MOVE) {
+	if (mode == CurMove) {
 		server->grab_x = server->cursor->x - view->x;
 		server->grab_y = server->cursor->y - view->y;
 	} else {
@@ -861,7 +857,7 @@ resizemouse(struct dwl_server *server, const Arg *arg)
 	wlr_cursor_warp_closest(server->cursor, NULL,
 			view->x + geo_box.x + geo_box.width,
 			view->y + geo_box.y + geo_box.height);
-	moveresize(view, DWL_CURSOR_RESIZE, WLR_EDGE_BOTTOM|WLR_EDGE_RIGHT);
+	moveresize(view, CurResize, WLR_EDGE_BOTTOM|WLR_EDGE_RIGHT);
 }
 
 void
@@ -874,7 +870,7 @@ resizerequest(struct wl_listener *listener, void *data)
 	 * client, to prevent the client from requesting this whenever they want. */
 	struct wlr_xdg_toplevel_resize_event *event = data;
 	struct dwl_view *view = wl_container_of(listener, view, request_resize);
-	moveresize(view, DWL_CURSOR_RESIZE, event->edges);
+	moveresize(view, CurResize, event->edges);
 }
 
 void
