@@ -86,8 +86,8 @@ typedef struct {
  * frame handler to the per-surface render function. */
 struct render_data {
 	struct wlr_output *output;
-	Client *client;
 	struct timespec *when;
+	int x, y;
 };
 
 /* function declarations */
@@ -634,7 +634,6 @@ render(struct wlr_surface *surface, int sx, int sy, void *data)
 {
 	/* This function is called for every surface that needs to be rendered. */
 	struct render_data *rdata = data;
-	Client *c = rdata->client;
 	struct wlr_output *output = rdata->output;
 
 	/* We first obtain a wlr_texture, which is a GPU resource. wlroots
@@ -654,7 +653,7 @@ render(struct wlr_surface *surface, int sx, int sy, void *data)
 	double ox = 0, oy = 0;
 	wlr_output_layout_output_coords(
 			output_layout, output, &ox, &oy);
-	ox += c->x + sx, oy += c->y + sy;
+	ox += rdata->x + sx, oy += rdata->y + sy;
 
 	/* We also have to apply the scale factor for HiDPI outputs. This is only
 	 * part of the puzzle, dwl does not fully support HiDPI. */
@@ -724,8 +723,9 @@ rendermon(struct wl_listener *listener, void *data)
 		}
 		struct render_data rdata = {
 			.output = m->wlr_output,
-			.client = c,
 			.when = &now,
+			.x = c->x,
+			.y = c->y,
 		};
 		/* This calls our render function for each surface among the
 		 * xdg_surface's toplevel and popups. */
