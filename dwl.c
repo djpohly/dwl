@@ -115,7 +115,9 @@ static void quit(const Arg *arg);
 static void render(struct wlr_surface *surface, int sx, int sy, void *data);
 static void rendermon(struct wl_listener *listener, void *data);
 static void resizemouse(const Arg *arg);
+static void run(char *startup_cmd);
 static void setcursor(struct wl_listener *listener, void *data);
+static void setup(void);
 static void spawn(const Arg *arg);
 static void unmapnotify(struct wl_listener *listener, void *data);
 static Client * xytoclient(double lx, double ly,
@@ -752,6 +754,57 @@ resizemouse(const Arg *arg)
 }
 
 void
+run(char *startup_cmd)
+{
+	pid_t startup_pid = -1;
+
+	/* Add a Unix socket to the Wayland display. */
+	const char *socket = wl_display_add_socket_auto(wl_display);
+	if (!socket) {
+		wlr_backend_destroy(backend);
+		exit(1);
+	}
+
+	/* Start the backend. This will enumerate outputs and inputs, become the DRM
+	 * master, etc */
+	if (!wlr_backend_start(backend)) {
+		wlr_backend_destroy(backend);
+		wl_display_destroy(wl_display);
+		exit(1);
+	}
+
+	/* Set the WAYLAND_DISPLAY environment variable to our socket and run the
+	 * startup command if requested. */
+	setenv("WAYLAND_DISPLAY", socket, true);
+	if (startup_cmd) {
+		startup_pid = fork();
+		if (startup_pid < 0) {
+			perror("startup: fork");
+			wl_display_destroy(wl_display);
+			exit(1);
+		}
+		if (startup_pid == 0) {
+			execl("/bin/sh", "/bin/sh", "-c", startup_cmd, (void *)NULL);
+			perror("startup: execl");
+			wl_display_destroy(wl_display);
+			exit(1);
+		}
+	}
+	/* Run the Wayland event loop. This does not return until you exit the
+	 * compositor. Starting the backend rigged up all of the necessary event
+	 * loop configuration to listen to libinput events, DRM events, generate
+	 * frame events at the refresh rate, and so on. */
+	wlr_log(WLR_INFO, "Running Wayland compositor on WAYLAND_DISPLAY=%s",
+			socket);
+	wl_display_run(wl_display);
+
+	if (startup_cmd) {
+		kill(startup_pid, SIGTERM);
+		waitpid(startup_pid, NULL, 0);
+	}
+}
+
+void
 setcursor(struct wl_listener *listener, void *data)
 {
 	/* This event is rasied by the seat when a client provides a cursor image */
@@ -771,97 +824,8 @@ setcursor(struct wl_listener *listener, void *data)
 }
 
 void
-spawn(const Arg *arg)
+setup(void)
 {
-	if (fork() == 0) {
-		setsid();
-		execvp(((char **)arg->v)[0], (char **)arg->v);
-		fprintf(stderr, "dwl: execvp %s", ((char **)arg->v)[0]);
-		perror(" failed");
-		exit(EXIT_FAILURE);
-	}
-}
-
-void
-unmapnotify(struct wl_listener *listener, void *data)
-{
-	/* Called when the surface is unmapped, and should no longer be shown. */
-	Client *c = wl_container_of(listener, c, unmap);
-	c->mapped = false;
-}
-
-Client *
-xytoclient(double lx, double ly,
-		struct wlr_surface **surface, double *sx, double *sy)
-{
-	/* This iterates over all of our surfaces and attempts to find one under the
-	 * cursor. This relies on clients being ordered from top-to-bottom. */
-	Client *c;
-	wl_list_for_each(c, &clients, link) {
-		if (xytosurface(c, lx, ly, surface, sx, sy)) {
-			return c;
-		}
-	}
-	return NULL;
-}
-
-bool
-xytosurface(Client *c, double lx, double ly,
-		struct wlr_surface **surface, double *sx, double *sy)
-{
-	/*
-	 * XDG toplevels may have nested surfaces, such as popup windows for context
-	 * menus or tooltips. This function tests if any of those are underneath the
-	 * coordinates lx and ly (in output Layout Coordinates). If so, it sets the
-	 * surface pointer to that wlr_surface and the sx and sy coordinates to the
-	 * coordinates relative to that surface's top-left corner.
-	 */
-	double client_sx = lx - c->x;
-	double client_sy = ly - c->y;
-
-	struct wlr_surface_state *state = &c->xdg_surface->surface->current;
-
-	double _sx, _sy;
-	struct wlr_surface *_surface = NULL;
-	_surface = wlr_xdg_surface_surface_at(
-			c->xdg_surface, client_sx, client_sy, &_sx, &_sy);
-
-	if (_surface != NULL) {
-		*sx = _sx;
-		*sy = _sy;
-		*surface = _surface;
-		return true;
-	}
-
-	return false;
-}
-
-int
-main(int argc, char *argv[])
-{
-	wlr_log_init(WLR_DEBUG, NULL);
-	char *startup_cmd = NULL;
-	pid_t startup_pid = -1;
-
-	int c;
-	while ((c = getopt(argc, argv, "s:h")) != -1) {
-		switch (c) {
-		case 's':
-			startup_cmd = optarg;
-			break;
-		default:
-			printf("Usage: %s [-s startup command]\n", argv[0]);
-			return 0;
-		}
-	}
-	if (optind < argc) {
-		printf("Usage: %s [-s startup command]\n", argv[0]);
-		return 0;
-	}
-
-	/* The Wayland display is managed by libwayland. It handles accepting
-	 * clients from the Unix socket, manging Wayland globals, and so on. */
-	wl_display = wl_display_create();
 	/* The backend is a wlroots feature which abstracts the underlying input and
 	 * output hardware. The autocreate option will choose the most suitable
 	 * backend based on the current environment, such as opening an X11 window
@@ -958,51 +922,102 @@ main(int argc, char *argv[])
 	request_cursor.notify = setcursor;
 	wl_signal_add(&seat->events.request_set_cursor,
 			&request_cursor);
+}
 
-	/* Add a Unix socket to the Wayland display. */
-	const char *socket = wl_display_add_socket_auto(wl_display);
-	if (!socket) {
-		wlr_backend_destroy(backend);
-		return 1;
+void
+spawn(const Arg *arg)
+{
+	if (fork() == 0) {
+		setsid();
+		execvp(((char **)arg->v)[0], (char **)arg->v);
+		fprintf(stderr, "dwl: execvp %s", ((char **)arg->v)[0]);
+		perror(" failed");
+		exit(EXIT_FAILURE);
 	}
+}
 
-	/* Start the backend. This will enumerate outputs and inputs, become the DRM
-	 * master, etc */
-	if (!wlr_backend_start(backend)) {
-		wlr_backend_destroy(backend);
-		wl_display_destroy(wl_display);
-		return 1;
-	}
+void
+unmapnotify(struct wl_listener *listener, void *data)
+{
+	/* Called when the surface is unmapped, and should no longer be shown. */
+	Client *c = wl_container_of(listener, c, unmap);
+	c->mapped = false;
+}
 
-	/* Set the WAYLAND_DISPLAY environment variable to our socket and run the
-	 * startup command if requested. */
-	setenv("WAYLAND_DISPLAY", socket, true);
-	if (startup_cmd) {
-		startup_pid = fork();
-		if (startup_pid < 0) {
-			perror("startup: fork");
-			wl_display_destroy(wl_display);
-			return 1;
+Client *
+xytoclient(double lx, double ly,
+		struct wlr_surface **surface, double *sx, double *sy)
+{
+	/* This iterates over all of our surfaces and attempts to find one under the
+	 * cursor. This relies on clients being ordered from top-to-bottom. */
+	Client *c;
+	wl_list_for_each(c, &clients, link) {
+		if (xytosurface(c, lx, ly, surface, sx, sy)) {
+			return c;
 		}
-		if (startup_pid == 0) {
-			execl("/bin/sh", "/bin/sh", "-c", startup_cmd, (void *)NULL);
-			perror("startup: execl");
-			wl_display_destroy(wl_display);
-			return 1;
+	}
+	return NULL;
+}
+
+bool
+xytosurface(Client *c, double lx, double ly,
+		struct wlr_surface **surface, double *sx, double *sy)
+{
+	/*
+	 * XDG toplevels may have nested surfaces, such as popup windows for context
+	 * menus or tooltips. This function tests if any of those are underneath the
+	 * coordinates lx and ly (in output Layout Coordinates). If so, it sets the
+	 * surface pointer to that wlr_surface and the sx and sy coordinates to the
+	 * coordinates relative to that surface's top-left corner.
+	 */
+	double client_sx = lx - c->x;
+	double client_sy = ly - c->y;
+
+	struct wlr_surface_state *state = &c->xdg_surface->surface->current;
+
+	double _sx, _sy;
+	struct wlr_surface *_surface = NULL;
+	_surface = wlr_xdg_surface_surface_at(
+			c->xdg_surface, client_sx, client_sy, &_sx, &_sy);
+
+	if (_surface != NULL) {
+		*sx = _sx;
+		*sy = _sy;
+		*surface = _surface;
+		return true;
+	}
+
+	return false;
+}
+
+int
+main(int argc, char *argv[])
+{
+	wlr_log_init(WLR_DEBUG, NULL);
+	char *startup_cmd = NULL;
+
+	int c;
+	while ((c = getopt(argc, argv, "s:h")) != -1) {
+		switch (c) {
+		case 's':
+			startup_cmd = optarg;
+			break;
+		default:
+			printf("Usage: %s [-s startup command]\n", argv[0]);
+			return 0;
 		}
 	}
-	/* Run the Wayland event loop. This does not return until you exit the
-	 * compositor. Starting the backend rigged up all of the necessary event
-	 * loop configuration to listen to libinput events, DRM events, generate
-	 * frame events at the refresh rate, and so on. */
-	wlr_log(WLR_INFO, "Running Wayland compositor on WAYLAND_DISPLAY=%s",
-			socket);
-	wl_display_run(wl_display);
-
-	if (startup_cmd) {
-		kill(startup_pid, SIGTERM);
-		waitpid(startup_pid, NULL, 0);
+	if (optind < argc) {
+		printf("Usage: %s [-s startup command]\n", argv[0]);
+		return 0;
 	}
+
+	/* The Wayland display is managed by libwayland. It handles accepting
+	 * clients from the Unix socket, manging Wayland globals, and so on. */
+	wl_display = wl_display_create();
+
+	setup();
+	run(startup_cmd);
 
 	/* Once wl_display_run returns, we shut down the server. */
 	wl_display_destroy_clients(wl_display);
