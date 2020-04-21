@@ -104,14 +104,12 @@ static void motionabsolute(struct wl_listener *listener, void *data);
 static void motionnotify(uint32_t time);
 static void motionrelative(struct wl_listener *listener, void *data);
 static void movemouse(const Arg *arg);
-static void moverequest(struct wl_listener *listener, void *data);
 static void moveresize(struct dwl_view *view, unsigned int mode,
 		uint32_t edges);
 static void quit(const Arg *arg);
 static void render(struct wlr_surface *surface, int sx, int sy, void *data);
 static void renderoutput(struct wl_listener *listener, void *data);
 static void resizemouse(const Arg *arg);
-static void resizerequest(struct wl_listener *listener, void *data);
 static void setcursor(struct wl_listener *listener, void *data);
 static void spawn(const Arg *arg);
 static void unmapnotify(struct wl_listener *listener, void *data);
@@ -257,13 +255,6 @@ createnotify(struct wl_listener *listener, void *data)
 	wl_signal_add(&xdg_surface->events.unmap, &view->unmap);
 	view->destroy.notify = destroynotify;
 	wl_signal_add(&xdg_surface->events.destroy, &view->destroy);
-
-	/* cotd */
-	struct wlr_xdg_toplevel *toplevel = xdg_surface->toplevel;
-	view->request_move.notify = moverequest;
-	wl_signal_add(&toplevel->events.request_move, &view->request_move);
-	view->request_resize.notify = resizerequest;
-	wl_signal_add(&toplevel->events.request_resize, &view->request_resize);
 
 	/* Add it to the list of views. */
 	wl_list_insert(&views, &view->link);
@@ -643,18 +634,6 @@ movemouse(const Arg *arg)
 }
 
 void
-moverequest(struct wl_listener *listener, void *data)
-{
-	/* This event is raised when a client would like to begin an interactive
-	 * move, typically because the user clicked on their client-side
-	 * decorations. Note that a more sophisticated compositor should check the
-	 * provied serial against a list of button press serials sent to this
-	 * client, to prevent the client from requesting this whenever they want. */
-	struct dwl_view *view = wl_container_of(listener, view, request_move);
-	moveresize(view, CurMove, 0);
-}
-
-void
 moveresize(struct dwl_view *view, unsigned int mode, uint32_t edges)
 {
 	/* This function sets up an interactive move or resize operation, where the
@@ -823,19 +802,6 @@ resizemouse(const Arg *arg)
 			view->x + geo_box.x + geo_box.width,
 			view->y + geo_box.y + geo_box.height);
 	moveresize(view, CurResize, WLR_EDGE_BOTTOM|WLR_EDGE_RIGHT);
-}
-
-void
-resizerequest(struct wl_listener *listener, void *data)
-{
-	/* This event is raised when a client would like to begin an interactive
-	 * resize, typically because the user clicked on their client-side
-	 * decorations. Note that a more sophisticated compositor should check the
-	 * provied serial against a list of button press serials sent to this
-	 * client, to prevent the client from requesting this whenever they want. */
-	struct wlr_xdg_toplevel_resize_event *event = data;
-	struct dwl_view *view = wl_container_of(listener, view, request_resize);
-	moveresize(view, CurResize, event->edges);
 }
 
 void
