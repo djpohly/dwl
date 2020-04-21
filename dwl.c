@@ -121,15 +121,252 @@ typedef struct {
 	const Arg arg;
 } Button;
 
-static void focusnext(struct dwl_server *, const Arg *);
-static void movemouse(struct dwl_server *, const Arg *);
-static void quit(struct dwl_server *, const Arg *);
-static void resizemouse(struct dwl_server *, const Arg *);
-static void spawn(struct dwl_server *, const Arg *);
+/* function declarations */
+static void axisnotify(struct wl_listener *listener, void *data);
+static void buttonpress(struct wl_listener *listener, void *data);
+static void createkeyboard(struct dwl_server *server,
+		struct wlr_input_device *device);
+static void createnotify(struct wl_listener *listener, void *data);
+static void createoutput(struct wl_listener *listener, void *data);
+static void createpointer(struct dwl_server *server,
+		struct wlr_input_device *device);
+static void cursorframe(struct wl_listener *listener, void *data);
+static void destroynotify(struct wl_listener *listener, void *data);
+static void focus(struct dwl_view *view, struct wlr_surface *surface);
+static void focusnext(struct dwl_server *server, const Arg *arg);
+static void handlemove(struct dwl_server *server, uint32_t time);
+static void handleresize(struct dwl_server *server, uint32_t time);
+static void inputdevice(struct wl_listener *listener, void *data);
+static bool keybinding(struct dwl_server *server, uint32_t mods, xkb_keysym_t sym);
+static void keypress(struct wl_listener *listener, void *data);
+static void keypressmod(struct wl_listener *listener, void *data);
+static void maprequest(struct wl_listener *listener, void *data);
+static void motionabsolute(struct wl_listener *listener, void *data);
+static void motionnotify(struct dwl_server *server, uint32_t time);
+static void motionrelative(struct wl_listener *listener, void *data);
+static void movemouse(struct dwl_server *server, const Arg *arg);
+static void moverequest(struct wl_listener *listener, void *data);
+static void moveresize(struct dwl_view *view, enum dwl_cursor_mode mode,
+		uint32_t edges);
+static void quit(struct dwl_server *server, const Arg *arg);
+static void render(struct wlr_surface *surface, int sx, int sy, void *data);
+static void renderoutput(struct wl_listener *listener, void *data);
+static void resizemouse(struct dwl_server *server, const Arg *arg);
+static void resizerequest(struct wl_listener *listener, void *data);
+static void setcursor(struct wl_listener *listener, void *data);
+static void spawn(struct dwl_server *server, const Arg *arg);
+static void unmapnotify(struct wl_listener *listener, void *data);
+static bool xytosurface(struct dwl_view *view, double lx, double ly,
+		struct wlr_surface **surface, double *sx, double *sy);
+static struct dwl_view * xytoview(struct dwl_server *server, double lx, double ly,
+		struct wlr_surface **surface, double *sx, double *sy);
 
 #include "config.h"
 
-static void
+/* Used to move all of the data necessary to render a surface from the top-level
+ * frame handler to the per-surface render function. */
+struct render_data {
+	struct wlr_output *output;
+	struct wlr_renderer *renderer;
+	struct dwl_view *view;
+	struct timespec *when;
+};
+
+void
+axisnotify(struct wl_listener *listener, void *data)
+{
+	/* This event is forwarded by the cursor when a pointer emits an axis event,
+	 * for example when you move the scroll wheel. */
+	struct dwl_server *server =
+		wl_container_of(listener, server, cursor_axis);
+	struct wlr_event_pointer_axis *event = data;
+	/* Notify the client with pointer focus of the axis event. */
+	wlr_seat_pointer_notify_axis(server->seat,
+			event->time_msec, event->orientation, event->delta,
+			event->delta_discrete, event->source);
+}
+
+void
+buttonpress(struct wl_listener *listener, void *data)
+{
+	/* This event is forwarded by the cursor when a pointer emits a button
+	 * event. */
+	struct dwl_server *server =
+		wl_container_of(listener, server, cursor_button);
+	struct wlr_event_pointer_button *event = data;
+	/* Notify the client with pointer focus that a button press has occurred */
+	wlr_seat_pointer_notify_button(server->seat,
+			event->time_msec, event->button, event->state);
+	double sx, sy;
+	struct wlr_seat *seat = server->seat;
+	struct wlr_surface *surface;
+	struct dwl_view *view = xytoview(server,
+			server->cursor->x, server->cursor->y, &surface, &sx, &sy);
+	if (event->state == WLR_BUTTON_RELEASED) {
+		/* If you released any buttons, we exit interactive move/resize mode. */
+		server->cursor_mode = DWL_CURSOR_PASSTHROUGH;
+	} else {
+		/* Focus that client if the button was _pressed_ */
+		focus(view, surface);
+
+		struct wlr_keyboard *keyboard = wlr_seat_get_keyboard(seat);
+		uint32_t mods = wlr_keyboard_get_modifiers(keyboard);
+		for (int i = 0; i < LENGTH(buttons); i++) {
+			if (event->button == buttons[i].button &&
+					CLEANMASK(mods) == CLEANMASK(buttons[i].mod) &&
+					buttons[i].func) {
+				buttons[i].func(server, &buttons[i].arg);
+			}
+		}
+	}
+}
+
+void
+createkeyboard(struct dwl_server *server, struct wlr_input_device *device)
+{
+	struct dwl_keyboard *keyboard =
+		calloc(1, sizeof(struct dwl_keyboard));
+	keyboard->server = server;
+	keyboard->device = device;
+
+	/* We need to prepare an XKB keymap and assign it to the keyboard. This
+	 * assumes the defaults (e.g. layout = "us"). */
+	struct xkb_context *context = xkb_context_new(XKB_CONTEXT_NO_FLAGS);
+	struct xkb_keymap *keymap = xkb_map_new_from_names(context, &xkb_rules,
+		XKB_KEYMAP_COMPILE_NO_FLAGS);
+
+	wlr_keyboard_set_keymap(device->keyboard, keymap);
+	xkb_keymap_unref(keymap);
+	xkb_context_unref(context);
+	wlr_keyboard_set_repeat_info(device->keyboard, 25, 600);
+
+	/* Here we set up listeners for keyboard events. */
+	keyboard->modifiers.notify = keypressmod;
+	wl_signal_add(&device->keyboard->events.modifiers, &keyboard->modifiers);
+	keyboard->key.notify = keypress;
+	wl_signal_add(&device->keyboard->events.key, &keyboard->key);
+
+	wlr_seat_set_keyboard(server->seat, device);
+
+	/* And add the keyboard to our list of keyboards */
+	wl_list_insert(&server->keyboards, &keyboard->link);
+}
+
+void
+createnotify(struct wl_listener *listener, void *data)
+{
+	/* This event is raised when wlr_xdg_shell receives a new xdg surface from a
+	 * client, either a toplevel (application window) or popup. */
+	struct dwl_server *server =
+		wl_container_of(listener, server, new_xdg_surface);
+	struct wlr_xdg_surface *xdg_surface = data;
+	if (xdg_surface->role != WLR_XDG_SURFACE_ROLE_TOPLEVEL) {
+		return;
+	}
+
+	/* Allocate a dwl_view for this surface */
+	struct dwl_view *view =
+		calloc(1, sizeof(struct dwl_view));
+	view->server = server;
+	view->xdg_surface = xdg_surface;
+
+	/* Listen to the various events it can emit */
+	view->map.notify = maprequest;
+	wl_signal_add(&xdg_surface->events.map, &view->map);
+	view->unmap.notify = unmapnotify;
+	wl_signal_add(&xdg_surface->events.unmap, &view->unmap);
+	view->destroy.notify = destroynotify;
+	wl_signal_add(&xdg_surface->events.destroy, &view->destroy);
+
+	/* cotd */
+	struct wlr_xdg_toplevel *toplevel = xdg_surface->toplevel;
+	view->request_move.notify = moverequest;
+	wl_signal_add(&toplevel->events.request_move, &view->request_move);
+	view->request_resize.notify = resizerequest;
+	wl_signal_add(&toplevel->events.request_resize, &view->request_resize);
+
+	/* Add it to the list of views. */
+	wl_list_insert(&server->views, &view->link);
+}
+
+void
+createoutput(struct wl_listener *listener, void *data)
+{
+	/* This event is rasied by the backend when a new output (aka a display or
+	 * monitor) becomes available. */
+	struct dwl_server *server =
+		wl_container_of(listener, server, new_output);
+	struct wlr_output *wlr_output = data;
+
+	/* Some backends don't have modes. DRM+KMS does, and we need to set a mode
+	 * before we can use the output. The mode is a tuple of (width, height,
+	 * refresh rate), and each monitor supports only a specific set of modes. We
+	 * just pick the monitor's preferred mode, a more sophisticated compositor
+	 * would let the user configure it. */
+	if (!wl_list_empty(&wlr_output->modes)) {
+		struct wlr_output_mode *mode = wlr_output_preferred_mode(wlr_output);
+		wlr_output_set_mode(wlr_output, mode);
+		wlr_output_enable(wlr_output, true);
+		if (!wlr_output_commit(wlr_output)) {
+			return;
+		}
+	}
+
+	/* Allocates and configures our state for this output */
+	struct dwl_output *output =
+		calloc(1, sizeof(struct dwl_output));
+	output->wlr_output = wlr_output;
+	output->server = server;
+	/* Sets up a listener for the frame notify event. */
+	output->frame.notify = renderoutput;
+	wl_signal_add(&wlr_output->events.frame, &output->frame);
+	wl_list_insert(&server->outputs, &output->link);
+
+	/* Adds this to the output layout. The add_auto function arranges outputs
+	 * from left-to-right in the order they appear. A more sophisticated
+	 * compositor would let the user configure the arrangement of outputs in the
+	 * layout. */
+	wlr_output_layout_add_auto(server->output_layout, wlr_output);
+
+	/* Creating the global adds a wl_output global to the display, which Wayland
+	 * clients can see to find out information about the output (such as
+	 * DPI, scale factor, manufacturer, etc). */
+	wlr_output_create_global(wlr_output);
+}
+
+void
+createpointer(struct dwl_server *server, struct wlr_input_device *device)
+{
+	/* We don't do anything special with pointers. All of our pointer handling
+	 * is proxied through wlr_cursor. On another compositor, you might take this
+	 * opportunity to do libinput configuration on the device to set
+	 * acceleration, etc. */
+	wlr_cursor_attach_input_device(server->cursor, device);
+}
+
+void
+cursorframe(struct wl_listener *listener, void *data)
+{
+	/* This event is forwarded by the cursor when a pointer emits an frame
+	 * event. Frame events are sent after regular pointer events to group
+	 * multiple events together. For instance, two axis events may happen at the
+	 * same time, in which case a frame event won't be sent in between. */
+	struct dwl_server *server =
+		wl_container_of(listener, server, cursor_frame);
+	/* Notify the client with pointer focus of the frame event. */
+	wlr_seat_pointer_notify_frame(server->seat);
+}
+
+void
+destroynotify(struct wl_listener *listener, void *data)
+{
+	/* Called when the surface is destroyed and should never be shown again. */
+	struct dwl_view *view = wl_container_of(listener, view, destroy);
+	wl_list_remove(&view->link);
+	free(view);
+}
+
+void
 focus(struct dwl_view *view, struct wlr_surface *surface)
 {
 	/* Note: this function only deals with keyboard focus. */
@@ -168,44 +405,7 @@ focus(struct dwl_view *view, struct wlr_surface *surface)
 		keyboard->keycodes, keyboard->num_keycodes, &keyboard->modifiers);
 }
 
-static void
-keypressmod(struct wl_listener *listener, void *data)
-{
-	/* This event is raised when a modifier key, such as shift or alt, is
-	 * pressed. We simply communicate this to the client. */
-	struct dwl_keyboard *keyboard =
-		wl_container_of(listener, keyboard, modifiers);
-	/*
-	 * A seat can only have one keyboard, but this is a limitation of the
-	 * Wayland protocol - not wlroots. We assign all connected keyboards to the
-	 * same seat. You can swap out the underlying wlr_keyboard like this and
-	 * wlr_seat handles this transparently.
-	 */
-	wlr_seat_set_keyboard(keyboard->server->seat, keyboard->device);
-	/* Send modifiers to the client. */
-	wlr_seat_keyboard_notify_modifiers(keyboard->server->seat,
-		&keyboard->device->keyboard->modifiers);
-}
-
-static void
-quit(struct dwl_server *server, const Arg *arg)
-{
-	wl_display_terminate(server->wl_display);
-}
-
-static void
-spawn(struct dwl_server *server, const Arg *arg)
-{
-	if (fork() == 0) {
-		setsid();
-		execvp(((char **)arg->v)[0], (char **)arg->v);
-		fprintf(stderr, "dwl: execvp %s", ((char **)arg->v)[0]);
-		perror(" failed");
-		exit(EXIT_FAILURE);
-	}
-}
-
-static void
+void
 focusnext(struct dwl_server *server, const Arg *arg)
 {
 	/* Cycle to the next view */
@@ -222,197 +422,7 @@ focusnext(struct dwl_server *server, const Arg *arg)
 	wl_list_insert(server->views.prev, &current_view->link);
 }
 
-static bool
-keybinding(struct dwl_server *server, uint32_t mods, xkb_keysym_t sym)
-{
-	/*
-	 * Here we handle compositor keybindings. This is when the compositor is
-	 * processing keys, rather than passing them on to the client for its own
-	 * processing.
-	 */
-	bool handled = false;
-	for (int i = 0; i < LENGTH(keys); i++) {
-		if (sym == keys[i].keysym &&
-				CLEANMASK(mods) == CLEANMASK(keys[i].mod) &&
-				keys[i].func) {
-			keys[i].func(server, &keys[i].arg);
-			handled = true;
-		}
-	}
-	return handled;
-}
-
-static void
-keypress(struct wl_listener *listener, void *data)
-{
-	/* This event is raised when a key is pressed or released. */
-	struct dwl_keyboard *keyboard =
-		wl_container_of(listener, keyboard, key);
-	struct dwl_server *server = keyboard->server;
-	struct wlr_event_keyboard_key *event = data;
-	struct wlr_seat *seat = server->seat;
-
-	/* Translate libinput keycode -> xkbcommon */
-	uint32_t keycode = event->keycode + 8;
-	/* Get a list of keysyms based on the keymap for this keyboard */
-	const xkb_keysym_t *syms;
-	int nsyms = xkb_state_key_get_syms(
-			keyboard->device->keyboard->xkb_state, keycode, &syms);
-
-	bool handled = false;
-	uint32_t mods = wlr_keyboard_get_modifiers(keyboard->device->keyboard);
-	if (event->state == WLR_KEY_PRESSED) {
-		/* On _press_, attempt to process a compositor keybinding. */
-		for (int i = 0; i < nsyms; i++) {
-			handled = keybinding(server, mods, syms[i]) || handled;
-		}
-	}
-
-	if (!handled) {
-		/* Otherwise, we pass it along to the client. */
-		wlr_seat_set_keyboard(seat, keyboard->device);
-		wlr_seat_keyboard_notify_key(seat, event->time_msec,
-			event->keycode, event->state);
-	}
-}
-
-static void
-createkeyboard(struct dwl_server *server, struct wlr_input_device *device)
-{
-	struct dwl_keyboard *keyboard =
-		calloc(1, sizeof(struct dwl_keyboard));
-	keyboard->server = server;
-	keyboard->device = device;
-
-	/* We need to prepare an XKB keymap and assign it to the keyboard. This
-	 * assumes the defaults (e.g. layout = "us"). */
-	struct xkb_context *context = xkb_context_new(XKB_CONTEXT_NO_FLAGS);
-	struct xkb_keymap *keymap = xkb_map_new_from_names(context, &xkb_rules,
-		XKB_KEYMAP_COMPILE_NO_FLAGS);
-
-	wlr_keyboard_set_keymap(device->keyboard, keymap);
-	xkb_keymap_unref(keymap);
-	xkb_context_unref(context);
-	wlr_keyboard_set_repeat_info(device->keyboard, 25, 600);
-
-	/* Here we set up listeners for keyboard events. */
-	keyboard->modifiers.notify = keypressmod;
-	wl_signal_add(&device->keyboard->events.modifiers, &keyboard->modifiers);
-	keyboard->key.notify = keypress;
-	wl_signal_add(&device->keyboard->events.key, &keyboard->key);
-
-	wlr_seat_set_keyboard(server->seat, device);
-
-	/* And add the keyboard to our list of keyboards */
-	wl_list_insert(&server->keyboards, &keyboard->link);
-}
-
-static void
-createpointer(struct dwl_server *server, struct wlr_input_device *device)
-{
-	/* We don't do anything special with pointers. All of our pointer handling
-	 * is proxied through wlr_cursor. On another compositor, you might take this
-	 * opportunity to do libinput configuration on the device to set
-	 * acceleration, etc. */
-	wlr_cursor_attach_input_device(server->cursor, device);
-}
-
-static void
-inputdevice(struct wl_listener *listener, void *data)
-{
-	/* This event is raised by the backend when a new input device becomes
-	 * available. */
-	struct dwl_server *server =
-		wl_container_of(listener, server, new_input);
-	struct wlr_input_device *device = data;
-	switch (device->type) {
-	case WLR_INPUT_DEVICE_KEYBOARD:
-		createkeyboard(server, device);
-		break;
-	case WLR_INPUT_DEVICE_POINTER:
-		createpointer(server, device);
-		break;
-	default:
-		break;
-	}
-	/* We need to let the wlr_seat know what our capabilities are, which is
-	 * communiciated to the client. In dwl we always have a cursor, even if
-	 * there are no pointer devices, so we always include that capability. */
-	uint32_t caps = WL_SEAT_CAPABILITY_POINTER;
-	if (!wl_list_empty(&server->keyboards)) {
-		caps |= WL_SEAT_CAPABILITY_KEYBOARD;
-	}
-	wlr_seat_set_capabilities(server->seat, caps);
-}
-
-static void
-setcursor(struct wl_listener *listener, void *data)
-{
-	struct dwl_server *server = wl_container_of(
-			listener, server, request_cursor);
-	/* This event is rasied by the seat when a client provides a cursor image */
-	struct wlr_seat_pointer_request_set_cursor_event *event = data;
-	struct wlr_seat_client *focused_client =
-		server->seat->pointer_state.focused_client;
-	/* This can be sent by any client, so we check to make sure this one is
-	 * actually has pointer focus first. */
-	if (focused_client == event->seat_client) {
-		/* Once we've vetted the client, we can tell the cursor to use the
-		 * provided surface as the cursor image. It will set the hardware cursor
-		 * on the output that it's currently on and continue to do so as the
-		 * cursor moves between outputs. */
-		wlr_cursor_set_surface(server->cursor, event->surface,
-				event->hotspot_x, event->hotspot_y);
-	}
-}
-
-static bool
-xytosurface(struct dwl_view *view, double lx, double ly,
-		struct wlr_surface **surface, double *sx, double *sy)
-{
-	/*
-	 * XDG toplevels may have nested surfaces, such as popup windows for context
-	 * menus or tooltips. This function tests if any of those are underneath the
-	 * coordinates lx and ly (in output Layout Coordinates). If so, it sets the
-	 * surface pointer to that wlr_surface and the sx and sy coordinates to the
-	 * coordinates relative to that surface's top-left corner.
-	 */
-	double view_sx = lx - view->x;
-	double view_sy = ly - view->y;
-
-	struct wlr_surface_state *state = &view->xdg_surface->surface->current;
-
-	double _sx, _sy;
-	struct wlr_surface *_surface = NULL;
-	_surface = wlr_xdg_surface_surface_at(
-			view->xdg_surface, view_sx, view_sy, &_sx, &_sy);
-
-	if (_surface != NULL) {
-		*sx = _sx;
-		*sy = _sy;
-		*surface = _surface;
-		return true;
-	}
-
-	return false;
-}
-
-static struct dwl_view *
-xytoview(struct dwl_server *server, double lx, double ly,
-		struct wlr_surface **surface, double *sx, double *sy)
-{
-	/* This iterates over all of our surfaces and attempts to find one under the
-	 * cursor. This relies on server->views being ordered from top-to-bottom. */
-	struct dwl_view *view;
-	wl_list_for_each(view, &server->views, link) {
-		if (xytosurface(view, lx, ly, surface, sx, sy)) {
-			return view;
-		}
-	}
-	return NULL;
-}
-
-static void
+void
 handlemove(struct dwl_server *server, uint32_t time)
 {
 	/* Move the grabbed view to the new position. */
@@ -420,7 +430,7 @@ handlemove(struct dwl_server *server, uint32_t time)
 	server->grabbed_view->y = server->cursor->y - server->grab_y;
 }
 
-static void
+void
 handleresize(struct dwl_server *server, uint32_t time)
 {
 	/*
@@ -463,7 +473,134 @@ handleresize(struct dwl_server *server, uint32_t time)
 	wlr_xdg_toplevel_set_size(view->xdg_surface, width, height);
 }
 
-static void motionnotify(struct dwl_server *server, uint32_t time)
+void
+inputdevice(struct wl_listener *listener, void *data)
+{
+	/* This event is raised by the backend when a new input device becomes
+	 * available. */
+	struct dwl_server *server =
+		wl_container_of(listener, server, new_input);
+	struct wlr_input_device *device = data;
+	switch (device->type) {
+	case WLR_INPUT_DEVICE_KEYBOARD:
+		createkeyboard(server, device);
+		break;
+	case WLR_INPUT_DEVICE_POINTER:
+		createpointer(server, device);
+		break;
+	default:
+		break;
+	}
+	/* We need to let the wlr_seat know what our capabilities are, which is
+	 * communiciated to the client. In dwl we always have a cursor, even if
+	 * there are no pointer devices, so we always include that capability. */
+	uint32_t caps = WL_SEAT_CAPABILITY_POINTER;
+	if (!wl_list_empty(&server->keyboards)) {
+		caps |= WL_SEAT_CAPABILITY_KEYBOARD;
+	}
+	wlr_seat_set_capabilities(server->seat, caps);
+}
+
+bool
+keybinding(struct dwl_server *server, uint32_t mods, xkb_keysym_t sym)
+{
+	/*
+	 * Here we handle compositor keybindings. This is when the compositor is
+	 * processing keys, rather than passing them on to the client for its own
+	 * processing.
+	 */
+	bool handled = false;
+	for (int i = 0; i < LENGTH(keys); i++) {
+		if (sym == keys[i].keysym &&
+				CLEANMASK(mods) == CLEANMASK(keys[i].mod) &&
+				keys[i].func) {
+			keys[i].func(server, &keys[i].arg);
+			handled = true;
+		}
+	}
+	return handled;
+}
+
+void
+keypress(struct wl_listener *listener, void *data)
+{
+	/* This event is raised when a key is pressed or released. */
+	struct dwl_keyboard *keyboard =
+		wl_container_of(listener, keyboard, key);
+	struct dwl_server *server = keyboard->server;
+	struct wlr_event_keyboard_key *event = data;
+	struct wlr_seat *seat = server->seat;
+
+	/* Translate libinput keycode -> xkbcommon */
+	uint32_t keycode = event->keycode + 8;
+	/* Get a list of keysyms based on the keymap for this keyboard */
+	const xkb_keysym_t *syms;
+	int nsyms = xkb_state_key_get_syms(
+			keyboard->device->keyboard->xkb_state, keycode, &syms);
+
+	bool handled = false;
+	uint32_t mods = wlr_keyboard_get_modifiers(keyboard->device->keyboard);
+	if (event->state == WLR_KEY_PRESSED) {
+		/* On _press_, attempt to process a compositor keybinding. */
+		for (int i = 0; i < nsyms; i++) {
+			handled = keybinding(server, mods, syms[i]) || handled;
+		}
+	}
+
+	if (!handled) {
+		/* Otherwise, we pass it along to the client. */
+		wlr_seat_set_keyboard(seat, keyboard->device);
+		wlr_seat_keyboard_notify_key(seat, event->time_msec,
+			event->keycode, event->state);
+	}
+}
+
+void
+keypressmod(struct wl_listener *listener, void *data)
+{
+	/* This event is raised when a modifier key, such as shift or alt, is
+	 * pressed. We simply communicate this to the client. */
+	struct dwl_keyboard *keyboard =
+		wl_container_of(listener, keyboard, modifiers);
+	/*
+	 * A seat can only have one keyboard, but this is a limitation of the
+	 * Wayland protocol - not wlroots. We assign all connected keyboards to the
+	 * same seat. You can swap out the underlying wlr_keyboard like this and
+	 * wlr_seat handles this transparently.
+	 */
+	wlr_seat_set_keyboard(keyboard->server->seat, keyboard->device);
+	/* Send modifiers to the client. */
+	wlr_seat_keyboard_notify_modifiers(keyboard->server->seat,
+		&keyboard->device->keyboard->modifiers);
+}
+
+void
+maprequest(struct wl_listener *listener, void *data)
+{
+	/* Called when the surface is mapped, or ready to display on-screen. */
+	struct dwl_view *view = wl_container_of(listener, view, map);
+	view->mapped = true;
+	focus(view, view->xdg_surface->surface);
+}
+
+void
+motionabsolute(struct wl_listener *listener, void *data)
+{
+	/* This event is forwarded by the cursor when a pointer emits an _absolute_
+	 * motion event, from 0..1 on each axis. This happens, for example, when
+	 * wlroots is running under a Wayland window rather than KMS+DRM, and you
+	 * move the mouse over the window. You could enter the window from any edge,
+	 * so we have to warp the mouse there. There is also some hardware which
+	 * emits these events. */
+	struct dwl_server *server =
+		wl_container_of(listener, server, cursor_motion_absolute);
+	struct wlr_event_pointer_motion_absolute *event = data;
+	wlr_cursor_warp_absolute(server->cursor, event->device, event->x, event->y);
+	motionnotify(server, event->time_msec);
+}
+
+void
+motionnotify(struct dwl_server *server, uint32_t time)
 {
 	/* If the mode is non-passthrough, delegate to those functions. */
 	if (server->cursor_mode == DWL_CURSOR_MOVE) {
@@ -510,7 +647,7 @@ static void motionnotify(struct dwl_server *server, uint32_t time)
 	}
 }
 
-static void
+void
 motionrelative(struct wl_listener *listener, void *data)
 {
 	/* This event is forwarded by the cursor when a pointer emits a _relative_
@@ -528,94 +665,67 @@ motionrelative(struct wl_listener *listener, void *data)
 	motionnotify(server, event->time_msec);
 }
 
-static void
-motionabsolute(struct wl_listener *listener, void *data)
+void
+movemouse(struct dwl_server *server, const Arg *arg)
 {
-	/* This event is forwarded by the cursor when a pointer emits an _absolute_
-	 * motion event, from 0..1 on each axis. This happens, for example, when
-	 * wlroots is running under a Wayland window rather than KMS+DRM, and you
-	 * move the mouse over the window. You could enter the window from any edge,
-	 * so we have to warp the mouse there. There is also some hardware which
-	 * emits these events. */
-	struct dwl_server *server =
-		wl_container_of(listener, server, cursor_motion_absolute);
-	struct wlr_event_pointer_motion_absolute *event = data;
-	wlr_cursor_warp_absolute(server->cursor, event->device, event->x, event->y);
-	motionnotify(server, event->time_msec);
-}
-
-static void
-buttonpress(struct wl_listener *listener, void *data)
-{
-	/* This event is forwarded by the cursor when a pointer emits a button
-	 * event. */
-	struct dwl_server *server =
-		wl_container_of(listener, server, cursor_button);
-	struct wlr_event_pointer_button *event = data;
-	/* Notify the client with pointer focus that a button press has occurred */
-	wlr_seat_pointer_notify_button(server->seat,
-			event->time_msec, event->button, event->state);
 	double sx, sy;
-	struct wlr_seat *seat = server->seat;
 	struct wlr_surface *surface;
 	struct dwl_view *view = xytoview(server,
 			server->cursor->x, server->cursor->y, &surface, &sx, &sy);
-	if (event->state == WLR_BUTTON_RELEASED) {
-		/* If you released any buttons, we exit interactive move/resize mode. */
-		server->cursor_mode = DWL_CURSOR_PASSTHROUGH;
-	} else {
-		/* Focus that client if the button was _pressed_ */
-		focus(view, surface);
-
-		struct wlr_keyboard *keyboard = wlr_seat_get_keyboard(seat);
-		uint32_t mods = wlr_keyboard_get_modifiers(keyboard);
-		for (int i = 0; i < LENGTH(buttons); i++) {
-			if (event->button == buttons[i].button &&
-					CLEANMASK(mods) == CLEANMASK(buttons[i].mod) &&
-					buttons[i].func) {
-				buttons[i].func(server, &buttons[i].arg);
-			}
-		}
+	if (!view) {
+		return;
 	}
+	moveresize(view, DWL_CURSOR_MOVE, 0);
 }
 
-static void
-axisnotify(struct wl_listener *listener, void *data)
+void
+moverequest(struct wl_listener *listener, void *data)
 {
-	/* This event is forwarded by the cursor when a pointer emits an axis event,
-	 * for example when you move the scroll wheel. */
-	struct dwl_server *server =
-		wl_container_of(listener, server, cursor_axis);
-	struct wlr_event_pointer_axis *event = data;
-	/* Notify the client with pointer focus of the axis event. */
-	wlr_seat_pointer_notify_axis(server->seat,
-			event->time_msec, event->orientation, event->delta,
-			event->delta_discrete, event->source);
+	/* This event is raised when a client would like to begin an interactive
+	 * move, typically because the user clicked on their client-side
+	 * decorations. Note that a more sophisticated compositor should check the
+	 * provied serial against a list of button press serials sent to this
+	 * client, to prevent the client from requesting this whenever they want. */
+	struct dwl_view *view = wl_container_of(listener, view, request_move);
+	moveresize(view, DWL_CURSOR_MOVE, 0);
 }
 
-static void
-cursorframe(struct wl_listener *listener, void *data)
+void
+moveresize(struct dwl_view *view, enum dwl_cursor_mode mode, uint32_t edges)
 {
-	/* This event is forwarded by the cursor when a pointer emits an frame
-	 * event. Frame events are sent after regular pointer events to group
-	 * multiple events together. For instance, two axis events may happen at the
-	 * same time, in which case a frame event won't be sent in between. */
-	struct dwl_server *server =
-		wl_container_of(listener, server, cursor_frame);
-	/* Notify the client with pointer focus of the frame event. */
-	wlr_seat_pointer_notify_frame(server->seat);
+	/* This function sets up an interactive move or resize operation, where the
+	 * compositor stops propagating pointer events to clients and instead
+	 * consumes them itself, to move or resize windows. */
+	struct dwl_server *server = view->server;
+	struct wlr_surface *focused_surface =
+		server->seat->pointer_state.focused_surface;
+	if (view->xdg_surface->surface != focused_surface) {
+		/* Deny move/resize requests from unfocused clients. */
+		return;
+	}
+	server->grabbed_view = view;
+	server->cursor_mode = mode;
+	struct wlr_box geo_box;
+	wlr_xdg_surface_get_geometry(view->xdg_surface, &geo_box);
+	if (mode == DWL_CURSOR_MOVE) {
+		server->grab_x = server->cursor->x - view->x;
+		server->grab_y = server->cursor->y - view->y;
+	} else {
+		server->grab_x = server->cursor->x + geo_box.x;
+		server->grab_y = server->cursor->y + geo_box.y;
+	}
+	server->grab_width = geo_box.width;
+	server->grab_height = geo_box.height;
+	server->resize_edges = edges;
 }
 
-/* Used to move all of the data necessary to render a surface from the top-level
- * frame handler to the per-surface render function. */
-struct render_data {
-	struct wlr_output *output;
-	struct wlr_renderer *renderer;
-	struct dwl_view *view;
-	struct timespec *when;
-};
+void
+quit(struct dwl_server *server, const Arg *arg)
+{
+	wl_display_terminate(server->wl_display);
+}
 
-static void
+void
 render(struct wlr_surface *surface, int sx, int sy, void *data)
 {
 	/* This function is called for every surface that needs to be rendered. */
@@ -677,7 +787,7 @@ render(struct wlr_surface *surface, int sx, int sy, void *data)
 	wlr_surface_send_frame_done(surface, rdata->when);
 }
 
-static void
+void
 renderoutput(struct wl_listener *listener, void *data)
 {
 	/* This function is called every time an output is ready to display a frame,
@@ -736,121 +846,7 @@ renderoutput(struct wl_listener *listener, void *data)
 	wlr_output_commit(output->wlr_output);
 }
 
-static void
-createoutput(struct wl_listener *listener, void *data)
-{
-	/* This event is rasied by the backend when a new output (aka a display or
-	 * monitor) becomes available. */
-	struct dwl_server *server =
-		wl_container_of(listener, server, new_output);
-	struct wlr_output *wlr_output = data;
-
-	/* Some backends don't have modes. DRM+KMS does, and we need to set a mode
-	 * before we can use the output. The mode is a tuple of (width, height,
-	 * refresh rate), and each monitor supports only a specific set of modes. We
-	 * just pick the monitor's preferred mode, a more sophisticated compositor
-	 * would let the user configure it. */
-	if (!wl_list_empty(&wlr_output->modes)) {
-		struct wlr_output_mode *mode = wlr_output_preferred_mode(wlr_output);
-		wlr_output_set_mode(wlr_output, mode);
-		wlr_output_enable(wlr_output, true);
-		if (!wlr_output_commit(wlr_output)) {
-			return;
-		}
-	}
-
-	/* Allocates and configures our state for this output */
-	struct dwl_output *output =
-		calloc(1, sizeof(struct dwl_output));
-	output->wlr_output = wlr_output;
-	output->server = server;
-	/* Sets up a listener for the frame notify event. */
-	output->frame.notify = renderoutput;
-	wl_signal_add(&wlr_output->events.frame, &output->frame);
-	wl_list_insert(&server->outputs, &output->link);
-
-	/* Adds this to the output layout. The add_auto function arranges outputs
-	 * from left-to-right in the order they appear. A more sophisticated
-	 * compositor would let the user configure the arrangement of outputs in the
-	 * layout. */
-	wlr_output_layout_add_auto(server->output_layout, wlr_output);
-
-	/* Creating the global adds a wl_output global to the display, which Wayland
-	 * clients can see to find out information about the output (such as
-	 * DPI, scale factor, manufacturer, etc). */
-	wlr_output_create_global(wlr_output);
-}
-
-static void
-maprequest(struct wl_listener *listener, void *data)
-{
-	/* Called when the surface is mapped, or ready to display on-screen. */
-	struct dwl_view *view = wl_container_of(listener, view, map);
-	view->mapped = true;
-	focus(view, view->xdg_surface->surface);
-}
-
-static void
-unmapnotify(struct wl_listener *listener, void *data)
-{
-	/* Called when the surface is unmapped, and should no longer be shown. */
-	struct dwl_view *view = wl_container_of(listener, view, unmap);
-	view->mapped = false;
-}
-
-static void
-destroynotify(struct wl_listener *listener, void *data)
-{
-	/* Called when the surface is destroyed and should never be shown again. */
-	struct dwl_view *view = wl_container_of(listener, view, destroy);
-	wl_list_remove(&view->link);
-	free(view);
-}
-
-static void
-moveresize(struct dwl_view *view,
-		enum dwl_cursor_mode mode, uint32_t edges)
-{
-	/* This function sets up an interactive move or resize operation, where the
-	 * compositor stops propagating pointer events to clients and instead
-	 * consumes them itself, to move or resize windows. */
-	struct dwl_server *server = view->server;
-	struct wlr_surface *focused_surface =
-		server->seat->pointer_state.focused_surface;
-	if (view->xdg_surface->surface != focused_surface) {
-		/* Deny move/resize requests from unfocused clients. */
-		return;
-	}
-	server->grabbed_view = view;
-	server->cursor_mode = mode;
-	struct wlr_box geo_box;
-	wlr_xdg_surface_get_geometry(view->xdg_surface, &geo_box);
-	if (mode == DWL_CURSOR_MOVE) {
-		server->grab_x = server->cursor->x - view->x;
-		server->grab_y = server->cursor->y - view->y;
-	} else {
-		server->grab_x = server->cursor->x + geo_box.x;
-		server->grab_y = server->cursor->y + geo_box.y;
-	}
-	server->grab_width = geo_box.width;
-	server->grab_height = geo_box.height;
-	server->resize_edges = edges;
-}
-
-static void
-movemouse(struct dwl_server *server, const Arg *arg)
-{
-	double sx, sy;
-	struct wlr_surface *surface;
-	struct dwl_view *view = xytoview(server,
-			server->cursor->x, server->cursor->y, &surface, &sx, &sy);
-	if (!view) {
-		return;
-	}
-	moveresize(view, DWL_CURSOR_MOVE, 0);
-}
-
-static void
+void
 resizemouse(struct dwl_server *server, const Arg *arg)
 {
 	double sx, sy;
@@ -868,19 +864,7 @@ resizemouse(struct dwl_server *server, const Arg *arg)
 	moveresize(view, DWL_CURSOR_RESIZE, WLR_EDGE_BOTTOM|WLR_EDGE_RIGHT);
 }
 
-static void
-moverequest(struct wl_listener *listener, void *data)
-{
-	/* This event is raised when a client would like to begin an interactive
-	 * move, typically because the user clicked on their client-side
-	 * decorations. Note that a more sophisticated compositor should check the
-	 * provied serial against a list of button press serials sent to this
-	 * client, to prevent the client from requesting this whenever they want. */
-	struct dwl_view *view = wl_container_of(listener, view, request_move);
-	moveresize(view, DWL_CURSOR_MOVE, 0);
-}
-
-static void
+void
 resizerequest(struct wl_listener *listener, void *data)
 {
 	/* This event is raised when a client would like to begin an interactive
@@ -893,41 +877,91 @@ resizerequest(struct wl_listener *listener, void *data)
 	moveresize(view, DWL_CURSOR_RESIZE, event->edges);
 }
 
-static void
-createnotify(struct wl_listener *listener, void *data)
+void
+setcursor(struct wl_listener *listener, void *data)
 {
-	/* This event is raised when wlr_xdg_shell receives a new xdg surface from a
-	 * client, either a toplevel (application window) or popup. */
-	struct dwl_server *server =
-		wl_container_of(listener, server, new_xdg_surface);
-	struct wlr_xdg_surface *xdg_surface = data;
-	if (xdg_surface->role != WLR_XDG_SURFACE_ROLE_TOPLEVEL) {
-		return;
+	struct dwl_server *server = wl_container_of(
+			listener, server, request_cursor);
+	/* This event is rasied by the seat when a client provides a cursor image */
+	struct wlr_seat_pointer_request_set_cursor_event *event = data;
+	struct wlr_seat_client *focused_client =
+		server->seat->pointer_state.focused_client;
+	/* This can be sent by any client, so we check to make sure this one is
+	 * actually has pointer focus first. */
+	if (focused_client == event->seat_client) {
+		/* Once we've vetted the client, we can tell the cursor to use the
+		 * provided surface as the cursor image. It will set the hardware cursor
+		 * on the output that it's currently on and continue to do so as the
+		 * cursor moves between outputs. */
+		wlr_cursor_set_surface(server->cursor, event->surface,
+				event->hotspot_x, event->hotspot_y);
+	}
+}
+
+void
+spawn(struct dwl_server *server, const Arg *arg)
+{
+	if (fork() == 0) {
+		setsid();
+		execvp(((char **)arg->v)[0], (char **)arg->v);
+		fprintf(stderr, "dwl: execvp %s", ((char **)arg->v)[0]);
+		perror(" failed");
+		exit(EXIT_FAILURE);
+	}
+}
+
+void
+unmapnotify(struct wl_listener *listener, void *data)
+{
+	/* Called when the surface is unmapped, and should no longer be shown. */
+	struct dwl_view *view = wl_container_of(listener, view, unmap);
+	view->mapped = false;
+}
+
+bool
+xytosurface(struct dwl_view *view, double lx, double ly,
+		struct wlr_surface **surface, double *sx, double *sy)
+{
+	/*
+	 * XDG toplevels may have nested surfaces, such as popup windows for context
+	 * menus or tooltips. This function tests if any of those are underneath the
+	 * coordinates lx and ly (in output Layout Coordinates). If so, it sets the
+	 * surface pointer to that wlr_surface and the sx and sy coordinates to the
+	 * coordinates relative to that surface's top-left corner.
+	 */
+	double view_sx = lx - view->x;
+	double view_sy = ly - view->y;
+
+	struct wlr_surface_state *state = &view->xdg_surface->surface->current;
+
+	double _sx, _sy;
+	struct wlr_surface *_surface = NULL;
+	_surface = wlr_xdg_surface_surface_at(
+			view->xdg_surface, view_sx, view_sy, &_sx, &_sy);
+
+	if (_surface != NULL) {
+		*sx = _sx;
+		*sy = _sy;
+		*surface = _surface;
+		return true;
 	}
 
-	/* Allocate a dwl_view for this surface */
-	struct dwl_view *view =
-		calloc(1, sizeof(struct dwl_view));
-	view->server = server;
-	view->xdg_surface = xdg_surface;
+	return false;
+}
 
-	/* Listen to the various events it can emit */
-	view->map.notify = maprequest;
-	wl_signal_add(&xdg_surface->events.map, &view->map);
-	view->unmap.notify = unmapnotify;
-	wl_signal_add(&xdg_surface->events.unmap, &view->unmap);
-	view->destroy.notify = destroynotify;
-	wl_signal_add(&xdg_surface->events.destroy, &view->destroy);
-
-	/* cotd */
-	struct wlr_xdg_toplevel *toplevel = xdg_surface->toplevel;
-	view->request_move.notify = moverequest;
-	wl_signal_add(&toplevel->events.request_move, &view->request_move);
-	view->request_resize.notify = resizerequest;
-	wl_signal_add(&toplevel->events.request_resize, &view->request_resize);
-
-	/* Add it to the list of views. */
-	wl_list_insert(&server->views, &view->link);
+struct dwl_view *
+xytoview(struct dwl_server *server, double lx, double ly,
+		struct wlr_surface **surface, double *sx, double *sy)
+{
+	/* This iterates over all of our surfaces and attempts to find one under the
+	 * cursor. This relies on server->views being ordered from top-to-bottom. */
+	struct dwl_view *view;
+	wl_list_for_each(view, &server->views, link) {
+		if (xytosurface(view, lx, ly, surface, sx, sy)) {
+			return view;
+		}
+	}
+	return NULL;
 }
 
 int
