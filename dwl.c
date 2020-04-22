@@ -699,11 +699,8 @@ rendermon(struct wl_listener *listener, void *data)
 	if (!wlr_output_attach_render(m->wlr_output, NULL)) {
 		return;
 	}
-	/* The "effective" resolution can change if you rotate your outputs. */
-	int width, height;
-	wlr_output_effective_resolution(m->wlr_output, &width, &height);
 	/* Begin the renderer (calls glViewport and some other GL sanity checks) */
-	wlr_renderer_begin(renderer, width, height);
+	wlr_renderer_begin(renderer, m->wlr_output->width, m->wlr_output->height);
 
 	float color[4] = {0.3, 0.3, 0.3, 1.0};
 	wlr_renderer_clear(renderer, color);
