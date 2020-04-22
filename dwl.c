@@ -55,6 +55,7 @@ typedef struct {
 typedef struct Monitor Monitor;
 typedef struct {
 	struct wl_list link;
+	struct wl_list flink;
 	struct wlr_xdg_surface *xdg_surface;
 	struct wl_listener map;
 	struct wl_listener unmap;
@@ -156,7 +157,8 @@ static struct wlr_renderer *renderer;
 
 static struct wlr_xdg_shell *xdg_shell;
 static struct wl_listener new_xdg_surface;
-static struct wl_list clients;
+static struct wl_list clients; /* tiling order */
+static struct wl_list fstack;  /* focus order */
 
 static struct wlr_cursor *cursor;
 static struct wlr_xcursor_manager *cursor_mgr;
@@ -394,9 +396,9 @@ focus(Client *c, struct wlr_surface *surface)
 		wlr_xdg_toplevel_set_activated(previous, false);
 	}
 	struct wlr_keyboard *keyboard = wlr_seat_get_keyboard(seat);
-	/* Move the client to the front */
-	wl_list_remove(&c->link);
-	wl_list_insert(&clients, &c->link);
+	/* Move the client to the front of the focus stack */
+	wl_list_remove(&c->flink);
+	wl_list_insert(&fstack, &c->flink);
 	/* Activate the new surface */
 	wlr_xdg_toplevel_set_activated(c->xdg_surface, true);
 	/*
@@ -528,6 +530,7 @@ maprequest(struct wl_listener *listener, void *data)
 	/* Insert this client into the list and focus it. */
 	c->mon = selmon;
 	wl_list_insert(&clients, &c->link);
+	wl_list_insert(&fstack, &c->flink);
 	focus(c, c->xdg_surface->surface);
 }
 
@@ -916,13 +919,14 @@ setup(void)
 	new_output.notify = createmon;
 	wl_signal_add(&backend->events.new_output, &new_output);
 
-	/* Set up our list of clients and the xdg-shell. The xdg-shell is a Wayland
-	 * protocol which is used for application windows. For more detail on
-	 * shells, refer to my article:
+	/* Set up our lists of clients and the xdg-shell. The xdg-shell is a
+	 * Wayland protocol which is used for application windows. For more
+	 * detail on shells, refer to the article:
 	 *
 	 * https://drewdevault.com/2018/07/29/Wayland-shells.html
 	 */
 	wl_list_init(&clients);
+	wl_list_init(&fstack);
 	xdg_shell = wlr_xdg_shell_create(wl_display);
 	new_xdg_surface.notify = createnotify;
 	wl_signal_add(&xdg_shell->events.new_surface,
@@ -1035,6 +1039,7 @@ unmapnotify(struct wl_listener *listener, void *data)
 	/* Called when the surface is unmapped, and should no longer be shown. */
 	Client *c = wl_container_of(listener, c, unmap);
 	wl_list_remove(&c->link);
+	wl_list_remove(&c->flink);
 }
 
 Client *
