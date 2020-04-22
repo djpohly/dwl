@@ -81,6 +81,11 @@ typedef struct {
 	struct wl_listener frame;
 } Monitor;
 
+typedef struct {
+	const char *name;
+	float scale;
+} MonitorRule;
+
 /* Used to move all of the data necessary to render a surface from the top-level
  * frame handler to the per-surface render function. */
 struct render_data {
@@ -247,9 +252,17 @@ createmon(struct wl_listener *listener, void *data)
 		}
 	}
 
-	/* Allocates and configures our state for this output */
+	/* Allocates and configures monitor state using configured rules */
 	Monitor *m = calloc(1, sizeof(*m));
 	m->wlr_output = wlr_output;
+	int i;
+	for (i = 0; i < LENGTH(monrules); i++) {
+		if (!monrules[i].name ||
+				!strcmp(wlr_output->name, monrules[i].name)) {
+			wlr_output_set_scale(wlr_output, monrules[i].scale);
+			break;
+		}
+	}
 	/* Sets up a listener for the frame notify event. */
 	m->frame.notify = rendermon;
 	wl_signal_add(&wlr_output->events.frame, &m->frame);

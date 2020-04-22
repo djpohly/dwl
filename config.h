@@ -1,3 +1,14 @@
+/* monitors */
+static const MonitorRule monrules[] = {
+	/* name     scale */
+	{ "X11-1",    1 },
+	{ "eDP-1",    2 },
+	{ "HDMI-A-1", 1 },
+	/* defaults */
+	{ NULL,       1 },
+};
+
+/* keyboard */
 static const struct xkb_rule_names xkb_rules = {
 	.rules = NULL,
 	.model = NULL,
