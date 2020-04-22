@@ -36,6 +36,8 @@ static const Key keys[] = {
 	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_Return, spawn,     {.v = termcmd } },
 	{ MODKEY,                    XKB_KEY_Escape, quit,      {0} },
 	{ MODKEY,                    XKB_KEY_F1,     focusnext, {0} },
+	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_L,      setlayout, {.v = &layouts[0]} },
+	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_F,      setlayout, {.v = &layouts[1]} },
 };
 
 static const Button buttons[] = {

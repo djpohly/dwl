@@ -143,6 +143,7 @@ static void resize(Client *c, int x, int y, int w, int h);
 static void resizemouse(const Arg *arg);
 static void run(char *startup_cmd);
 static void setcursor(struct wl_listener *listener, void *data);
+static void setlayout(const Arg *arg);
 static void setup(void);
 static void spawn(const Arg *arg);
 static void tile(Monitor *m);
@@ -883,6 +884,16 @@ setcursor(struct wl_listener *listener, void *data)
 		wlr_cursor_set_surface(cursor, event->surface,
 				event->hotspot_x, event->hotspot_y);
 	}
+}
+
+void
+setlayout(const Arg *arg)
+{
+	if (!arg || !arg->v || arg->v != selmon->lt[selmon->sellt])
+		selmon->sellt ^= 1;
+	if (arg && arg->v)
+		selmon->lt[selmon->sellt] = (Layout *)arg->v;
+	/* XXX change layout symbol? */
 }
 
 void
