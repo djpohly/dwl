@@ -122,8 +122,6 @@ static void spawn(const Arg *arg);
 static void unmapnotify(struct wl_listener *listener, void *data);
 static Client * xytoclient(double lx, double ly,
 		struct wlr_surface **surface, double *sx, double *sy);
-static bool xytosurface(Client *c, double lx, double ly,
-		struct wlr_surface **surface, double *sx, double *sy);
 
 /* variables */
 static struct wl_display *wl_display;
@@ -953,42 +951,27 @@ xytoclient(double lx, double ly,
 	 * cursor. This relies on clients being ordered from top-to-bottom. */
 	Client *c;
 	wl_list_for_each(c, &clients, link) {
-		if (xytosurface(c, lx, ly, surface, sx, sy)) {
+		/*
+		 * XDG toplevels may have nested surfaces, such as popup windows
+		 * for context menus or tooltips. This function tests if any of
+		 * those are underneath the coordinates lx and ly (in output
+		 * Layout Coordinates). If so, it sets the surface pointer to
+		 * that wlr_surface and the sx and sy coordinates to the
+		 * coordinates relative to that surface's top-left corner.
+		 */
+		double _sx, _sy;
+		struct wlr_surface *_surface = NULL;
+		_surface = wlr_xdg_surface_surface_at(c->xdg_surface,
+				lx - c->x, ly - c->y, &_sx, &_sy);
+
+		if (_surface != NULL) {
+			*sx = _sx;
+			*sy = _sy;
+			*surface = _surface;
 			return c;
 		}
 	}
 	return NULL;
-}
-
-bool
-xytosurface(Client *c, double lx, double ly,
-		struct wlr_surface **surface, double *sx, double *sy)
-{
-	/*
-	 * XDG toplevels may have nested surfaces, such as popup windows for context
-	 * menus or tooltips. This function tests if any of those are underneath the
-	 * coordinates lx and ly (in output Layout Coordinates). If so, it sets the
-	 * surface pointer to that wlr_surface and the sx and sy coordinates to the
-	 * coordinates relative to that surface's top-left corner.
-	 */
-	double client_sx = lx - c->x;
-	double client_sy = ly - c->y;
-
-	struct wlr_surface_state *state = &c->xdg_surface->surface->current;
-
-	double _sx, _sy;
-	struct wlr_surface *_surface = NULL;
-	_surface = wlr_xdg_surface_surface_at(
-			c->xdg_surface, client_sx, client_sy, &_sx, &_sy);
-
-	if (_surface != NULL) {
-		*sx = _sx;
-		*sy = _sy;
-		*surface = _surface;
-		return true;
-	}
-
-	return false;
 }
 
 int
