@@ -120,7 +120,7 @@ static void setcursor(struct wl_listener *listener, void *data);
 static void setup(void);
 static void spawn(const Arg *arg);
 static void unmapnotify(struct wl_listener *listener, void *data);
-static Client * xytoclient(double lx, double ly,
+static Client * xytoclient(double x, double y,
 		struct wlr_surface **surface, double *sx, double *sy);
 
 /* variables */
@@ -146,7 +146,7 @@ static struct wl_listener request_cursor;
 static struct wl_list keyboards;
 static unsigned int cursor_mode;
 static Client *grabbed_client;
-static double grab_x, grab_y;
+static double grabsx, grabsy;
 static int grab_width, grab_height;
 
 static struct wlr_output_layout *output_layout;
@@ -501,8 +501,8 @@ motionnotify(uint32_t time)
 	/* If we are currently grabbing the mouse, handle and return */
 	if (cursor_mode == CurMove) {
 		/* Move the grabbed client to the new position. */
-		grabbed_client->x = cursor->x - grab_x;
-		grabbed_client->y = cursor->y - grab_y;
+		grabbed_client->x = cursor->x - grabsx;
+		grabbed_client->y = cursor->y - grabsy;
 		return;
 	} else if (cursor_mode == CurResize) {
 		/*
@@ -510,8 +510,8 @@ motionnotify(uint32_t time)
 		 * compositor, you'd wait for the client to prepare a buffer at
 		 * the new size, then commit any movement that was prepared.
 		 */
-		double dx = cursor->x - grab_x;
-		double dy = cursor->y - grab_y;
+		double dx = cursor->x - grabsx;
+		double dy = cursor->y - grabsy;
 		wlr_xdg_toplevel_set_size(grabbed_client->xdg_surface,
 				grab_width + dx, grab_height + dy);
 		return;
@@ -595,17 +595,17 @@ moveresize(Client *c, unsigned int mode)
 	}
 	grabbed_client = c;
 	cursor_mode = mode;
-	struct wlr_box geo_box;
-	wlr_xdg_surface_get_geometry(c->xdg_surface, &geo_box);
+	struct wlr_box sbox;
+	wlr_xdg_surface_get_geometry(c->xdg_surface, &sbox);
 	if (mode == CurMove) {
-		grab_x = cursor->x - c->x;
-		grab_y = cursor->y - c->y;
+		grabsx = cursor->x - c->x;
+		grabsy = cursor->y - c->y;
 	} else {
-		grab_x = cursor->x + geo_box.x;
-		grab_y = cursor->y + geo_box.y;
+		grabsx = cursor->x + sbox.x;
+		grabsy = cursor->y + sbox.y;
 	}
-	grab_width = geo_box.width;
-	grab_height = geo_box.height;
+	grab_width = sbox.width;
+	grab_height = sbox.height;
 }
 
 void
@@ -642,7 +642,7 @@ render(struct wlr_surface *surface, int sx, int sy, void *data)
 
 	/* We also have to apply the scale factor for HiDPI outputs. This is only
 	 * part of the puzzle, dwl does not fully support HiDPI. */
-	struct wlr_box box = {
+	struct wlr_box obox = {
 		.x = ox * output->scale,
 		.y = oy * output->scale,
 		.width = surface->current.width * output->scale,
@@ -663,7 +663,7 @@ render(struct wlr_surface *surface, int sx, int sy, void *data)
 	float matrix[9];
 	enum wl_output_transform transform =
 		wlr_output_transform_invert(surface->current.transform);
-	wlr_matrix_project_box(matrix, &box, transform, 0,
+	wlr_matrix_project_box(matrix, &obox, transform, 0,
 		output->transform_matrix);
 
 	/* This takes our matrix, the texture, and an alpha, and performs the actual
@@ -742,13 +742,13 @@ resizemouse(const Arg *arg)
 	if (!c) {
 		return;
 	}
-	struct wlr_box geo_box;
-	wlr_xdg_surface_get_geometry(c->xdg_surface, &geo_box);
+	struct wlr_box sbox;
+	wlr_xdg_surface_get_geometry(c->xdg_surface, &sbox);
 	/* Doesn't work for X11 output - the next absolute motion event
 	 * returns the cursor to where it started */
 	wlr_cursor_warp_closest(cursor, NULL,
-			c->x + geo_box.x + geo_box.width,
-			c->y + geo_box.y + geo_box.height);
+			c->x + sbox.x + sbox.width,
+			c->y + sbox.y + sbox.height);
 	moveresize(c, CurResize);
 }
 
@@ -944,7 +944,7 @@ unmapnotify(struct wl_listener *listener, void *data)
 }
 
 Client *
-xytoclient(double lx, double ly,
+xytoclient(double x, double y,
 		struct wlr_surface **surface, double *sx, double *sy)
 {
 	/* This iterates over all of our surfaces and attempts to find one under the
@@ -954,15 +954,15 @@ xytoclient(double lx, double ly,
 		/*
 		 * XDG toplevels may have nested surfaces, such as popup windows
 		 * for context menus or tooltips. This function tests if any of
-		 * those are underneath the coordinates lx and ly (in output
-		 * Layout Coordinates). If so, it sets the surface pointer to
-		 * that wlr_surface and the sx and sy coordinates to the
-		 * coordinates relative to that surface's top-left corner.
+		 * those are underneath the coordinates x and y (in layout
+		 * coordinates). If so, it sets the surface pointer to that
+		 * wlr_surface and the sx and sy coordinates to the coordinates
+		 * relative to that surface's top-left corner.
 		 */
 		double _sx, _sy;
 		struct wlr_surface *_surface = NULL;
 		_surface = wlr_xdg_surface_surface_at(c->xdg_surface,
-				lx - c->x, ly - c->y, &_sx, &_sy);
+				x - c->x, y - c->y, &_sx, &_sy);
 
 		if (_surface != NULL) {
 			*sx = _sx;
