@@ -57,7 +57,6 @@ typedef struct {
 	struct wl_listener destroy;
 	struct wl_listener request_move;
 	struct wl_listener request_resize;
-	bool mapped;
 	int x, y;
 } Client;
 
@@ -289,9 +288,6 @@ createnotify(struct wl_listener *listener, void *data)
 	wl_signal_add(&xdg_surface->events.unmap, &c->unmap);
 	c->destroy.notify = destroynotify;
 	wl_signal_add(&xdg_surface->events.destroy, &c->destroy);
-
-	/* Add it to the list of clients. */
-	wl_list_insert(&clients, &c->link);
 }
 
 void
@@ -320,7 +316,6 @@ destroynotify(struct wl_listener *listener, void *data)
 {
 	/* Called when the surface is destroyed and should never be shown again. */
 	Client *c = wl_container_of(listener, c, destroy);
-	wl_list_remove(&c->link);
 	free(c);
 }
 
@@ -477,7 +472,9 @@ maprequest(struct wl_listener *listener, void *data)
 {
 	/* Called when the surface is mapped, or ready to display on-screen. */
 	Client *c = wl_container_of(listener, c, map);
-	c->mapped = true;
+
+	/* Insert this client into the list and focus it. */
+	wl_list_insert(&clients, &c->link);
 	focus(c, c->xdg_surface->surface);
 }
 
@@ -702,10 +699,6 @@ rendermon(struct wl_listener *listener, void *data)
 	 * our client list is ordered front-to-back, we iterate over it backwards. */
 	Client *c;
 	wl_list_for_each_reverse(c, &clients, link) {
-		if (!c->mapped) {
-			/* An unmapped client should not be rendered. */
-			continue;
-		}
 		struct render_data rdata = {
 			.output = m->wlr_output,
 			.when = &now,
@@ -940,7 +933,7 @@ unmapnotify(struct wl_listener *listener, void *data)
 {
 	/* Called when the surface is unmapped, and should no longer be shown. */
 	Client *c = wl_container_of(listener, c, unmap);
-	c->mapped = false;
+	wl_list_remove(&c->link);
 }
 
 Client *
