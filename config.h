@@ -1,14 +1,21 @@
 /* appearance */
 static const float rootcolor[]      = {0.3, 0.3, 0.3, 1.0};
 
+/* layout(s) */
+static const Layout layouts[] = {
+	/* symbol     arrange function */
+	{ "[]=",      tile },
+	{ "><>",      NULL },    /* no layout function means floating behavior */
+};
+
 /* monitors */
 static const MonitorRule monrules[] = {
-	/* name     scale */
-	{ "X11-1",    1 },
-	{ "eDP-1",    2 },
-	{ "HDMI-A-1", 1 },
-	/* defaults */
-	{ NULL,       1 },
+	/* name       mfact nmaster scale layout */
+	{ "X11-1",    0.5,  1,      1,    &layouts[0] },
+	{ "eDP-1",    0.5,  1,      2,    &layouts[0] },
+	{ "HDMI-A-1", 0.5,  1,      1,    &layouts[0] },
+	/* defaults (required) */
+	{ NULL,       0.5,  1,      1,    &layouts[0] },
 };
 
 /* keyboard */

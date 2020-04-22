@@ -29,7 +29,10 @@
 #include <wlr/util/log.h>
 #include <xkbcommon/xkbcommon.h>
 
+/* macros */
+#define MIN(A, B)               ((A) < (B) ? (A) : (B))
 #define CLEANMASK(mask)         (mask & ~WLR_MODIFIER_CAPS)
+#define VISIBLEON(C, M)         ((C)->mon == (M))
 #define LENGTH(X)               (sizeof X / sizeof X[0])
 
 /* enums */
@@ -49,6 +52,7 @@ typedef struct {
 	const Arg arg;
 } Button;
 
+typedef struct Monitor Monitor;
 typedef struct {
 	struct wl_list link;
 	struct wlr_xdg_surface *xdg_surface;
@@ -57,7 +61,8 @@ typedef struct {
 	struct wl_listener destroy;
 	struct wl_listener request_move;
 	struct wl_listener request_resize;
-	int x, y;
+	Monitor *mon;
+	int x, y; /* layout-relative */
 } Client;
 
 typedef struct {
@@ -76,14 +81,28 @@ typedef struct {
 } Keyboard;
 
 typedef struct {
+	const char *symbol;
+	void (*arrange)(Monitor *);
+} Layout;
+
+struct Monitor {
 	struct wl_list link;
 	struct wlr_output *wlr_output;
 	struct wl_listener frame;
-} Monitor;
+	struct wlr_box *geom; /* layout-relative */
+	int wx, wy, ww, wh; /* layout-relative */
+	const Layout *lt[2];
+	unsigned int sellt;
+	double mfact;
+	int nmaster;
+};
 
 typedef struct {
 	const char *name;
+	float mfact;
+	int nmaster;
 	float scale;
+	const Layout *lt;
 } MonitorRule;
 
 /* Used to move all of the data necessary to render a surface from the top-level
@@ -91,10 +110,11 @@ typedef struct {
 struct render_data {
 	struct wlr_output *output;
 	struct timespec *when;
-	int x, y;
+	int x, y; /* layout-relative */
 };
 
 /* function declarations */
+static void arrange(Monitor *m);
 static void axisnotify(struct wl_listener *listener, void *data);
 static void buttonpress(struct wl_listener *listener, void *data);
 static void createkeyboard(struct wlr_input_device *device);
@@ -118,11 +138,13 @@ static void moveresize(Client *c, unsigned int mode);
 static void quit(const Arg *arg);
 static void render(struct wlr_surface *surface, int sx, int sy, void *data);
 static void rendermon(struct wl_listener *listener, void *data);
+static void resize(Client *c, int x, int y, int w, int h);
 static void resizemouse(const Arg *arg);
 static void run(char *startup_cmd);
 static void setcursor(struct wl_listener *listener, void *data);
 static void setup(void);
 static void spawn(const Arg *arg);
+static void tile(Monitor *m);
 static void unmapnotify(struct wl_listener *listener, void *data);
 static Client * xytoclient(double x, double y,
 		struct wlr_surface **surface, double *sx, double *sy);
@@ -156,8 +178,16 @@ static int grab_width, grab_height;
 static struct wlr_output_layout *output_layout;
 static struct wl_list mons;
 static struct wl_listener new_output;
+static Monitor *selmon;
 
 #include "config.h"
+
+void
+arrange(Monitor *m)
+{
+	if (m->lt[m->sellt]->arrange)
+		m->lt[m->sellt]->arrange(m);
+}
 
 void
 axisnotify(struct wl_listener *listener, void *data)
@@ -259,7 +289,10 @@ createmon(struct wl_listener *listener, void *data)
 	for (i = 0; i < LENGTH(monrules); i++) {
 		if (!monrules[i].name ||
 				!strcmp(wlr_output->name, monrules[i].name)) {
+			m->mfact = monrules[i].mfact;
+			m->nmaster = monrules[i].nmaster;
 			wlr_output_set_scale(wlr_output, monrules[i].scale);
+			m->lt[0] = m->lt[1] = monrules[i].lt;
 			break;
 		}
 	}
@@ -267,6 +300,9 @@ createmon(struct wl_listener *listener, void *data)
 	m->frame.notify = rendermon;
 	wl_signal_add(&wlr_output->events.frame, &m->frame);
 	wl_list_insert(&mons, &m->link);
+
+	if (!selmon)
+		selmon = m;
 
 	/* Adds this to the output layout. The add_auto function arranges outputs
 	 * from left-to-right in the order they appear. A more sophisticated
@@ -293,6 +329,9 @@ createnotify(struct wl_listener *listener, void *data)
 	/* Allocate a Client for this surface */
 	Client *c = calloc(1, sizeof(*c));
 	c->xdg_surface = xdg_surface;
+
+	/* Tell the client not to try anything fancy */
+	wlr_xdg_toplevel_set_tiled(c->xdg_surface, true);
 
 	/* Listen to the various events it can emit */
 	c->map.notify = maprequest;
@@ -487,6 +526,7 @@ maprequest(struct wl_listener *listener, void *data)
 	Client *c = wl_container_of(listener, c, map);
 
 	/* Insert this client into the list and focus it. */
+	c->mon = selmon;
 	wl_list_insert(&clients, &c->link);
 	focus(c, c->xdg_surface->surface);
 }
@@ -699,6 +739,15 @@ rendermon(struct wl_listener *listener, void *data)
 	if (!wlr_output_attach_render(m->wlr_output, NULL)) {
 		return;
 	}
+	/* Get effective monitor geometry and window area */
+	m->geom = wlr_output_layout_get_box(output_layout, m->wlr_output);
+	m->wx = m->geom->x;
+	m->wy = m->geom->y;
+	m->ww = m->geom->width;
+	m->wh = m->geom->height;
+
+	arrange(m);
+
 	/* Begin the renderer (calls glViewport and some other GL sanity checks) */
 	wlr_renderer_begin(renderer, m->wlr_output->width, m->wlr_output->height);
 	wlr_renderer_clear(renderer, rootcolor);
@@ -731,6 +780,14 @@ rendermon(struct wl_listener *listener, void *data)
 	 * on-screen. */
 	wlr_renderer_end(renderer);
 	wlr_output_commit(m->wlr_output);
+}
+
+void
+resize(Client *c, int x, int y, int w, int h)
+{
+	c->x = x;
+	c->y = y;
+	wlr_xdg_toplevel_set_size(c->xdg_surface, w, h);
 }
 
 void
@@ -933,6 +990,42 @@ spawn(const Arg *arg)
 		fprintf(stderr, "dwl: execvp %s", ((char **)arg->v)[0]);
 		perror(" failed");
 		exit(EXIT_FAILURE);
+	}
+}
+
+void
+tile(Monitor *m)
+{
+	unsigned int i, n = 0, h, mw, my, ty;
+	Client *c;
+	struct wlr_box ca;
+
+	wl_list_for_each(c, &clients, link) {
+		if (VISIBLEON(c, m))
+			n++;
+	}
+	if (n == 0)
+		return;
+
+	if (n > m->nmaster)
+		mw = m->nmaster ? m->ww * m->mfact : 0;
+	else
+		mw = m->ww;
+	i = my = ty = 0;
+	wl_list_for_each(c, &clients, link) {
+		if (!VISIBLEON(c, m))
+			continue;
+		wlr_xdg_surface_get_geometry(c->xdg_surface, &ca);
+		if (i < m->nmaster) {
+			h = (m->wh - my) / (MIN(n, m->nmaster) - i);
+			resize(c, m->wx, m->wy + my, mw, h);
+			my += ca.height;
+		} else {
+			h = (m->wh - ty) / (n - i);
+			resize(c, m->wx + mw, m->wy + ty, m->ww - mw, h);
+			ty += ca.height;
+		}
+		i++;
 	}
 }
 
