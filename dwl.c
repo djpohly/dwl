@@ -643,14 +643,9 @@ moveresize(Client *c, unsigned int mode)
 	 * consumes them itself, to move or resize windows. */
 	grabbed_client = c;
 	cursor_mode = mode;
-	struct wlr_box sbox;
-	wlr_xdg_surface_get_geometry(c->xdg_surface, &sbox);
 	if (mode == CurMove) {
 		grabsx = cursor->x - c->x;
 		grabsy = cursor->y - c->y;
-	} else {
-		grabsx = cursor->x + sbox.x;
-		grabsy = cursor->y + sbox.y;
 	}
 }
 
