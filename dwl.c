@@ -413,16 +413,18 @@ focus(Client *c, struct wlr_surface *surface)
 void
 focusnext(const Arg *arg)
 {
-	/* Cycle to the next client */
+	/* XXX will need more logic with clients on different monitors */
 	if (wl_list_length(&clients) < 2) {
 		return;
 	}
-	Client *c = wl_container_of(clients.next, c, link);
+	/* Find the selected client (top of fstack) and focus the client
+	 * following it in tiling order */
+	Client *c = wl_container_of(fstack.next, c, flink);
 	Client *n = wl_container_of(c->link.next, n, link);
+	/* Skip the sentinel node if we wrap around the end of the list */
+	if (&n->link == &clients)
+		n = wl_container_of(n->link.next, n, link);
 	focus(n, n->xdg_surface->surface);
-	/* Move the previous client to the end of the list */
-	wl_list_remove(&c->link);
-	wl_list_insert(clients.prev, &c->link);
 }
 
 void
