@@ -1,3 +1,6 @@
+/* appearance */
+static const float rootcolor[]      = {0.3, 0.3, 0.3, 1.0};
+
 /* monitors */
 static const MonitorRule monrules[] = {
 	/* name     scale */

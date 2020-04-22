@@ -701,9 +701,7 @@ rendermon(struct wl_listener *listener, void *data)
 	}
 	/* Begin the renderer (calls glViewport and some other GL sanity checks) */
 	wlr_renderer_begin(renderer, m->wlr_output->width, m->wlr_output->height);
-
-	float color[4] = {0.3, 0.3, 0.3, 1.0};
-	wlr_renderer_clear(renderer, color);
+	wlr_renderer_clear(renderer, rootcolor);
 
 	/* Each subsequent window we render is rendered on top of the last. Because
 	 * our client list is ordered front-to-back, we iterate over it backwards. */
