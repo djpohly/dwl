@@ -207,8 +207,7 @@ createkeyboard(struct wlr_input_device *device)
 	Keyboard *keyboard = calloc(1, sizeof(*keyboard));
 	keyboard->device = device;
 
-	/* We need to prepare an XKB keymap and assign it to the keyboard. This
-	 * assumes the defaults (e.g. layout = "us"). */
+	/* Prepare an XKB keymap and assign it to the keyboard. */
 	struct xkb_context *context = xkb_context_new(XKB_CONTEXT_NO_FLAGS);
 	struct xkb_keymap *keymap = xkb_map_new_from_names(context, &xkb_rules,
 		XKB_KEYMAP_COMPILE_NO_FLAGS);
@@ -233,7 +232,7 @@ createkeyboard(struct wlr_input_device *device)
 void
 createmon(struct wl_listener *listener, void *data)
 {
-	/* This event is rasied by the backend when a new output (aka a display or
+	/* This event is raised by the backend when a new output (aka a display or
 	 * monitor) becomes available. */
 	struct wlr_output *wlr_output = data;
 
@@ -341,9 +340,9 @@ focus(Client *c, struct wlr_surface *surface)
 	}
 	if (prev_surface) {
 		/*
-		 * Deactivate the previously focused surface. This lets the client know
-		 * it no longer has focus and the client will repaint accordingly, e.g.
-		 * stop displaying a caret.
+		 * Deactivate the previously focused surface. This lets the
+		 * client know it no longer has focus and the client will
+		 * repaint accordingly, e.g. stop displaying a caret.
 		 */
 		struct wlr_xdg_surface *previous = wlr_xdg_surface_from_wlr_surface(
 					seat->keyboard_state.focused_surface);
@@ -501,7 +500,7 @@ motionabsolute(struct wl_listener *listener, void *data)
 void
 motionnotify(uint32_t time)
 {
-	/* If the mode is non-passthrough, delegate to those functions. */
+	/* If we are currently grabbing the mouse, handle and return */
 	if (cursor_mode == CurMove) {
 		/* Move the grabbed client to the new position. */
 		grabbed_client->x = cursor->x - grab_x;
@@ -653,7 +652,7 @@ render(struct wlr_surface *surface, int sx, int sy, void *data)
 	};
 
 	/*
-	 * Those familiar with OpenGL are also familiar with the role of matricies
+	 * Those familiar with OpenGL are also familiar with the role of matrices
 	 * in graphics programming. We need to prepare a matrix to render the
 	 * client with. wlr_matrix_project_box is a helper which takes a box with
 	 * a desired x, y coordinates, width and height, and an output geometry,
@@ -747,6 +746,8 @@ resizemouse(const Arg *arg)
 	}
 	struct wlr_box geo_box;
 	wlr_xdg_surface_get_geometry(c->xdg_surface, &geo_box);
+	/* Doesn't work for X11 output - the next absolute motion event
+	 * returns the cursor to where it started */
 	wlr_cursor_warp_closest(cursor, NULL,
 			c->x + geo_box.x + geo_box.width,
 			c->y + geo_box.y + geo_box.height);
@@ -807,7 +808,7 @@ run(char *startup_cmd)
 void
 setcursor(struct wl_listener *listener, void *data)
 {
-	/* This event is rasied by the seat when a client provides a cursor image */
+	/* This event is raised by the seat when a client provides a cursor image */
 	struct wlr_seat_pointer_request_set_cursor_event *event = data;
 	struct wlr_seat_client *focused_client =
 		seat->pointer_state.focused_client;
