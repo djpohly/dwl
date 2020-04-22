@@ -176,7 +176,6 @@ static struct wl_list keyboards;
 static unsigned int cursor_mode;
 static Client *grabbed_client;
 static double grabsx, grabsy;
-static int grab_width, grab_height;
 
 static struct wlr_output_layout *output_layout;
 static struct wl_list mons;
@@ -566,10 +565,9 @@ motionnotify(uint32_t time)
 		 * compositor, you'd wait for the client to prepare a buffer at
 		 * the new size, then commit any movement that was prepared.
 		 */
-		double dx = cursor->x - grabsx;
-		double dy = cursor->y - grabsy;
 		wlr_xdg_toplevel_set_size(grabbed_client->xdg_surface,
-				grab_width + dx, grab_height + dy);
+				cursor->x - grabbed_client->x,
+				cursor->y - grabbed_client->y);
 		return;
 	}
 
@@ -643,12 +641,6 @@ moveresize(Client *c, unsigned int mode)
 	/* This function sets up an interactive move or resize operation, where the
 	 * compositor stops propagating pointer events to clients and instead
 	 * consumes them itself, to move or resize windows. */
-	struct wlr_surface *focused_surface =
-		seat->pointer_state.focused_surface;
-	if (c->xdg_surface->surface != focused_surface) {
-		/* Deny move/resize requests from unfocused clients. */
-		return;
-	}
 	grabbed_client = c;
 	cursor_mode = mode;
 	struct wlr_box sbox;
@@ -660,8 +652,6 @@ moveresize(Client *c, unsigned int mode)
 		grabsx = cursor->x + sbox.x;
 		grabsy = cursor->y + sbox.y;
 	}
-	grab_width = sbox.width;
-	grab_height = sbox.height;
 }
 
 void
