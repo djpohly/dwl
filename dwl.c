@@ -141,6 +141,7 @@ static void rendermon(struct wl_listener *listener, void *data);
 static void resize(Client *c, int x, int y, int w, int h);
 static void resizemouse(const Arg *arg);
 static void run(char *startup_cmd);
+static Client *selclient(void);
 static void setcursor(struct wl_listener *listener, void *data);
 static void setlayout(const Arg *arg);
 static void setup(void);
@@ -410,18 +411,16 @@ focus(Client *c, struct wlr_surface *surface)
 void
 focusnext(const Arg *arg)
 {
-	/* XXX will need more logic with clients on different monitors */
-	if (wl_list_length(&clients) < 2) {
+	Client *sel = selclient();
+	if (!sel)
 		return;
-	}
 	/* Find the selected client (top of fstack) and focus the client
 	 * following it in tiling order */
-	Client *c = wl_container_of(fstack.next, c, flink);
-	Client *n = wl_container_of(c->link.next, n, link);
+	Client *c = wl_container_of(sel->link.next, c, link);
 	/* Skip the sentinel node if we wrap around the end of the list */
-	if (&n->link == &clients)
-		n = wl_container_of(n->link.next, n, link);
-	focus(n, n->xdg_surface->surface);
+	if (&c->link == &clients)
+		c = wl_container_of(c->link.next, c, link);
+	focus(c, c->xdg_surface->surface);
 }
 
 void
@@ -847,6 +846,15 @@ run(char *startup_cmd)
 		kill(startup_pid, SIGTERM);
 		waitpid(startup_pid, NULL, 0);
 	}
+}
+
+Client *
+selclient(void)
+{
+	Client *c = wl_container_of(fstack.next, c, flink);
+	if (wl_list_empty(&fstack) || !VISIBLEON(c, selmon))
+		return NULL;
+	return c;
 }
 
 void
