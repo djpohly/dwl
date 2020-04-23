@@ -148,7 +148,7 @@ static void setup(void);
 static void spawn(const Arg *arg);
 static void tile(Monitor *m);
 static void unmapnotify(struct wl_listener *listener, void *data);
-static Client * xytoclient(double x, double y,
+static Client *xytoclient(double x, double y,
 		struct wlr_surface **surface, double *sx, double *sy);
 static Monitor *xytomon(double x, double y);
 
