@@ -135,7 +135,6 @@ static void motionabsolute(struct wl_listener *listener, void *data);
 static void motionnotify(uint32_t time);
 static void motionrelative(struct wl_listener *listener, void *data);
 static void movemouse(const Arg *arg);
-static void moveresize(Client *c, unsigned int mode);
 static void quit(const Arg *arg);
 static void render(struct wlr_surface *surface, int sx, int sy, void *data);
 static void rendermon(struct wl_listener *listener, void *data);
@@ -632,21 +631,12 @@ movemouse(const Arg *arg)
 	if (!c) {
 		return;
 	}
-	moveresize(c, CurMove);
-}
 
-void
-moveresize(Client *c, unsigned int mode)
-{
-	/* This function sets up an interactive move or resize operation, where the
-	 * compositor stops propagating pointer events to clients and instead
-	 * consumes them itself, to move or resize windows. */
+	/* Prepare for moving client in motionnotify */
 	grabbed_client = c;
-	cursor_mode = mode;
-	if (mode == CurMove) {
-		grabsx = cursor->x - c->x;
-		grabsy = cursor->y - c->y;
-	}
+	cursor_mode = CurMove;
+	grabsx = cursor->x - c->x;
+	grabsy = cursor->y - c->y;
 }
 
 void
@@ -798,7 +788,10 @@ resizemouse(const Arg *arg)
 	wlr_cursor_warp_closest(cursor, NULL,
 			c->x + sbox.x + sbox.width,
 			c->y + sbox.y + sbox.height);
-	moveresize(c, CurResize);
+
+	/* Prepare for resizing client in motionnotify */
+	grabbed_client = c;
+	cursor_mode = CurResize;
 }
 
 void
