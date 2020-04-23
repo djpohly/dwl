@@ -173,7 +173,7 @@ static struct wl_listener new_input;
 static struct wl_listener request_cursor;
 static struct wl_list keyboards;
 static unsigned int cursor_mode;
-static Client *grabbed_client;
+static Client *grabc;
 static double grabsx, grabsy;
 
 static struct wlr_output_layout *output_layout;
@@ -555,8 +555,8 @@ motionnotify(uint32_t time)
 	/* If we are currently grabbing the mouse, handle and return */
 	if (cursor_mode == CurMove) {
 		/* Move the grabbed client to the new position. */
-		grabbed_client->x = cursor->x - grabsx;
-		grabbed_client->y = cursor->y - grabsy;
+		grabc->x = cursor->x - grabsx;
+		grabc->y = cursor->y - grabsy;
 		return;
 	} else if (cursor_mode == CurResize) {
 		/*
@@ -564,9 +564,8 @@ motionnotify(uint32_t time)
 		 * compositor, you'd wait for the client to prepare a buffer at
 		 * the new size, then commit any movement that was prepared.
 		 */
-		wlr_xdg_toplevel_set_size(grabbed_client->xdg_surface,
-				cursor->x - grabbed_client->x,
-				cursor->y - grabbed_client->y);
+		wlr_xdg_toplevel_set_size(grabc->xdg_surface,
+				cursor->x - grabc->x, cursor->y - grabc->y);
 		return;
 	}
 
@@ -633,7 +632,7 @@ movemouse(const Arg *arg)
 	}
 
 	/* Prepare for moving client in motionnotify */
-	grabbed_client = c;
+	grabc = c;
 	cursor_mode = CurMove;
 	grabsx = cursor->x - c->x;
 	grabsy = cursor->y - c->y;
@@ -790,7 +789,7 @@ resizemouse(const Arg *arg)
 			c->y + sbox.y + sbox.height);
 
 	/* Prepare for resizing client in motionnotify */
-	grabbed_client = c;
+	grabc = c;
 	cursor_mode = CurResize;
 }
 
