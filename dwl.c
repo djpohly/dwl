@@ -411,15 +411,18 @@ focus(Client *c, struct wlr_surface *surface)
 void
 focusnext(const Arg *arg)
 {
+	/* Focus the client on the selected monitor which comes first in tiling
+	 * order after the currently selected client */
 	Client *sel = selclient();
 	if (!sel)
 		return;
-	/* Find the selected client (top of fstack) and focus the client
-	 * following it in tiling order */
-	Client *c = wl_container_of(sel->link.next, c, link);
-	/* Skip the sentinel node if we wrap around the end of the list */
-	if (&c->link == &clients)
-		c = wl_container_of(c->link.next, c, link);
+	Client *c;
+	wl_list_for_each(c, &sel->link, link) {
+		if (&c->link == &clients)
+			continue;  /* wrap past the sentinel node */
+		if (VISIBLEON(c, selmon))
+			break;  /* found it */
+	}
 	focus(c, c->xdg_surface->surface);
 }
 
