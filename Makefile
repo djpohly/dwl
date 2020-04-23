@@ -22,6 +22,9 @@ xdg-shell-protocol.c:
 
 xdg-shell-protocol.o: xdg-shell-protocol.h
 
+config.h: | config.def.h
+	cp config.def.h $@
+
 dwl.o: config.h xdg-shell-protocol.h
 
 dwl: xdg-shell-protocol.o
