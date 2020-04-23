@@ -1,7 +1,7 @@
 WAYLAND_PROTOCOLS=$(shell pkg-config --variable=pkgdatadir wayland-protocols)
 WAYLAND_SCANNER=$(shell pkg-config --variable=wayland_scanner wayland-scanner)
 
-CFLAGS ?= -g
+CFLAGS ?= -g -Wall -Wextra -Wno-unused-parameter -Wno-sign-compare
 CFLAGS += -Werror -I. -DWLR_USE_UNSTABLE
 
 PKGS = wlroots wayland-server xkbcommon
