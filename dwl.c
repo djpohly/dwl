@@ -125,7 +125,7 @@ static void createpointer(struct wlr_input_device *device);
 static void cursorframe(struct wl_listener *listener, void *data);
 static void destroynotify(struct wl_listener *listener, void *data);
 static void focus(Client *c, struct wlr_surface *surface);
-static void focusnext(const Arg *arg);
+static void focusstack(const Arg *arg);
 static void inputdevice(struct wl_listener *listener, void *data);
 static bool keybinding(uint32_t mods, xkb_keysym_t sym);
 static void keypress(struct wl_listener *listener, void *data);
@@ -409,20 +409,29 @@ focus(Client *c, struct wlr_surface *surface)
 }
 
 void
-focusnext(const Arg *arg)
+focusstack(const Arg *arg)
 {
-	/* Focus the client on the selected monitor which comes first in tiling
-	 * order after the currently selected client */
+	/* Focus the next or previous client (in tiling order) on selmon */
 	Client *sel = selclient();
 	if (!sel)
 		return;
 	Client *c;
-	wl_list_for_each(c, &sel->link, link) {
-		if (&c->link == &clients)
-			continue;  /* wrap past the sentinel node */
-		if (VISIBLEON(c, selmon))
-			break;  /* found it */
+	if (arg->i > 0) {
+		wl_list_for_each(c, &sel->link, link) {
+			if (&c->link == &clients)
+				continue;  /* wrap past the sentinel node */
+			if (VISIBLEON(c, selmon))
+				break;  /* found it */
+		}
+	} else {
+		wl_list_for_each_reverse(c, &sel->link, link) {
+			if (&c->link == &clients)
+				continue;  /* wrap past the sentinel node */
+			if (VISIBLEON(c, selmon))
+				break;  /* found it */
+		}
 	}
+	/* If only one client is visible on selmon, then c == sel */
 	focus(c, c->xdg_surface->surface);
 }
 

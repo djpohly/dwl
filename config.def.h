@@ -32,11 +32,13 @@ static const struct xkb_rule_names xkb_rules = {
 static const char *termcmd[]  = { "kitty", "-o", "linux_display_server=wayland", NULL };
 
 static const Key keys[] = {
-	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_Return, spawn,     {.v = termcmd } },
-	{ MODKEY,                    XKB_KEY_j,      focusnext, {0} },
-	{ MODKEY,                    XKB_KEY_t,      setlayout, {.v = &layouts[0]} },
-	{ MODKEY,                    XKB_KEY_f,      setlayout, {.v = &layouts[1]} },
-	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_Q,      quit,      {0} },
+	/* modifier                  key                 function        argument */
+	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_Return,     spawn,          {.v = termcmd } },
+	{ MODKEY,                    XKB_KEY_j,          focusstack,     {.i = +1} },
+	{ MODKEY,                    XKB_KEY_k,          focusstack,     {.i = -1} },
+	{ MODKEY,                    XKB_KEY_t,          setlayout,      {.v = &layouts[0]} },
+	{ MODKEY,                    XKB_KEY_f,          setlayout,      {.v = &layouts[1]} },
+	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_Q,          quit,           {0} },
 };
 
 static const Button buttons[] = {
