@@ -11,20 +11,19 @@ static const Layout layouts[] = {
 /* monitors */
 static const MonitorRule monrules[] = {
 	/* name       mfact nmaster scale layout */
-	{ "X11-1",    0.5,  1,      1,    &layouts[0] },
+	/* example of a HiDPI laptop monitor:
 	{ "eDP-1",    0.5,  1,      2,    &layouts[0] },
-	{ "HDMI-A-1", 0.5,  1,      1,    &layouts[0] },
-	/* defaults (required) */
-	{ NULL,       0.5,  1,      1,    &layouts[0] },
+	*/
+	/* defaults */
+	{ NULL,       0.55, 1,      1,    &layouts[0] },
 };
 
 /* keyboard */
 static const struct xkb_rule_names xkb_rules = {
-	.rules = NULL,
-	.model = NULL,
-	.layout = "dvorak",
-	.variant = NULL,
-	.options = "ctrl:nocaps,altwin:swap_lalt_lwin,terminate:ctrl_alt_bksp",
+	/* can specify fields: rules, model, layout, variant, options */
+	/* example:
+	.options = "ctrl:nocaps",
+	*/
 };
 
 #define MODKEY WLR_MODIFIER_ALT
@@ -34,10 +33,10 @@ static const char *termcmd[]  = { "kitty", "-o", "linux_display_server=wayland",
 
 static const Key keys[] = {
 	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_Return, spawn,     {.v = termcmd } },
-	{ MODKEY,                    XKB_KEY_Escape, quit,      {0} },
-	{ MODKEY,                    XKB_KEY_F1,     focusnext, {0} },
-	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_L,      setlayout, {.v = &layouts[0]} },
-	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_F,      setlayout, {.v = &layouts[1]} },
+	{ MODKEY,                    XKB_KEY_j,      focusnext, {0} },
+	{ MODKEY,                    XKB_KEY_t,      setlayout, {.v = &layouts[0]} },
+	{ MODKEY,                    XKB_KEY_f,      setlayout, {.v = &layouts[1]} },
+	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_Q,      quit,      {0} },
 };
 
 static const Button buttons[] = {
