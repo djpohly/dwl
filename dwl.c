@@ -157,6 +157,7 @@ static void rendermon(struct wl_listener *listener, void *data);
 static void resize(Client *c, int x, int y, int w, int h);
 static void resizemouse(const Arg *arg);
 static void run(char *startup_cmd);
+static void scalebox(struct wlr_box *box, float scale);
 static Client *selclient(void);
 static void sendmon(Client *c, Monitor *m);
 static void setcursor(struct wl_listener *listener, void *data);
@@ -800,11 +801,12 @@ render(struct wlr_surface *surface, int sx, int sy, void *data)
 	/* We also have to apply the scale factor for HiDPI outputs. This is only
 	 * part of the puzzle, dwl does not fully support HiDPI. */
 	struct wlr_box obox = {
-		.x = ox * output->scale,
-		.y = oy * output->scale,
-		.width = surface->current.width * output->scale,
-		.height = surface->current.height * output->scale,
+		.x = ox,
+		.y = oy,
+		.width = surface->current.width,
+		.height = surface->current.height,
 	};
+	scalebox(&obox, output->scale);
 
 	/*
 	 * Those familiar with OpenGL are also familiar with the role of matrices
@@ -991,6 +993,15 @@ run(char *startup_cmd)
 		kill(startup_pid, SIGTERM);
 		waitpid(startup_pid, NULL, 0);
 	}
+}
+
+void
+scalebox(struct wlr_box *box, float scale)
+{
+	box->x *= scale;
+	box->y *= scale;
+	box->width *= scale;
+	box->height *= scale;
 }
 
 Client *
