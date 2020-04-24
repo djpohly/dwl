@@ -924,7 +924,7 @@ run(char *startup_cmd)
 	const char *socket = wl_display_add_socket_auto(dpy);
 	if (!socket) {
 		wlr_backend_destroy(backend);
-		exit(1);
+		exit(EXIT_FAILURE);
 	}
 
 	/* Start the backend. This will enumerate outputs and inputs, become the DRM
@@ -932,7 +932,7 @@ run(char *startup_cmd)
 	if (!wlr_backend_start(backend)) {
 		wlr_backend_destroy(backend);
 		wl_display_destroy(dpy);
-		exit(1);
+		exit(EXIT_FAILURE);
 	}
 
 	/* Now that outputs are initialized, choose initial selmon based on
@@ -952,13 +952,13 @@ run(char *startup_cmd)
 		if (startup_pid < 0) {
 			perror("startup: fork");
 			wl_display_destroy(dpy);
-			exit(1);
+			exit(EXIT_FAILURE);
 		}
 		if (startup_pid == 0) {
 			execl("/bin/sh", "/bin/sh", "-c", startup_cmd, (void *)NULL);
 			perror("startup: execl");
 			wl_display_destroy(dpy);
-			exit(1);
+			exit(EXIT_FAILURE);
 		}
 	}
 	/* Run the Wayland event loop. This does not return until you exit the
@@ -1323,12 +1323,12 @@ main(int argc, char *argv[])
 			break;
 		default:
 			printf("Usage: %s [-s startup command]\n", argv[0]);
-			return 0;
+			return EXIT_FAILURE;
 		}
 	}
 	if (optind < argc) {
 		printf("Usage: %s [-s startup command]\n", argv[0]);
-		return 0;
+		return EXIT_FAILURE;
 	}
 
 	/* The Wayland display is managed by libwayland. It handles accepting
@@ -1341,5 +1341,5 @@ main(int argc, char *argv[])
 	/* Once wl_display_run returns, we shut down the server. */
 	wl_display_destroy_clients(dpy);
 	wl_display_destroy(dpy);
-	return 0;
+	return EXIT_SUCCESS;
 }
