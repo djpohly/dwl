@@ -822,9 +822,9 @@ rendermon(struct wl_listener *listener, void *data)
 	wlr_renderer_clear(drw, rootcolor);
 
 	/* Each subsequent window we render is rendered on top of the last. Because
-	 * our client list is ordered front-to-back, we iterate over it backwards. */
+	 * our focus stack is ordered front-to-back, we iterate over it backwards. */
 	Client *c;
-	wl_list_for_each_reverse(c, &clients, link) {
+	wl_list_for_each_reverse(c, &fstack, flink) {
 		/* Only render clients which are on this monitor. */
 		/* XXX consider checking wlr_output_layout_intersects, in case a
 		 * window can be seen on multiple outputs */
@@ -1241,9 +1241,9 @@ xytoclient(double x, double y,
 		struct wlr_surface **surface, double *sx, double *sy)
 {
 	/* This iterates over all of our surfaces and attempts to find one under the
-	 * cursor. This relies on clients being ordered from top-to-bottom. */
+	 * cursor. This relies on fstack being ordered from top-to-bottom. */
 	Client *c;
-	wl_list_for_each(c, &clients, link) {
+	wl_list_for_each(c, &fstack, flink) {
 		/* Skip clients that aren't visible */
 		if (!VISIBLEON(c, c->mon))
 			continue;
