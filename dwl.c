@@ -956,7 +956,9 @@ run(char *startup_cmd)
 	selmon = xytomon(cursor->x, cursor->y);
 
 	/* XXX hack to get cursor to display in its initial location (100, 100)
-	 * instead of (0, 0) and then jumping */
+	 * instead of (0, 0) and then jumping.  still may not be fully
+	 * initialized, as the image/coordinates are not transformed for the
+	 * monitor when displayed here */
 	wlr_cursor_warp_closest(cursor, NULL, cursor->x, cursor->y);
 	wlr_xcursor_manager_set_cursor_image(cursor_mgr, "left_ptr", cursor);
 
