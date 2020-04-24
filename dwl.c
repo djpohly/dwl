@@ -30,6 +30,7 @@
 #include <xkbcommon/xkbcommon.h>
 
 /* macros */
+#define MAX(A, B)               ((A) > (B) ? (A) : (B))
 #define MIN(A, B)               ((A) < (B) ? (A) : (B))
 #define CLEANMASK(mask)         (mask & ~WLR_MODIFIER_CAPS)
 #define VISIBLEON(C, M)         ((C)->mon == (M) && ((C)->tags & (M)->tagset[(M)->seltags]))
@@ -131,6 +132,7 @@ static void cursorframe(struct wl_listener *listener, void *data);
 static void destroynotify(struct wl_listener *listener, void *data);
 static void focus(Client *c, struct wlr_surface *surface);
 static void focusstack(const Arg *arg);
+static void incnmaster(const Arg *arg);
 static void inputdevice(struct wl_listener *listener, void *data);
 static bool keybinding(uint32_t mods, xkb_keysym_t sym);
 static void keypress(struct wl_listener *listener, void *data);
@@ -149,6 +151,7 @@ static void run(char *startup_cmd);
 static Client *selclient(void);
 static void setcursor(struct wl_listener *listener, void *data);
 static void setlayout(const Arg *arg);
+static void setmfact(const Arg *arg);
 static void setup(void);
 static void spawn(const Arg *arg);
 static void tag(const Arg *arg);
@@ -467,6 +470,12 @@ focusstack(const Arg *arg)
 	}
 	/* If only one client is visible on selmon, then c == sel */
 	focus(c, NULL);
+}
+
+void
+incnmaster(const Arg *arg)
+{
+	selmon->nmaster = MAX(selmon->nmaster + arg->i, 0);
 }
 
 void
@@ -947,6 +956,20 @@ setlayout(const Arg *arg)
 	if (arg && arg->v)
 		selmon->lt[selmon->sellt] = (Layout *)arg->v;
 	/* XXX change layout symbol? */
+}
+
+/* arg > 1.0 will set mfact absolutely */
+void
+setmfact(const Arg *arg)
+{
+	float f;
+
+	if (!arg || !selmon->lt[selmon->sellt]->arrange)
+		return;
+	f = arg->f < 1.0 ? arg->f + selmon->mfact : arg->f - 1.0;
+	if (f < 0.1 || f > 0.9)
+		return;
+	selmon->mfact = f;
 }
 
 void
