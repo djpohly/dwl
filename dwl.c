@@ -112,6 +112,7 @@ typedef struct {
 	int nmaster;
 	float scale;
 	const Layout *lt;
+	enum wl_output_transform rr;
 } MonitorRule;
 
 /* Used to move all of the data necessary to render a surface from the top-level
@@ -339,6 +340,7 @@ createmon(struct wl_listener *listener, void *data)
 			wlr_output_set_scale(wlr_output, monrules[i].scale);
 			wlr_xcursor_manager_load(cursor_mgr, monrules[i].scale);
 			m->lt[0] = m->lt[1] = monrules[i].lt;
+			wlr_output_set_transform(wlr_output, monrules[i].rr);
 			break;
 		}
 	/* Sets up a listener for the frame notify event. */

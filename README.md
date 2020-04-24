@@ -88,7 +88,6 @@ number of ways:
     - XWayland
 - HiDPI works, but multi-DPI is not as nice as sway, depending on the scale
   factors involved.  Perhaps scaling filters are needed?
-- Monitor rotation/transform is not set up yet
 
 
 ## Acknowledgements
