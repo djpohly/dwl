@@ -126,6 +126,7 @@ struct render_data {
 static void arrange(Monitor *m);
 static void axisnotify(struct wl_listener *listener, void *data);
 static void buttonpress(struct wl_listener *listener, void *data);
+static void chvt(const Arg *arg);
 static void createkeyboard(struct wlr_input_device *device);
 static void createmon(struct wl_listener *listener, void *data);
 static void createnotify(struct wl_listener *listener, void *data);
@@ -227,6 +228,15 @@ axisnotify(struct wl_listener *listener, void *data)
 	wlr_seat_pointer_notify_axis(seat,
 			event->time_msec, event->orientation, event->delta,
 			event->delta_discrete, event->source);
+}
+
+void
+chvt(const Arg *arg)
+{
+	struct wlr_session *s = wlr_backend_get_session(backend);
+	if (!s)
+		return;
+	wlr_session_change_vt(s, arg->ui);
 }
 
 void
