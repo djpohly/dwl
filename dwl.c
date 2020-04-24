@@ -154,6 +154,8 @@ static void spawn(const Arg *arg);
 static void tag(const Arg *arg);
 static void tile(Monitor *m);
 static void togglefloating(const Arg *arg);
+static void toggletag(const Arg *arg);
+static void toggleview(const Arg *arg);
 static void unmapnotify(struct wl_listener *listener, void *data);
 static void view(const Arg *arg);
 static Client *xytoclient(double x, double y,
@@ -1114,6 +1116,31 @@ togglefloating(const Arg *arg)
 		return;
 	/* return if fullscreen */
 	sel->isfloating = !sel->isfloating /* || sel->isfixed */;
+}
+
+void
+toggletag(const Arg *arg)
+{
+	unsigned int newtags;
+	Client *sel = selclient();
+	if (!sel)
+		return;
+	newtags = sel->tags ^ (arg->ui & TAGMASK);
+	if (newtags) {
+		sel->tags = newtags;
+		focus(NULL, NULL);
+	}
+}
+
+void
+toggleview(const Arg *arg)
+{
+	unsigned int newtagset = selmon->tagset[selmon->seltags] ^ (arg->ui & TAGMASK);
+
+	if (newtagset) {
+		selmon->tagset[selmon->seltags] = newtagset;
+		focus(NULL, NULL);
+	}
 }
 
 void
