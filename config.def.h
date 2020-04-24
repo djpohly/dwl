@@ -1,4 +1,5 @@
 /* appearance */
+static const int sloppyfocus        = 1;  /* focus follows mouse */
 static const float rootcolor[]      = {0.3, 0.3, 0.3, 1.0};
 
 /* tagging */

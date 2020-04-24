@@ -203,6 +203,7 @@ arrange(Monitor *m)
 {
 	if (m->lt[m->sellt]->arrange)
 		m->lt[m->sellt]->arrange(m);
+	/* XXX recheck pointer focus here... or in resize()? */
 }
 
 void
@@ -606,7 +607,8 @@ void
 motionnotify(uint32_t time)
 {
 	/* Update selmon (even while dragging a window) */
-	selmon = xytomon(cursor->x, cursor->y);
+	if (sloppyfocus)
+		selmon = xytomon(cursor->x, cursor->y);
 
 	/* If we are currently grabbing the mouse, handle and return */
 	if (cursor_mode == CurMove) {
@@ -628,8 +630,7 @@ motionnotify(uint32_t time)
 	/* Otherwise, find the client under the pointer and send the event along. */
 	double sx, sy;
 	struct wlr_surface *surface = NULL;
-	Client *c = xytoclient(cursor->x, cursor->y,
-			&surface, &sx, &sy);
+	Client *c = xytoclient(cursor->x, cursor->y, &surface, &sx, &sy);
 	if (!c) {
 		/* If there's no client under the cursor, set the cursor image to a
 		 * default. This is what makes the cursor image appear when you move it
@@ -637,26 +638,29 @@ motionnotify(uint32_t time)
 		wlr_xcursor_manager_set_cursor_image(
 				cursor_mgr, "left_ptr", cursor);
 	}
-	if (surface) {
-		bool focus_changed = seat->pointer_state.focused_surface != surface;
-		/*
-		 * "Enter" the surface if necessary. This lets the client know that the
-		 * cursor has entered one of its surfaces.
-		 *
-		 * Note that this gives the surface "pointer focus", which is distinct
-		 * from keyboard focus. You get pointer focus by moving the pointer over
-		 * a window.
-		 */
-		wlr_seat_pointer_notify_enter(seat, surface, sx, sy);
-		if (!focus_changed) {
-			/* The enter event contains coordinates, so we only need to notify
-			 * on motion if the focus did not change. */
-			wlr_seat_pointer_notify_motion(seat, time, sx, sy);
-		}
-	} else {
+	if (!surface) {
 		/* Clear pointer focus so future button events and such are not sent to
 		 * the last client to have the cursor over it. */
 		wlr_seat_pointer_clear_focus(seat);
+		return;
+	}
+
+	/*
+	 * "Enter" the surface if necessary. This lets the client know that the
+	 * cursor has entered one of its surfaces.
+	 *
+	 * Note that this gives the surface "pointer focus", which is distinct
+	 * from keyboard focus. You get pointer focus by moving the pointer over
+	 * a window.
+	 */
+	if (surface != seat->pointer_state.focused_surface) {
+		wlr_seat_pointer_notify_enter(seat, surface, sx, sy);
+		if (sloppyfocus)
+			focus(c, surface);
+	} else {
+		/* The enter event contains coordinates, so we only need to notify
+		 * on motion if the focus did not change. */
+		wlr_seat_pointer_notify_motion(seat, time, sx, sy);
 	}
 }
 
