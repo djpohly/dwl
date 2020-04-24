@@ -847,6 +847,24 @@ renderclients(Monitor *m, struct timespec *now)
 		if (!VISIBLEON(c, m))
 			continue;
 
+		double ox = c->x, oy = c->y;
+		wlr_output_layout_output_coords(output_layout, m->wlr_output,
+				&ox, &oy);
+		int w = c->xdg_surface->surface->current.width;
+		int h = c->xdg_surface->surface->current.height;
+		struct wlr_box borders[] = {
+			{ox, oy, w + 2 * c->bw, c->bw},             /* top */
+			{ox, oy + c->bw, c->bw, h},                 /* left */
+			{ox + c->bw + w, oy + c->bw, c->bw, h},     /* right */
+			{ox, oy + c->bw + h, w + 2 * c->bw, c->bw}, /* bottom */
+		};
+		int i;
+		for (i = 0; i < sizeof(borders) / sizeof(borders[0]); i++) {
+			scalebox(&borders[i], m->wlr_output->scale);
+			wlr_render_rect(drw, &borders[i], bordercolor,
+					m->wlr_output->transform_matrix);
+		}
+
 		struct render_data rdata = {
 			.output = m->wlr_output,
 			.when = now,

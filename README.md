@@ -80,7 +80,7 @@ number of ways:
 - Features not yet implemented:
     - xdg-shell popups
     - Urgent/attention/focus-request
-    - Borders and selected/normal/urgent colors
+    - Normal/selected/urgent border colors
     - layer-shell
     - Statusbar support (built-in or external)
     - Damage tracking
