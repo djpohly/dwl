@@ -647,7 +647,7 @@ motionnotify(uint32_t time)
 		 * compositor, you'd wait for the client to prepare a buffer at
 		 * the new size, then commit any movement that was prepared.
 		 */
-		wlr_xdg_toplevel_set_size(grabc->xdg_surface,
+		resize(grabc, grabc->x, grabc->y,
 				cursor->x - grabc->x, cursor->y - grabc->y);
 		return;
 	}
