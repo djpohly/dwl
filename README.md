@@ -77,17 +77,19 @@ user-level service manager like s6 or `systemd --user`.
 dwl is a work in progress, and it has not yet reached its feature goals in a
 number of ways:
 
-- Urgent/attention/focus-request not yet implemented
-- Borders and selected/normal/urgent colors not implemented
-- No support for layer-shell yet
+- Features not yet implemented:
+    - xdg-shell popups
+    - Urgent/attention/focus-request
+    - Borders and selected/normal/urgent colors
+    - layer-shell
+    - Statusbar support (built-in or external)
+    - Damage tracking
+    - Fullscreen/fixed windows (or whatever the Wayland analogues are)
+    - XWayland
 - HiDPI works, but multi-DPI is not as nice as sway, depending on the scale
   factors involved.  Perhaps scaling filters are needed?
-- Monitor rotation/transform is not working yet
+- Monitor rotation/transform is not set up yet
 - Mouse resize is not precise
-- No statusbar
-- No damage tracking
-- No handling of fullscreen/fixed windows (or whatever the Wayland analogues
-  are)
 
 
 ## Acknowledgements
