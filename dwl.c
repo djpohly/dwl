@@ -66,7 +66,8 @@ typedef struct {
 	struct wl_listener request_move;
 	struct wl_listener request_resize;
 	Monitor *mon;
-	int x, y; /* layout-relative */
+	int x, y; /* layout-relative, includes border */
+	int bw;
 	unsigned int tags;
 	int isfloating;
 } Client;
@@ -359,6 +360,7 @@ createnotify(struct wl_listener *listener, void *data)
 	/* Allocate a Client for this surface */
 	Client *c = calloc(1, sizeof(*c));
 	c->xdg_surface = xdg_surface;
+	c->bw = borderpx;
 
 	/* Tell the client not to try anything fancy */
 	wlr_xdg_toplevel_set_tiled(c->xdg_surface, true);
@@ -526,6 +528,7 @@ inputdevice(struct wl_listener *listener, void *data)
 		createpointer(device);
 		break;
 	default:
+		/* XXX handle other input device types */
 		break;
 	}
 	/* We need to let the wlr_seat know what our capabilities are, which is
@@ -643,8 +646,9 @@ motionnotify(uint32_t time)
 	/* If we are currently grabbing the mouse, handle and return */
 	if (cursor_mode == CurMove) {
 		/* Move the grabbed client to the new position. */
-		grabc->x = cursor->x - grabsx;
-		grabc->y = cursor->y - grabsy;
+		/* XXX assumes the surface is at (0,0) within grabc */
+		grabc->x = cursor->x - grabsx - grabc->bw;
+		grabc->y = cursor->y - grabsy - grabc->bw;
 		return;
 	} else if (cursor_mode == CurResize) {
 		/*
@@ -832,8 +836,8 @@ renderclients(Monitor *m, struct timespec *now)
 		struct render_data rdata = {
 			.output = m->wlr_output,
 			.when = now,
-			.x = c->x,
-			.y = c->y,
+			.x = c->x + c->bw,
+			.y = c->y + c->bw,
 		};
 		/* This calls our render function for each surface among the
 		 * xdg_surface's toplevel and popups. */
@@ -888,7 +892,7 @@ resize(Client *c, int x, int y, int w, int h)
 {
 	c->x = x;
 	c->y = y;
-	wlr_xdg_toplevel_set_size(c->xdg_surface, w, h);
+	wlr_xdg_toplevel_set_size(c->xdg_surface, w - 2 * c->bw, h - 2 * c->bw);
 }
 
 void
@@ -904,8 +908,8 @@ resizemouse(const Arg *arg)
 	/* Doesn't work for X11 output - the next absolute motion event
 	 * returns the cursor to where it started */
 	wlr_cursor_warp_closest(cursor, NULL,
-			grabc->x + sbox.x + sbox.width,
-			grabc->y + sbox.y + sbox.height);
+			grabc->x + sbox.x + sbox.width + 2 * grabc->bw,
+			grabc->y + sbox.y + sbox.height + 2 * grabc->bw);
 
 	/* Float the window and tell motionnotify to resize it */
 	if (!grabc->isfloating && selmon->lt[selmon->sellt]->arrange)
@@ -1198,11 +1202,11 @@ tile(Monitor *m)
 		if (i < m->nmaster) {
 			h = (m->wh - my) / (MIN(n, m->nmaster) - i);
 			resize(c, m->wx, m->wy + my, mw, h);
-			my += ca.height;
+			my += ca.height + 2 * c->bw;
 		} else {
 			h = (m->wh - ty) / (n - i);
 			resize(c, m->wx + mw, m->wy + ty, m->ww - mw, h);
-			ty += ca.height;
+			ty += ca.height + 2 * c->bw;
 		}
 		i++;
 	}
@@ -1272,6 +1276,7 @@ Client *
 xytoclient(double x, double y,
 		struct wlr_surface **surface, double *sx, double *sy)
 {
+	/* XXX what if (x,y) is within a window's border? */
 	/* This iterates over all of our surfaces and attempts to find one under the
 	 * cursor. This relies on stack being ordered from top-to-bottom. */
 	Client *c;
@@ -1290,7 +1295,7 @@ xytoclient(double x, double y,
 		double _sx, _sy;
 		struct wlr_surface *_surface = NULL;
 		_surface = wlr_xdg_surface_surface_at(c->xdg_surface,
-				x - c->x, y - c->y, &_sx, &_sy);
+				x - c->x - c->bw, y - c->y - c->bw, &_sx, &_sy);
 
 		if (_surface) {
 			*sx = _sx;

@@ -1,5 +1,6 @@
 /* appearance */
 static const int sloppyfocus        = 1;  /* focus follows mouse */
+static const unsigned int borderpx  = 1;  /* border pixel of windows */
 static const float rootcolor[]      = {0.3, 0.3, 0.3, 1.0};
 
 /* tagging */
