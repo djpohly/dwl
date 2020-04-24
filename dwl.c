@@ -64,6 +64,7 @@ typedef struct {
 	struct wl_listener request_resize;
 	Monitor *mon;
 	int x, y; /* layout-relative */
+	int isfloating;
 } Client;
 
 typedef struct {
@@ -147,6 +148,7 @@ static void setlayout(const Arg *arg);
 static void setup(void);
 static void spawn(const Arg *arg);
 static void tile(Monitor *m);
+static void togglefloating(const Arg *arg);
 static void unmapnotify(struct wl_listener *listener, void *data);
 static Client *xytoclient(double x, double y,
 		struct wlr_surface **surface, double *sx, double *sy);
@@ -649,6 +651,9 @@ movemouse(const Arg *arg)
 	cursor_mode = CurMove;
 	grabsx = cursor->x - c->x;
 	grabsy = cursor->y - c->y;
+	/* Float the window */
+	if (!grabc->isfloating && selmon->lt[selmon->sellt]->arrange)
+		grabc->isfloating = 1;
 }
 
 void
@@ -804,6 +809,9 @@ resizemouse(const Arg *arg)
 	/* Prepare for resizing client in motionnotify */
 	grabc = c;
 	cursor_mode = CurResize;
+	/* Float the window */
+	if (!grabc->isfloating && selmon->lt[selmon->sellt]->arrange)
+		grabc->isfloating = 1;
 }
 
 void
@@ -1025,7 +1033,7 @@ tile(Monitor *m)
 	struct wlr_box ca;
 
 	wl_list_for_each(c, &clients, link) {
-		if (VISIBLEON(c, m))
+		if (VISIBLEON(c, m) && !c->isfloating)
 			n++;
 	}
 	if (n == 0)
@@ -1037,7 +1045,7 @@ tile(Monitor *m)
 		mw = m->ww;
 	i = my = ty = 0;
 	wl_list_for_each(c, &clients, link) {
-		if (!VISIBLEON(c, m))
+		if (!VISIBLEON(c, m) || c->isfloating)
 			continue;
 		wlr_xdg_surface_get_geometry(c->xdg_surface, &ca);
 		if (i < m->nmaster) {
@@ -1051,6 +1059,16 @@ tile(Monitor *m)
 		}
 		i++;
 	}
+}
+
+void
+togglefloating(const Arg *arg)
+{
+	Client *sel = selclient();
+	if (!sel)
+		return;
+	/* return if fullscreen */
+	sel->isfloating = !sel->isfloating /* || sel->isfixed */;
 }
 
 void

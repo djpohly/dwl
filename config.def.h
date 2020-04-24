@@ -38,10 +38,12 @@ static const Key keys[] = {
 	{ MODKEY,                    XKB_KEY_k,          focusstack,     {.i = -1} },
 	{ MODKEY,                    XKB_KEY_t,          setlayout,      {.v = &layouts[0]} },
 	{ MODKEY,                    XKB_KEY_f,          setlayout,      {.v = &layouts[1]} },
+	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_space,      togglefloating, {0} },
 	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_Q,          quit,           {0} },
 };
 
 static const Button buttons[] = {
-	{ MODKEY, BTN_LEFT,  movemouse,   {0} },
-	{ MODKEY, BTN_RIGHT, resizemouse, {0} },
+	{ MODKEY, BTN_LEFT,   movemouse,      {0} },
+	{ MODKEY, BTN_MIDDLE, togglefloating, {0} },
+	{ MODKEY, BTN_RIGHT,  resizemouse,    {0} },
 };
