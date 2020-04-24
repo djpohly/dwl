@@ -295,6 +295,7 @@ createmon(struct wl_listener *listener, void *data)
 			m->mfact = monrules[i].mfact;
 			m->nmaster = monrules[i].nmaster;
 			wlr_output_set_scale(wlr_output, monrules[i].scale);
+			wlr_xcursor_manager_load(cursor_mgr, monrules[i].scale);
 			m->lt[0] = m->lt[1] = monrules[i].lt;
 			break;
 		}
@@ -826,8 +827,13 @@ run(char *startup_cmd)
 	}
 
 	/* Now that outputs are initialized, choose initial selmon based on
-	 * cursor position */
+	 * cursor position, and set default cursor image */
 	selmon = xytomon(cursor->x, cursor->y);
+
+	/* XXX hack to get cursor to display in its initial location (100, 100)
+	 * instead of (0, 0) and then jumping */
+	wlr_cursor_warp_closest(cursor, NULL, cursor->x, cursor->y);
+	wlr_xcursor_manager_set_cursor_image(cursor_mgr, "left_ptr", cursor);
 
 	/* Set the WAYLAND_DISPLAY environment variable to our socket and run the
 	 * startup command if requested. */
@@ -957,9 +963,8 @@ setup(void)
 	/* Creates an xcursor manager, another wlroots utility which loads up
 	 * Xcursor themes to source cursor images from and makes sure that cursor
 	 * images are available at all scale factors on the screen (necessary for
-	 * HiDPI support). We add a cursor theme at scale factor 1 to begin with. */
+	 * HiDPI support). Scaled cursors will be loaded with each output. */
 	cursor_mgr = wlr_xcursor_manager_create(NULL, 24);
-	wlr_xcursor_manager_load(cursor_mgr, 1);
 
 	/*
 	 * wlr_cursor *only* displays an image on screen. It does not move around
