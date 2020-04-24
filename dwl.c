@@ -198,13 +198,14 @@ static struct wl_listener request_cursor;
 static struct wl_list keyboards;
 static unsigned int cursor_mode;
 static Client *grabc;
-static double grabsx, grabsy;
+static double grabsx, grabsy; /* surface-relative */
 
 static struct wlr_output_layout *output_layout;
 static struct wl_list mons;
 static struct wl_listener new_output;
 static Monitor *selmon;
 
+/* configuration, allows nested code to access above variables */
 #include "config.h"
 
 void
@@ -525,6 +526,7 @@ inputdevice(struct wl_listener *listener, void *data)
 	/* We need to let the wlr_seat know what our capabilities are, which is
 	 * communiciated to the client. In dwl we always have a cursor, even if
 	 * there are no pointer devices, so we always include that capability. */
+	/* XXX do we actually require a cursor? */
 	uint32_t caps = WL_SEAT_CAPABILITY_POINTER;
 	if (!wl_list_empty(&keyboards))
 		caps |= WL_SEAT_CAPABILITY_KEYBOARD;
@@ -572,7 +574,7 @@ keypress(struct wl_listener *listener, void *data)
 			handled = keybinding(mods, syms[i]) || handled;
 
 	if (!handled) {
-		/* Otherwise, we pass it along to the client. */
+		/* Pass unhandled keycodes along to the client. */
 		wlr_seat_set_keyboard(seat, kb->device);
 		wlr_seat_keyboard_notify_key(seat, event->time_msec,
 			event->keycode, event->state);
@@ -602,7 +604,7 @@ maprequest(struct wl_listener *listener, void *data)
 {
 	/* Called when the surface is mapped, or ready to display on-screen. */
 	Client *c = wl_container_of(listener, c, map);
-
+	/* XXX Apply client rules here */
 	/* Insert this client into the list and focus it. */
 	c->mon = selmon;
 	c->tags = c->mon->tagset[c->mon->seltags];
