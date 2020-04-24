@@ -1148,6 +1148,9 @@ xytoclient(double x, double y,
 	 * cursor. This relies on clients being ordered from top-to-bottom. */
 	Client *c;
 	wl_list_for_each(c, &clients, link) {
+		/* Skip clients that aren't visible */
+		if (!VISIBLEON(c, c->mon))
+			continue;
 		/*
 		 * XDG toplevels may have nested surfaces, such as popup windows
 		 * for context menus or tooltips. This function tests if any of
