@@ -149,6 +149,7 @@ static void quit(const Arg *arg);
 static void raiseclient(Client *c);
 static void refocus(void);
 static void render(struct wlr_surface *surface, int sx, int sy, void *data);
+static void renderclients(Monitor *m, struct timespec *now);
 static void rendermon(struct wl_listener *listener, void *data);
 static void resize(Client *c, int x, int y, int w, int h);
 static void resizemouse(const Arg *arg);
@@ -813,6 +814,31 @@ render(struct wlr_surface *surface, int sx, int sy, void *data)
 }
 
 void
+renderclients(Monitor *m, struct timespec *now)
+{
+	/* Each subsequent window we render is rendered on top of the last. Because
+	 * our stacking list is ordered front-to-back, we iterate over it backwards. */
+	Client *c;
+	wl_list_for_each_reverse(c, &stack, slink) {
+		/* Only render clients which are on this monitor. */
+		/* XXX consider checking wlr_output_layout_intersects, in case a
+		 * window can be seen on multiple outputs */
+		if (!VISIBLEON(c, m))
+			continue;
+
+		struct render_data rdata = {
+			.output = m->wlr_output,
+			.when = now,
+			.x = c->x,
+			.y = c->y,
+		};
+		/* This calls our render function for each surface among the
+		 * xdg_surface's toplevel and popups. */
+		wlr_xdg_surface_for_each_surface(c->xdg_surface, render, &rdata);
+	}
+}
+
+void
 rendermon(struct wl_listener *listener, void *data)
 {
 	/* This function is called every time an output is ready to display a frame,
@@ -838,26 +864,7 @@ rendermon(struct wl_listener *listener, void *data)
 	wlr_renderer_begin(drw, m->wlr_output->width, m->wlr_output->height);
 	wlr_renderer_clear(drw, rootcolor);
 
-	/* Each subsequent window we render is rendered on top of the last. Because
-	 * our stacking list is ordered front-to-back, we iterate over it backwards. */
-	Client *c;
-	wl_list_for_each_reverse(c, &stack, slink) {
-		/* Only render clients which are on this monitor. */
-		/* XXX consider checking wlr_output_layout_intersects, in case a
-		 * window can be seen on multiple outputs */
-		if (!VISIBLEON(c, m))
-			continue;
-
-		struct render_data rdata = {
-			.output = m->wlr_output,
-			.when = &now,
-			.x = c->x,
-			.y = c->y,
-		};
-		/* This calls our render function for each surface among the
-		 * xdg_surface's toplevel and popups. */
-		wlr_xdg_surface_for_each_surface(c->xdg_surface, render, &rdata);
-	}
+	renderclients(m, &now);
 
 	/* Hardware cursors are rendered by the GPU on a separate plane, and can be
 	 * moved around without re-rendering what's beneath them - which is more
