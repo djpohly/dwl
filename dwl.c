@@ -235,10 +235,16 @@ buttonpress(struct wl_listener *listener, void *data)
 	 * event. */
 	struct wlr_event_pointer_button *event = data;
 	/* Notify the client with pointer focus that a button press has occurred */
+	/* XXX probably don't want to pass the event if it's handled by the
+	 * compositor at the bottom of this function */
 	wlr_seat_pointer_notify_button(seat,
 			event->time_msec, event->button, event->state);
 	if (event->state == WLR_BUTTON_RELEASED) {
 		/* If you released any buttons, we exit interactive move/resize mode. */
+		/* XXX should reset to the pointer focus's current setcursor */
+		if (cursor_mode != CurNormal)
+			wlr_xcursor_manager_set_cursor_image(cursor_mgr,
+					"left_ptr", cursor);
 		cursor_mode = CurNormal;
 		return;
 	}
@@ -659,8 +665,8 @@ motionnotify(uint32_t time)
 	 * default. This is what makes the cursor image appear when you move it
 	 * around the screen, not over any clients. */
 	if (!c)
-		wlr_xcursor_manager_set_cursor_image(
-				cursor_mgr, "left_ptr", cursor);
+		wlr_xcursor_manager_set_cursor_image(cursor_mgr,
+				"left_ptr", cursor);
 	if (!surface) {
 		/* Clear pointer focus so future button events and such are not sent to
 		 * the last client to have the cursor over it. */
@@ -718,6 +724,7 @@ movemouse(const Arg *arg)
 	if (!grabc->isfloating && selmon->lt[selmon->sellt]->arrange)
 		grabc->isfloating = 1;
 	cursor_mode = CurMove;
+	wlr_xcursor_manager_set_cursor_image(cursor_mgr, "fleur", cursor);
 }
 
 void
@@ -904,6 +911,8 @@ resizemouse(const Arg *arg)
 	if (!grabc->isfloating && selmon->lt[selmon->sellt]->arrange)
 		grabc->isfloating = 1;
 	cursor_mode = CurResize;
+	wlr_xcursor_manager_set_cursor_image(cursor_mgr,
+			"bottom_right_corner", cursor);
 }
 
 void
@@ -990,6 +999,10 @@ sendmon(Client *c, Monitor *m)
 void
 setcursor(struct wl_listener *listener, void *data)
 {
+	/* If we're "grabbing" the cursor, don't use the client's image */
+	/* XXX still need to save the provided surface to restore later */
+	if (cursor_mode != CurNormal)
+		return;
 	/* This event is raised by the seat when a client provides a cursor image */
 	struct wlr_seat_pointer_request_set_cursor_event *event = data;
 	/* This can be sent by any client, so we check to make sure this one is
