@@ -237,29 +237,28 @@ buttonpress(struct wl_listener *listener, void *data)
 	/* Notify the client with pointer focus that a button press has occurred */
 	wlr_seat_pointer_notify_button(seat,
 			event->time_msec, event->button, event->state);
-	double sx, sy;
-	struct wlr_surface *surface;
-	Client *c = xytoclient(cursor->x, cursor->y, &surface, &sx, &sy);
 	if (event->state == WLR_BUTTON_RELEASED) {
 		/* If you released any buttons, we exit interactive move/resize mode. */
 		cursor_mode = CurNormal;
-	} else {
-		/* Change focus if the button was _pressed_ over a client */
-		if (c) {
-			focus(c, surface);
-			raiseclient(c);
-		}
-
-		struct wlr_keyboard *keyboard = wlr_seat_get_keyboard(seat);
-		uint32_t mods = wlr_keyboard_get_modifiers(keyboard);
-		for (int i = 0; i < LENGTH(buttons); i++) {
-			if (event->button == buttons[i].button &&
-					CLEANMASK(mods) == CLEANMASK(buttons[i].mod) &&
-					buttons[i].func) {
-				buttons[i].func(&buttons[i].arg);
-			}
-		}
+		return;
 	}
+
+	/* Change focus if the button was _pressed_ over a client */
+	double sx, sy;
+	struct wlr_surface *surface;
+	Client *c = xytoclient(cursor->x, cursor->y, &surface, &sx, &sy);
+	if (c) {
+		focus(c, surface);
+		raiseclient(c);
+	}
+
+	struct wlr_keyboard *keyboard = wlr_seat_get_keyboard(seat);
+	uint32_t mods = wlr_keyboard_get_modifiers(keyboard);
+	for (int i = 0; i < LENGTH(buttons); i++)
+		if (event->button == buttons[i].button &&
+				CLEANMASK(mods) == CLEANMASK(buttons[i].mod) &&
+				buttons[i].func)
+			buttons[i].func(&buttons[i].arg);
 }
 
 void
