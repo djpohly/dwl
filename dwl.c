@@ -32,8 +32,9 @@
 /* macros */
 #define MIN(A, B)               ((A) < (B) ? (A) : (B))
 #define CLEANMASK(mask)         (mask & ~WLR_MODIFIER_CAPS)
-#define VISIBLEON(C, M)         ((C)->mon == (M))
+#define VISIBLEON(C, M)         ((C)->mon == (M) && ((C)->tags & (M)->tagset[(M)->seltags]))
 #define LENGTH(X)               (sizeof X / sizeof X[0])
+#define TAGMASK                 ((1 << LENGTH(tags)) - 1)
 
 /* enums */
 enum { CurNormal, CurMove, CurResize }; /* cursor */
@@ -64,6 +65,7 @@ typedef struct {
 	struct wl_listener request_resize;
 	Monitor *mon;
 	int x, y; /* layout-relative */
+	unsigned int tags;
 	int isfloating;
 } Client;
 
@@ -94,7 +96,9 @@ struct Monitor {
 	struct wlr_box *geom; /* layout-relative */
 	int wx, wy, ww, wh; /* layout-relative */
 	const Layout *lt[2];
+	unsigned int seltags;
 	unsigned int sellt;
+	unsigned int tagset[2];
 	double mfact;
 	int nmaster;
 };
@@ -147,9 +151,11 @@ static void setcursor(struct wl_listener *listener, void *data);
 static void setlayout(const Arg *arg);
 static void setup(void);
 static void spawn(const Arg *arg);
+static void tag(const Arg *arg);
 static void tile(Monitor *m);
 static void togglefloating(const Arg *arg);
 static void unmapnotify(struct wl_listener *listener, void *data);
+static void view(const Arg *arg);
 static Client *xytoclient(double x, double y,
 		struct wlr_surface **surface, double *sx, double *sy);
 static Monitor *xytomon(double x, double y);
@@ -290,6 +296,7 @@ createmon(struct wl_listener *listener, void *data)
 	/* Allocates and configures monitor state using configured rules */
 	Monitor *m = calloc(1, sizeof(*m));
 	m->wlr_output = wlr_output;
+	m->tagset[0] = m->tagset[1] = 1;
 	int i;
 	for (i = 0; i < LENGTH(monrules); i++) {
 		if (!monrules[i].name ||
@@ -564,6 +571,7 @@ maprequest(struct wl_listener *listener, void *data)
 
 	/* Insert this client into the list and focus it. */
 	c->mon = selmon;
+	c->tags = c->mon->tagset[c->mon->seltags];
 	wl_list_insert(&clients, &c->link);
 	wl_list_insert(&fstack, &c->flink);
 	focus(c, NULL);
@@ -776,6 +784,12 @@ rendermon(struct wl_listener *listener, void *data)
 	 * our client list is ordered front-to-back, we iterate over it backwards. */
 	Client *c;
 	wl_list_for_each_reverse(c, &clients, link) {
+		/* Only render clients which are on this monitor. */
+		/* XXX consider checking wlr_output_layout_intersects, in case a
+		 * window can be seen on multiple outputs */
+		if (!VISIBLEON(c, m))
+			continue;
+
 		struct render_data rdata = {
 			.output = m->wlr_output,
 			.when = &now,
@@ -784,8 +798,7 @@ rendermon(struct wl_listener *listener, void *data)
 		};
 		/* This calls our render function for each surface among the
 		 * xdg_surface's toplevel and popups. */
-		wlr_xdg_surface_for_each_surface(c->xdg_surface,
-				render, &rdata);
+		wlr_xdg_surface_for_each_surface(c->xdg_surface, render, &rdata);
 	}
 
 	/* Hardware cursors are rendered by the GPU on a separate plane, and can be
@@ -1048,6 +1061,16 @@ spawn(const Arg *arg)
 }
 
 void
+tag(const Arg *arg)
+{
+	Client *sel = selclient();
+	if (sel && arg->ui & TAGMASK) {
+		sel->tags = arg->ui & TAGMASK;
+		focus(NULL, NULL);
+	}
+}
+
+void
 tile(Monitor *m)
 {
 	unsigned int i, n = 0, h, mw, my, ty;
@@ -1104,6 +1127,17 @@ unmapnotify(struct wl_listener *listener, void *data)
 
 	if (hadfocus)
 		focus(NULL, NULL);
+}
+
+void
+view(const Arg *arg)
+{
+	if ((arg->ui & TAGMASK) == selmon->tagset[selmon->seltags])
+		return;
+	selmon->seltags ^= 1; /* toggle sel tagset */
+	if (arg->ui & TAGMASK)
+		selmon->tagset[selmon->seltags] = arg->ui & TAGMASK;
+	focus(NULL, NULL);
 }
 
 Client *
