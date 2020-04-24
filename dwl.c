@@ -145,6 +145,7 @@ static void motionnotify(uint32_t time);
 static void motionrelative(struct wl_listener *listener, void *data);
 static void movemouse(const Arg *arg);
 static void quit(const Arg *arg);
+static void refocus(void);
 static void render(struct wlr_surface *surface, int sx, int sy, void *data);
 static void rendermon(struct wl_listener *listener, void *data);
 static void resize(Client *c, int x, int y, int w, int h);
@@ -233,14 +234,14 @@ buttonpress(struct wl_listener *listener, void *data)
 			event->time_msec, event->button, event->state);
 	double sx, sy;
 	struct wlr_surface *surface;
-	Client *c = xytoclient(cursor->x, cursor->y,
-			&surface, &sx, &sy);
+	Client *c = xytoclient(cursor->x, cursor->y, &surface, &sx, &sy);
 	if (event->state == WLR_BUTTON_RELEASED) {
 		/* If you released any buttons, we exit interactive move/resize mode. */
 		cursor_mode = CurNormal;
 	} else {
-		/* Focus that client if the button was _pressed_ */
-		focus(c, surface);
+		/* Change focus if the button was _pressed_ over a client */
+		if (c)
+			focus(c, surface);
 
 		struct wlr_keyboard *keyboard = wlr_seat_get_keyboard(seat);
 		uint32_t mods = wlr_keyboard_get_modifiers(keyboard);
@@ -410,26 +411,17 @@ dirtomon(int dir)
 void
 focus(Client *c, struct wlr_surface *surface)
 {
-	/* Default client is most recently focused on selmon */
-	if (!c || !VISIBLEON(c, c->mon)) {
-		c = NULL;
-		surface = NULL;
-		Client *next;
-		wl_list_for_each(next, &fstack, flink) {
-			if (VISIBLEON(next, selmon)) {
-				c = next;
-				break;
-			}
-		}
-	}
-	/* Default surface is the client's main xdg_surface */
-	if (c && !surface)
-		surface = c->xdg_surface->surface;
-
-	/* Focus the correct monitor as well */
-	if (c)
+	if (c) {
+		/* assert(VISIBLEON(c, c->mon)); ? */
+		/* Default surface is the client's main xdg_surface */
+		if (!surface)
+			surface = c->xdg_surface->surface;
+		/* Focus the correct monitor as well */
 		selmon = c->mon;
+	}
 
+	/* XXX Need to understand xdg toplevel/popups to know if there's more
+	 * simplification that can be done in this function */
 	struct wlr_surface *prev_surface = seat->keyboard_state.focused_surface;
 	if (prev_surface == surface) {
 		/* Don't re-focus an already focused surface. */
@@ -445,25 +437,26 @@ focus(Client *c, struct wlr_surface *surface)
 					seat->keyboard_state.focused_surface);
 		wlr_xdg_toplevel_set_activated(previous, false);
 	}
-	if (c) {
-		struct wlr_keyboard *keyboard = wlr_seat_get_keyboard(seat);
-		/* Move the client to the front of the focus stack */
-		wl_list_remove(&c->flink);
-		wl_list_insert(&fstack, &c->flink);
-		/* Activate the new surface */
-		wlr_xdg_toplevel_set_activated(c->xdg_surface, true);
-		/*
-		 * Tell the seat to have the keyboard enter this surface.
-		 * wlroots will keep track of this and automatically send key
-		 * events to the appropriate clients without additional work on
-		 * your part.
-		 */
-		wlr_seat_keyboard_notify_enter(seat, c->xdg_surface->surface,
-			keyboard->keycodes, keyboard->num_keycodes,
-			&keyboard->modifiers);
-	} else {
+	if (!c) {
 		wlr_seat_keyboard_clear_focus(seat);
+		return;
 	}
+
+	struct wlr_keyboard *keyboard = wlr_seat_get_keyboard(seat);
+	/* Move the client to the front of the focus stack */
+	wl_list_remove(&c->flink);
+	wl_list_insert(&fstack, &c->flink);
+	/* Activate the new surface */
+	wlr_xdg_toplevel_set_activated(c->xdg_surface, true);
+	/*
+	 * Tell the seat to have the keyboard enter this surface.
+	 * wlroots will keep track of this and automatically send key
+	 * events to the appropriate clients without additional work on
+	 * your part.
+	 */
+	wlr_seat_keyboard_notify_enter(seat, c->xdg_surface->surface,
+		keyboard->keycodes, keyboard->num_keycodes,
+		&keyboard->modifiers);
 }
 
 void
@@ -474,7 +467,7 @@ focusmon(const Arg *arg)
 	if (m == selmon)
 		return;
 	selmon = m;
-	focus(NULL, NULL);
+	refocus();
 }
 
 void
@@ -673,6 +666,9 @@ motionnotify(uint32_t time)
 		/* Clear pointer focus so future button events and such are not sent to
 		 * the last client to have the cursor over it. */
 		wlr_seat_pointer_clear_focus(seat);
+		/* If keyboard focus follows mouse, clear that too */
+		if (sloppyfocus)
+			focus(NULL, NULL);
 		return;
 	}
 
@@ -736,6 +732,19 @@ void
 quit(const Arg *arg)
 {
 	wl_display_terminate(wl_display);
+}
+
+void
+refocus(void)
+{
+	Client *c = NULL, *next;
+	wl_list_for_each(next, &fstack, flink) {
+		if (VISIBLEON(next, selmon)) {
+			c = next;
+			break;
+		}
+	}
+	focus(c, NULL);
 }
 
 void
@@ -973,7 +982,7 @@ sendmon(Client *c, Monitor *m)
 	c->tags = m->tagset[m->seltags]; /* assign tags of target monitor */
 
 	if (c == selclient())
-		focus(NULL, NULL);
+		refocus();
 }
 
 void
@@ -1138,7 +1147,7 @@ tag(const Arg *arg)
 	Client *sel = selclient();
 	if (sel && arg->ui & TAGMASK) {
 		sel->tags = arg->ui & TAGMASK;
-		focus(NULL, NULL);
+		refocus();
 	}
 }
 
@@ -1207,7 +1216,7 @@ toggletag(const Arg *arg)
 	newtags = sel->tags ^ (arg->ui & TAGMASK);
 	if (newtags) {
 		sel->tags = newtags;
-		focus(NULL, NULL);
+		refocus();
 	}
 }
 
@@ -1218,7 +1227,7 @@ toggleview(const Arg *arg)
 
 	if (newtagset) {
 		selmon->tagset[selmon->seltags] = newtagset;
-		focus(NULL, NULL);
+		refocus();
 	}
 }
 
@@ -1232,7 +1241,7 @@ unmapnotify(struct wl_listener *listener, void *data)
 	wl_list_remove(&c->flink);
 
 	if (hadfocus)
-		focus(NULL, NULL);
+		refocus();
 }
 
 void
@@ -1243,7 +1252,7 @@ view(const Arg *arg)
 	selmon->seltags ^= 1; /* toggle sel tagset */
 	if (arg->ui & TAGMASK)
 		selmon->tagset[selmon->seltags] = arg->ui & TAGMASK;
-	focus(NULL, NULL);
+	refocus();
 }
 
 Client *
