@@ -377,10 +377,26 @@ destroynotify(struct wl_listener *listener, void *data)
 void
 focus(Client *c, struct wlr_surface *surface)
 {
-	/* Note: this function only deals with keyboard focus. */
-	if (c == NULL) {
-		return;
+	/* Default client is most recently focused on selmon */
+	if (!c || !VISIBLEON(c, c->mon)) {
+		c = NULL;
+		surface = NULL;
+		Client *next;
+		wl_list_for_each(next, &fstack, flink) {
+			if (VISIBLEON(next, selmon)) {
+				c = next;
+				break;
+			}
+		}
 	}
+	/* Default surface is the client's main xdg_surface */
+	if (c && !surface)
+		surface = c->xdg_surface->surface;
+
+	/* Focus the correct monitor as well */
+	if (c)
+		selmon = c->mon;
+
 	struct wlr_surface *prev_surface = seat->keyboard_state.focused_surface;
 	if (prev_surface == surface) {
 		/* Don't re-focus an already focused surface. */
@@ -396,19 +412,25 @@ focus(Client *c, struct wlr_surface *surface)
 					seat->keyboard_state.focused_surface);
 		wlr_xdg_toplevel_set_activated(previous, false);
 	}
-	struct wlr_keyboard *keyboard = wlr_seat_get_keyboard(seat);
-	/* Move the client to the front of the focus stack */
-	wl_list_remove(&c->flink);
-	wl_list_insert(&fstack, &c->flink);
-	/* Activate the new surface */
-	wlr_xdg_toplevel_set_activated(c->xdg_surface, true);
-	/*
-	 * Tell the seat to have the keyboard enter this surface. wlroots will keep
-	 * track of this and automatically send key events to the appropriate
-	 * clients without additional work on your part.
-	 */
-	wlr_seat_keyboard_notify_enter(seat, c->xdg_surface->surface,
-		keyboard->keycodes, keyboard->num_keycodes, &keyboard->modifiers);
+	if (c) {
+		struct wlr_keyboard *keyboard = wlr_seat_get_keyboard(seat);
+		/* Move the client to the front of the focus stack */
+		wl_list_remove(&c->flink);
+		wl_list_insert(&fstack, &c->flink);
+		/* Activate the new surface */
+		wlr_xdg_toplevel_set_activated(c->xdg_surface, true);
+		/*
+		 * Tell the seat to have the keyboard enter this surface.
+		 * wlroots will keep track of this and automatically send key
+		 * events to the appropriate clients without additional work on
+		 * your part.
+		 */
+		wlr_seat_keyboard_notify_enter(seat, c->xdg_surface->surface,
+			keyboard->keycodes, keyboard->num_keycodes,
+			&keyboard->modifiers);
+	} else {
+		wlr_seat_keyboard_clear_focus(seat);
+	}
 }
 
 void
@@ -435,7 +457,7 @@ focusstack(const Arg *arg)
 		}
 	}
 	/* If only one client is visible on selmon, then c == sel */
-	focus(c, c->xdg_surface->surface);
+	focus(c, NULL);
 }
 
 void
@@ -544,7 +566,7 @@ maprequest(struct wl_listener *listener, void *data)
 	c->mon = selmon;
 	wl_list_insert(&clients, &c->link);
 	wl_list_insert(&fstack, &c->flink);
-	focus(c, c->xdg_surface->surface);
+	focus(c, NULL);
 }
 
 void
@@ -1076,8 +1098,12 @@ unmapnotify(struct wl_listener *listener, void *data)
 {
 	/* Called when the surface is unmapped, and should no longer be shown. */
 	Client *c = wl_container_of(listener, c, unmap);
+	int hadfocus = (c == selclient());
 	wl_list_remove(&c->link);
 	wl_list_remove(&c->flink);
+
+	if (hadfocus)
+		focus(NULL, NULL);
 }
 
 Client *
