@@ -68,7 +68,7 @@ serve a similar function to `.xinitrc`: starting a service manager or other
 startup applications.  Unlike `.xinitrc`, the display server will not shut down
 when this process terminates.  Instead, as dwl is shutting down, it will send
 this process a SIGTERM and wait for it to terminate (if it hasn't already).
-This make it ideal not only for initialization but also for execing into a
+This makes it ideal not only for initialization but also for execing into a
 user-level service manager like s6 or `systemd --user`.
 
 
