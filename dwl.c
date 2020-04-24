@@ -710,20 +710,15 @@ motionrelative(struct wl_listener *listener, void *data)
 void
 movemouse(const Arg *arg)
 {
-	double sx, sy;
 	struct wlr_surface *surface;
-	Client *c = xytoclient(cursor->x, cursor->y, &surface, &sx, &sy);
-	if (!c)
+	grabc = xytoclient(cursor->x, cursor->y, &surface, &grabsx, &grabsy);
+	if (!grabc)
 		return;
 
-	/* Prepare for moving client in motionnotify */
-	grabc = c;
-	cursor_mode = CurMove;
-	grabsx = cursor->x - c->x;
-	grabsy = cursor->y - c->y;
-	/* Float the window */
+	/* Float the window and tell motionnotify to grab it */
 	if (!grabc->isfloating && selmon->lt[selmon->sellt]->arrange)
 		grabc->isfloating = 1;
+	cursor_mode = CurMove;
 }
 
 void
@@ -893,26 +888,23 @@ resize(Client *c, int x, int y, int w, int h)
 void
 resizemouse(const Arg *arg)
 {
-	double sx, sy;
 	struct wlr_surface *surface;
-	Client *c = xytoclient(cursor->x, cursor->y, &surface, &sx, &sy);
-	if (!c)
+	grabc = xytoclient(cursor->x, cursor->y, &surface, &grabsx, &grabsy);
+	if (!grabc)
 		return;
 
 	struct wlr_box sbox;
-	wlr_xdg_surface_get_geometry(c->xdg_surface, &sbox);
+	wlr_xdg_surface_get_geometry(grabc->xdg_surface, &sbox);
 	/* Doesn't work for X11 output - the next absolute motion event
 	 * returns the cursor to where it started */
 	wlr_cursor_warp_closest(cursor, NULL,
-			c->x + sbox.x + sbox.width,
-			c->y + sbox.y + sbox.height);
+			grabc->x + sbox.x + sbox.width,
+			grabc->y + sbox.y + sbox.height);
 
-	/* Prepare for resizing client in motionnotify */
-	grabc = c;
-	cursor_mode = CurResize;
-	/* Float the window */
+	/* Float the window and tell motionnotify to resize it */
 	if (!grabc->isfloating && selmon->lt[selmon->sellt]->arrange)
 		grabc->isfloating = 1;
+	cursor_mode = CurResize;
 }
 
 void
