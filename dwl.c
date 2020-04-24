@@ -58,6 +58,7 @@ typedef struct Monitor Monitor;
 typedef struct {
 	struct wl_list link;
 	struct wl_list flink;
+	struct wl_list slink;
 	struct wlr_xdg_surface *xdg_surface;
 	struct wl_listener map;
 	struct wl_listener unmap;
@@ -145,6 +146,7 @@ static void motionnotify(uint32_t time);
 static void motionrelative(struct wl_listener *listener, void *data);
 static void movemouse(const Arg *arg);
 static void quit(const Arg *arg);
+static void raiseclient(Client *c);
 static void refocus(void);
 static void render(struct wlr_surface *surface, int sx, int sy, void *data);
 static void rendermon(struct wl_listener *listener, void *data);
@@ -179,6 +181,7 @@ static struct wlr_xdg_shell *xdg_shell;
 static struct wl_listener new_xdg_surface;
 static struct wl_list clients; /* tiling order */
 static struct wl_list fstack;  /* focus order */
+static struct wl_list stack;   /* stacking z-order */
 
 static struct wlr_cursor *cursor;
 static struct wlr_xcursor_manager *cursor_mgr;
@@ -240,8 +243,10 @@ buttonpress(struct wl_listener *listener, void *data)
 		cursor_mode = CurNormal;
 	} else {
 		/* Change focus if the button was _pressed_ over a client */
-		if (c)
+		if (c) {
 			focus(c, surface);
+			raiseclient(c);
+		}
 
 		struct wlr_keyboard *keyboard = wlr_seat_get_keyboard(seat);
 		uint32_t mods = wlr_keyboard_get_modifiers(keyboard);
@@ -491,6 +496,7 @@ focusstack(const Arg *arg)
 	}
 	/* If only one client is visible on selmon, then c == sel */
 	focus(c, NULL);
+	raiseclient(c);
 }
 
 void
@@ -601,6 +607,7 @@ maprequest(struct wl_listener *listener, void *data)
 	c->tags = c->mon->tagset[c->mon->seltags];
 	wl_list_insert(&clients, &c->link);
 	wl_list_insert(&fstack, &c->flink);
+	wl_list_insert(&stack, &c->slink);
 	focus(c, NULL);
 }
 
@@ -732,7 +739,17 @@ refocus(void)
 			break;
 		}
 	}
+	/* XXX consider: should this ever? always? raise the client? */
 	focus(c, NULL);
+}
+
+void
+raiseclient(Client *c)
+{
+	if (!c)
+		return;
+	wl_list_remove(&c->slink);
+	wl_list_insert(&stack, &c->slink);
 }
 
 void
@@ -822,9 +839,9 @@ rendermon(struct wl_listener *listener, void *data)
 	wlr_renderer_clear(drw, rootcolor);
 
 	/* Each subsequent window we render is rendered on top of the last. Because
-	 * our focus stack is ordered front-to-back, we iterate over it backwards. */
+	 * our stacking list is ordered front-to-back, we iterate over it backwards. */
 	Client *c;
-	wl_list_for_each_reverse(c, &fstack, flink) {
+	wl_list_for_each_reverse(c, &stack, slink) {
 		/* Only render clients which are on this monitor. */
 		/* XXX consider checking wlr_output_layout_intersects, in case a
 		 * window can be seen on multiple outputs */
@@ -1045,7 +1062,7 @@ setup(void)
 	new_output.notify = createmon;
 	wl_signal_add(&backend->events.new_output, &new_output);
 
-	/* Set up our lists of clients and the xdg-shell. The xdg-shell is a
+	/* Set up our client lists and the xdg-shell. The xdg-shell is a
 	 * Wayland protocol which is used for application windows. For more
 	 * detail on shells, refer to the article:
 	 *
@@ -1053,6 +1070,7 @@ setup(void)
 	 */
 	wl_list_init(&clients);
 	wl_list_init(&fstack);
+	wl_list_init(&stack);
 	xdg_shell = wlr_xdg_shell_create(dpy);
 	new_xdg_surface.notify = createnotify;
 	wl_signal_add(&xdg_shell->events.new_surface,
@@ -1220,6 +1238,7 @@ unmapnotify(struct wl_listener *listener, void *data)
 	int hadfocus = (c == selclient());
 	wl_list_remove(&c->link);
 	wl_list_remove(&c->flink);
+	wl_list_remove(&c->slink);
 
 	if (hadfocus)
 		refocus();
@@ -1241,9 +1260,9 @@ xytoclient(double x, double y,
 		struct wlr_surface **surface, double *sx, double *sy)
 {
 	/* This iterates over all of our surfaces and attempts to find one under the
-	 * cursor. This relies on fstack being ordered from top-to-bottom. */
+	 * cursor. This relies on stack being ordered from top-to-bottom. */
 	Client *c;
-	wl_list_for_each(c, &fstack, flink) {
+	wl_list_for_each(c, &stack, slink) {
 		/* Skip clients that aren't visible */
 		if (!VISIBLEON(c, c->mon))
 			continue;
