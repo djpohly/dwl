@@ -171,9 +171,9 @@ static Client *xytoclient(double x, double y,
 static Monitor *xytomon(double x, double y);
 
 /* variables */
-static struct wl_display *wl_display;
+static struct wl_display *dpy;
 static struct wlr_backend *backend;
-static struct wlr_renderer *renderer;
+static struct wlr_renderer *drw;
 
 static struct wlr_xdg_shell *xdg_shell;
 static struct wl_listener new_xdg_surface;
@@ -258,8 +258,8 @@ buttonpress(struct wl_listener *listener, void *data)
 void
 createkeyboard(struct wlr_input_device *device)
 {
-	Keyboard *keyboard = calloc(1, sizeof(*keyboard));
-	keyboard->device = device;
+	Keyboard *kb = calloc(1, sizeof(*kb));
+	kb->device = device;
 
 	/* Prepare an XKB keymap and assign it to the keyboard. */
 	struct xkb_context *context = xkb_context_new(XKB_CONTEXT_NO_FLAGS);
@@ -272,15 +272,15 @@ createkeyboard(struct wlr_input_device *device)
 	wlr_keyboard_set_repeat_info(device->keyboard, 25, 600);
 
 	/* Here we set up listeners for keyboard events. */
-	keyboard->modifiers.notify = keypressmod;
-	wl_signal_add(&device->keyboard->events.modifiers, &keyboard->modifiers);
-	keyboard->key.notify = keypress;
-	wl_signal_add(&device->keyboard->events.key, &keyboard->key);
+	kb->modifiers.notify = keypressmod;
+	wl_signal_add(&device->keyboard->events.modifiers, &kb->modifiers);
+	kb->key.notify = keypress;
+	wl_signal_add(&device->keyboard->events.key, &kb->key);
 
 	wlr_seat_set_keyboard(seat, device);
 
 	/* And add the keyboard to our list of keyboards */
-	wl_list_insert(&keyboards, &keyboard->link);
+	wl_list_insert(&keyboards, &kb->link);
 }
 
 void
@@ -299,9 +299,8 @@ createmon(struct wl_listener *listener, void *data)
 		struct wlr_output_mode *mode = wlr_output_preferred_mode(wlr_output);
 		wlr_output_set_mode(wlr_output, mode);
 		wlr_output_enable(wlr_output, true);
-		if (!wlr_output_commit(wlr_output)) {
+		if (!wlr_output_commit(wlr_output))
 			return;
-		}
 	}
 
 	/* Allocates and configures monitor state using configured rules */
@@ -309,7 +308,7 @@ createmon(struct wl_listener *listener, void *data)
 	m->wlr_output = wlr_output;
 	m->tagset[0] = m->tagset[1] = 1;
 	int i;
-	for (i = 0; i < LENGTH(monrules); i++) {
+	for (i = 0; i < LENGTH(monrules); i++)
 		if (!monrules[i].name ||
 				!strcmp(wlr_output->name, monrules[i].name)) {
 			m->mfact = monrules[i].mfact;
@@ -319,7 +318,6 @@ createmon(struct wl_listener *listener, void *data)
 			m->lt[0] = m->lt[1] = monrules[i].lt;
 			break;
 		}
-	}
 	/* Sets up a listener for the frame notify event. */
 	m->frame.notify = rendermon;
 	wl_signal_add(&wlr_output->events.frame, &m->frame);
@@ -343,9 +341,8 @@ createnotify(struct wl_listener *listener, void *data)
 	/* This event is raised when wlr_xdg_shell receives a new xdg surface from a
 	 * client, either a toplevel (application window) or popup. */
 	struct wlr_xdg_surface *xdg_surface = data;
-	if (xdg_surface->role != WLR_XDG_SURFACE_ROLE_TOPLEVEL) {
+	if (xdg_surface->role != WLR_XDG_SURFACE_ROLE_TOPLEVEL)
 		return;
-	}
 
 	/* Allocate a Client for this surface */
 	Client *c = calloc(1, sizeof(*c));
@@ -423,10 +420,9 @@ focus(Client *c, struct wlr_surface *surface)
 	/* XXX Need to understand xdg toplevel/popups to know if there's more
 	 * simplification that can be done in this function */
 	struct wlr_surface *prev_surface = seat->keyboard_state.focused_surface;
-	if (prev_surface == surface) {
-		/* Don't re-focus an already focused surface. */
+	/* Don't re-focus an already focused surface. */
+	if (prev_surface == surface)
 		return;
-	}
 	if (prev_surface) {
 		/*
 		 * Deactivate the previously focused surface. This lets the
@@ -523,9 +519,8 @@ inputdevice(struct wl_listener *listener, void *data)
 	 * communiciated to the client. In dwl we always have a cursor, even if
 	 * there are no pointer devices, so we always include that capability. */
 	uint32_t caps = WL_SEAT_CAPABILITY_POINTER;
-	if (!wl_list_empty(&keyboards)) {
+	if (!wl_list_empty(&keyboards))
 		caps |= WL_SEAT_CAPABILITY_KEYBOARD;
-	}
 	wlr_seat_set_capabilities(seat, caps);
 }
 
@@ -538,14 +533,13 @@ keybinding(uint32_t mods, xkb_keysym_t sym)
 	 * processing.
 	 */
 	bool handled = false;
-	for (int i = 0; i < LENGTH(keys); i++) {
+	for (int i = 0; i < LENGTH(keys); i++)
 		if (sym == keys[i].keysym &&
 				CLEANMASK(mods) == CLEANMASK(keys[i].mod) &&
 				keys[i].func) {
 			keys[i].func(&keys[i].arg);
 			handled = true;
 		}
-	}
 	return handled;
 }
 
@@ -553,8 +547,7 @@ void
 keypress(struct wl_listener *listener, void *data)
 {
 	/* This event is raised when a key is pressed or released. */
-	Keyboard *keyboard =
-		wl_container_of(listener, keyboard, key);
+	Keyboard *kb = wl_container_of(listener, kb, key);
 	struct wlr_event_keyboard_key *event = data;
 
 	/* Translate libinput keycode -> xkbcommon */
@@ -562,20 +555,18 @@ keypress(struct wl_listener *listener, void *data)
 	/* Get a list of keysyms based on the keymap for this keyboard */
 	const xkb_keysym_t *syms;
 	int nsyms = xkb_state_key_get_syms(
-			keyboard->device->keyboard->xkb_state, keycode, &syms);
+			kb->device->keyboard->xkb_state, keycode, &syms);
 
 	bool handled = false;
-	uint32_t mods = wlr_keyboard_get_modifiers(keyboard->device->keyboard);
-	if (event->state == WLR_KEY_PRESSED) {
-		/* On _press_, attempt to process a compositor keybinding. */
-		for (int i = 0; i < nsyms; i++) {
+	uint32_t mods = wlr_keyboard_get_modifiers(kb->device->keyboard);
+	/* On _press_, attempt to process a compositor keybinding. */
+	if (event->state == WLR_KEY_PRESSED)
+		for (int i = 0; i < nsyms; i++)
 			handled = keybinding(mods, syms[i]) || handled;
-		}
-	}
 
 	if (!handled) {
 		/* Otherwise, we pass it along to the client. */
-		wlr_seat_set_keyboard(seat, keyboard->device);
+		wlr_seat_set_keyboard(seat, kb->device);
 		wlr_seat_keyboard_notify_key(seat, event->time_msec,
 			event->keycode, event->state);
 	}
@@ -586,17 +577,17 @@ keypressmod(struct wl_listener *listener, void *data)
 {
 	/* This event is raised when a modifier key, such as shift or alt, is
 	 * pressed. We simply communicate this to the client. */
-	Keyboard *keyboard = wl_container_of(listener, keyboard, modifiers);
+	Keyboard *kb = wl_container_of(listener, kb, modifiers);
 	/*
 	 * A seat can only have one keyboard, but this is a limitation of the
 	 * Wayland protocol - not wlroots. We assign all connected keyboards to the
 	 * same seat. You can swap out the underlying wlr_keyboard like this and
 	 * wlr_seat handles this transparently.
 	 */
-	wlr_seat_set_keyboard(seat, keyboard->device);
+	wlr_seat_set_keyboard(seat, kb->device);
 	/* Send modifiers to the client. */
 	wlr_seat_keyboard_notify_modifiers(seat,
-		&keyboard->device->keyboard->modifiers);
+		&kb->device->keyboard->modifiers);
 }
 
 void
@@ -655,13 +646,12 @@ motionnotify(uint32_t time)
 	double sx, sy;
 	struct wlr_surface *surface = NULL;
 	Client *c = xytoclient(cursor->x, cursor->y, &surface, &sx, &sy);
-	if (!c) {
-		/* If there's no client under the cursor, set the cursor image to a
-		 * default. This is what makes the cursor image appear when you move it
-		 * around the screen, not over any clients. */
+	/* If there's no client under the cursor, set the cursor image to a
+	 * default. This is what makes the cursor image appear when you move it
+	 * around the screen, not over any clients. */
+	if (!c)
 		wlr_xcursor_manager_set_cursor_image(
 				cursor_mgr, "left_ptr", cursor);
-	}
 	if (!surface) {
 		/* Clear pointer focus so future button events and such are not sent to
 		 * the last client to have the cursor over it. */
@@ -712,11 +702,9 @@ movemouse(const Arg *arg)
 {
 	double sx, sy;
 	struct wlr_surface *surface;
-	Client *c = xytoclient(cursor->x, cursor->y,
-			&surface, &sx, &sy);
-	if (!c) {
+	Client *c = xytoclient(cursor->x, cursor->y, &surface, &sx, &sy);
+	if (!c)
 		return;
-	}
 
 	/* Prepare for moving client in motionnotify */
 	grabc = c;
@@ -731,7 +719,7 @@ movemouse(const Arg *arg)
 void
 quit(const Arg *arg)
 {
-	wl_display_terminate(wl_display);
+	wl_display_terminate(dpy);
 }
 
 void
@@ -760,9 +748,8 @@ render(struct wlr_surface *surface, int sx, int sy, void *data)
 	 * could have sent a pixel buffer which we copied to the GPU, or a few other
 	 * means. You don't have to worry about this, wlroots takes care of it. */
 	struct wlr_texture *texture = wlr_surface_get_texture(surface);
-	if (texture == NULL) {
+	if (!texture)
 		return;
-	}
 
 	/* The client has a position in layout coordinates. If you have two displays,
 	 * one next to the other, both 1080p, a client on the rightmost display might
@@ -801,7 +788,7 @@ render(struct wlr_surface *surface, int sx, int sy, void *data)
 
 	/* This takes our matrix, the texture, and an alpha, and performs the actual
 	 * rendering on the GPU. */
-	wlr_render_texture_with_matrix(renderer, texture, matrix, 1);
+	wlr_render_texture_with_matrix(drw, texture, matrix, 1);
 
 	/* This lets the client know that we've displayed that frame and it can
 	 * prepare another one now if it likes. */
@@ -819,9 +806,8 @@ rendermon(struct wl_listener *listener, void *data)
 	clock_gettime(CLOCK_MONOTONIC, &now);
 
 	/* wlr_output_attach_render makes the OpenGL context current. */
-	if (!wlr_output_attach_render(m->wlr_output, NULL)) {
+	if (!wlr_output_attach_render(m->wlr_output, NULL))
 		return;
-	}
 	/* Get effective monitor geometry and window area */
 	m->geom = wlr_output_layout_get_box(output_layout, m->wlr_output);
 	m->wx = m->geom->x;
@@ -832,8 +818,8 @@ rendermon(struct wl_listener *listener, void *data)
 	arrange(m);
 
 	/* Begin the renderer (calls glViewport and some other GL sanity checks) */
-	wlr_renderer_begin(renderer, m->wlr_output->width, m->wlr_output->height);
-	wlr_renderer_clear(renderer, rootcolor);
+	wlr_renderer_begin(drw, m->wlr_output->width, m->wlr_output->height);
+	wlr_renderer_clear(drw, rootcolor);
 
 	/* Each subsequent window we render is rendered on top of the last. Because
 	 * our client list is ordered front-to-back, we iterate over it backwards. */
@@ -866,7 +852,7 @@ rendermon(struct wl_listener *listener, void *data)
 
 	/* Conclude rendering and swap the buffers, showing the final frame
 	 * on-screen. */
-	wlr_renderer_end(renderer);
+	wlr_renderer_end(drw);
 	wlr_output_commit(m->wlr_output);
 }
 
@@ -883,11 +869,10 @@ resizemouse(const Arg *arg)
 {
 	double sx, sy;
 	struct wlr_surface *surface;
-	Client *c = xytoclient(cursor->x, cursor->y,
-			&surface, &sx, &sy);
-	if (!c) {
+	Client *c = xytoclient(cursor->x, cursor->y, &surface, &sx, &sy);
+	if (!c)
 		return;
-	}
+
 	struct wlr_box sbox;
 	wlr_xdg_surface_get_geometry(c->xdg_surface, &sbox);
 	/* Doesn't work for X11 output - the next absolute motion event
@@ -910,7 +895,7 @@ run(char *startup_cmd)
 	pid_t startup_pid = -1;
 
 	/* Add a Unix socket to the Wayland display. */
-	const char *socket = wl_display_add_socket_auto(wl_display);
+	const char *socket = wl_display_add_socket_auto(dpy);
 	if (!socket) {
 		wlr_backend_destroy(backend);
 		exit(1);
@@ -920,7 +905,7 @@ run(char *startup_cmd)
 	 * master, etc */
 	if (!wlr_backend_start(backend)) {
 		wlr_backend_destroy(backend);
-		wl_display_destroy(wl_display);
+		wl_display_destroy(dpy);
 		exit(1);
 	}
 
@@ -940,13 +925,13 @@ run(char *startup_cmd)
 		startup_pid = fork();
 		if (startup_pid < 0) {
 			perror("startup: fork");
-			wl_display_destroy(wl_display);
+			wl_display_destroy(dpy);
 			exit(1);
 		}
 		if (startup_pid == 0) {
 			execl("/bin/sh", "/bin/sh", "-c", startup_cmd, (void *)NULL);
 			perror("startup: execl");
-			wl_display_destroy(wl_display);
+			wl_display_destroy(dpy);
 			exit(1);
 		}
 	}
@@ -956,7 +941,7 @@ run(char *startup_cmd)
 	 * frame events at the refresh rate, and so on. */
 	wlr_log(WLR_INFO, "Running Wayland compositor on WAYLAND_DISPLAY=%s",
 			socket);
-	wl_display_run(wl_display);
+	wl_display_run(dpy);
 
 	if (startup_cmd) {
 		kill(startup_pid, SIGTERM);
@@ -990,18 +975,14 @@ setcursor(struct wl_listener *listener, void *data)
 {
 	/* This event is raised by the seat when a client provides a cursor image */
 	struct wlr_seat_pointer_request_set_cursor_event *event = data;
-	struct wlr_seat_client *focused_client =
-		seat->pointer_state.focused_client;
 	/* This can be sent by any client, so we check to make sure this one is
-	 * actually has pointer focus first. */
-	if (focused_client == event->seat_client) {
-		/* Once we've vetted the client, we can tell the cursor to use the
-		 * provided surface as the cursor image. It will set the hardware cursor
-		 * on the output that it's currently on and continue to do so as the
-		 * cursor moves between outputs. */
+	 * actually has pointer focus first. If so, we can tell the cursor to
+	 * use the provided surface as the cursor image. It will set the
+	 * hardware cursor on the output that it's currently on and continue to
+	 * do so as the cursor moves between outputs. */
+	if (event->seat_client == seat->pointer_state.focused_client)
 		wlr_cursor_set_surface(cursor, event->surface,
 				event->hotspot_x, event->hotspot_y);
-	}
 }
 
 void
@@ -1039,20 +1020,20 @@ setup(void)
 	 * backend uses the renderer, for example, to fall back to software cursors
 	 * if the backend does not support hardware cursors (some older GPUs
 	 * don't). */
-	backend = wlr_backend_autocreate(wl_display, NULL);
+	backend = wlr_backend_autocreate(dpy, NULL);
 
 	/* If we don't provide a renderer, autocreate makes a GLES2 renderer for us.
 	 * The renderer is responsible for defining the various pixel formats it
 	 * supports for shared memory, this configures that for clients. */
-	renderer = wlr_backend_get_renderer(backend);
-	wlr_renderer_init_wl_display(renderer, wl_display);
+	drw = wlr_backend_get_renderer(backend);
+	wlr_renderer_init_wl_display(drw, dpy);
 
 	/* This creates some hands-off wlroots interfaces. The compositor is
 	 * necessary for clients to allocate surfaces and the data device manager
 	 * handles the clipboard. Each of these wlroots interfaces has room for you
 	 * to dig your fingers in and play with their behavior if you want. */
-	wlr_compositor_create(wl_display, renderer);
-	wlr_data_device_manager_create(wl_display);
+	wlr_compositor_create(dpy, drw);
+	wlr_data_device_manager_create(dpy);
 
 	/* Creates an output layout, which a wlroots utility for working with an
 	 * arrangement of screens in a physical layout. */
@@ -1072,7 +1053,7 @@ setup(void)
 	 */
 	wl_list_init(&clients);
 	wl_list_init(&fstack);
-	xdg_shell = wlr_xdg_shell_create(wl_display);
+	xdg_shell = wlr_xdg_shell_create(dpy);
 	new_xdg_surface.notify = createnotify;
 	wl_signal_add(&xdg_shell->events.new_surface,
 			&new_xdg_surface);
@@ -1123,7 +1104,7 @@ setup(void)
 	wl_list_init(&keyboards);
 	new_input.notify = inputdevice;
 	wl_signal_add(&backend->events.new_input, &new_input);
-	seat = wlr_seat_create(wl_display, "seat0");
+	seat = wlr_seat_create(dpy, "seat0");
 	request_cursor.notify = setcursor;
 	wl_signal_add(&seat->events.request_set_cursor,
 			&request_cursor);
@@ -1279,7 +1260,7 @@ xytoclient(double x, double y,
 		_surface = wlr_xdg_surface_surface_at(c->xdg_surface,
 				x - c->x, y - c->y, &_sx, &_sy);
 
-		if (_surface != NULL) {
+		if (_surface) {
 			*sx = _sx;
 			*sy = _sy;
 			*surface = _surface;
@@ -1324,13 +1305,13 @@ main(int argc, char *argv[])
 
 	/* The Wayland display is managed by libwayland. It handles accepting
 	 * clients from the Unix socket, manging Wayland globals, and so on. */
-	wl_display = wl_display_create();
+	dpy = wl_display_create();
 
 	setup();
 	run(startup_cmd);
 
 	/* Once wl_display_run returns, we shut down the server. */
-	wl_display_destroy_clients(wl_display);
-	wl_display_destroy(wl_display);
+	wl_display_destroy_clients(dpy);
+	wl_display_destroy(dpy);
 	return 0;
 }
