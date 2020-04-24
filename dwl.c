@@ -130,7 +130,9 @@ static void createnotify(struct wl_listener *listener, void *data);
 static void createpointer(struct wlr_input_device *device);
 static void cursorframe(struct wl_listener *listener, void *data);
 static void destroynotify(struct wl_listener *listener, void *data);
+static Monitor *dirtomon(int dir);
 static void focus(Client *c, struct wlr_surface *surface);
+static void focusmon(const Arg *arg);
 static void focusstack(const Arg *arg);
 static void incnmaster(const Arg *arg);
 static void inputdevice(struct wl_listener *listener, void *data);
@@ -149,12 +151,14 @@ static void resize(Client *c, int x, int y, int w, int h);
 static void resizemouse(const Arg *arg);
 static void run(char *startup_cmd);
 static Client *selclient(void);
+static void sendmon(Client *c, Monitor *m);
 static void setcursor(struct wl_listener *listener, void *data);
 static void setlayout(const Arg *arg);
 static void setmfact(const Arg *arg);
 static void setup(void);
 static void spawn(const Arg *arg);
 static void tag(const Arg *arg);
+static void tagmon(const Arg *arg);
 static void tile(Monitor *m);
 static void togglefloating(const Arg *arg);
 static void toggletag(const Arg *arg);
@@ -387,6 +391,22 @@ destroynotify(struct wl_listener *listener, void *data)
 	free(c);
 }
 
+Monitor *
+dirtomon(int dir)
+{
+	Monitor *m;
+
+	if (dir > 0) {
+		if (selmon->link.next == &mons)
+			return wl_container_of(mons.next, m, link);
+		return wl_container_of(selmon->link.next, m, link);
+	} else {
+		if (selmon->link.prev == &mons)
+			return wl_container_of(mons.prev, m, link);
+		return wl_container_of(selmon->link.prev, m, link);
+	}
+}
+
 void
 focus(Client *c, struct wlr_surface *surface)
 {
@@ -444,6 +464,17 @@ focus(Client *c, struct wlr_surface *surface)
 	} else {
 		wlr_seat_keyboard_clear_focus(seat);
 	}
+}
+
+void
+focusmon(const Arg *arg)
+{
+	Monitor *m = dirtomon(arg->i);
+
+	if (m == selmon)
+		return;
+	selmon = m;
+	focus(NULL, NULL);
 }
 
 void
@@ -934,6 +965,18 @@ selclient(void)
 }
 
 void
+sendmon(Client *c, Monitor *m)
+{
+	if (c->mon == m)
+		return;
+	c->mon = m;
+	c->tags = m->tagset[m->seltags]; /* assign tags of target monitor */
+
+	if (c == selclient())
+		focus(NULL, NULL);
+}
+
+void
 setcursor(struct wl_listener *listener, void *data)
 {
 	/* This event is raised by the seat when a client provides a cursor image */
@@ -1097,6 +1140,15 @@ tag(const Arg *arg)
 		sel->tags = arg->ui & TAGMASK;
 		focus(NULL, NULL);
 	}
+}
+
+void
+tagmon(const Arg *arg)
+{
+	Client *sel = selclient();
+	if (!sel)
+		return;
+	sendmon(sel, dirtomon(arg->i));
 }
 
 void
