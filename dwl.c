@@ -633,6 +633,8 @@ maprequest(struct wl_listener *listener, void *data)
 	wl_list_insert(&clients, &c->link);
 	wl_list_insert(&fstack, &c->flink);
 	wl_list_insert(&stack, &c->slink);
+	/* XXX should check all outputs, also needs a send_leave counterpart */
+	wlr_surface_send_enter(c->xdg_surface->surface, c->mon->wlr_output);
 	keyboardfocus(c, NULL);
 }
 
@@ -1033,6 +1035,8 @@ sendmon(Client *c, Monitor *m)
 	if (c->mon == m)
 		return;
 	c->mon = m;
+	/* XXX should check all outputs, also needs a send_leave counterpart */
+	wlr_surface_send_enter(c->xdg_surface->surface, c->mon->wlr_output);
 	c->tags = m->tagset[m->seltags]; /* assign tags of target monitor */
 
 	if (c == selclient())
