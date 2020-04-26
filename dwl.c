@@ -553,25 +553,22 @@ keyboardfocus(Client *c, struct wlr_surface *surface)
 					seat->keyboard_state.focused_surface);
 		wlr_xdg_toplevel_set_activated(previous, false);
 	}
-	if (!c) {
-		wlr_seat_keyboard_clear_focus(seat);
-		return;
-	}
-
-	/* Move the client to the front of the focus stack */
-	wl_list_remove(&c->flink);
-	wl_list_insert(&fstack, &c->flink);
-	/* Activate the new surface */
-	wlr_xdg_toplevel_set_activated(c->xdg_surface, true);
 	/*
 	 * Tell the seat to have the keyboard enter this surface.
 	 * wlroots will keep track of this and automatically send key
 	 * events to the appropriate clients without additional work on
-	 * your part.
+	 * your part.  If surface == NULL, this will clear focus.
 	 */
 	struct wlr_keyboard *kb = wlr_seat_get_keyboard(seat);
-	wlr_seat_keyboard_notify_enter(seat, c->xdg_surface->surface,
-		kb->keycodes, kb->num_keycodes, &kb->modifiers);
+	wlr_seat_keyboard_notify_enter(seat, surface,
+			kb->keycodes, kb->num_keycodes, &kb->modifiers);
+	if (c) {
+		/* Move the client to the front of the focus stack */
+		wl_list_remove(&c->flink);
+		wl_list_insert(&fstack, &c->flink);
+		/* Activate the new surface */
+		wlr_xdg_toplevel_set_activated(c->xdg_surface, true);
+	}
 }
 
 void
