@@ -66,7 +66,7 @@ typedef struct {
 	struct wl_listener request_move;
 	struct wl_listener request_resize;
 	Monitor *mon;
-	int x, y; /* layout-relative, includes border */
+	int x, y, w, h; /* layout-relative, includes border */
 	int bw;
 	unsigned int tags;
 	int isfloating;
@@ -376,6 +376,10 @@ createnotify(struct wl_listener *listener, void *data)
 	Client *c = calloc(1, sizeof(*c));
 	c->xdg_surface = xdg_surface;
 	c->bw = borderpx;
+	struct wlr_box geom;
+	wlr_xdg_surface_get_geometry(c->xdg_surface, &geom);
+	c->w = geom.width + 2 * c->bw;
+	c->h = geom.height + 2 * c->bw;
 
 	/* Tell the client not to try anything fancy */
 	wlr_xdg_toplevel_set_tiled(c->xdg_surface, true);
@@ -660,8 +664,9 @@ motionnotify(uint32_t time)
 	if (cursor_mode == CurMove) {
 		/* Move the grabbed client to the new position. */
 		/* XXX assumes the surface is at (0,0) within grabc */
-		grabc->x = cursor->x - grabsx - grabc->bw;
-		grabc->y = cursor->y - grabsy - grabc->bw;
+		resize(grabc, cursor->x - grabsx - grabc->bw,
+				cursor->y - grabsy - grabc->bw,
+				grabc->w, grabc->h);
 		return;
 	} else if (cursor_mode == CurResize) {
 		/*
@@ -916,7 +921,11 @@ resize(Client *c, int x, int y, int w, int h)
 {
 	c->x = x;
 	c->y = y;
-	wlr_xdg_toplevel_set_size(c->xdg_surface, w - 2 * c->bw, h - 2 * c->bw);
+	c->w = w;
+	c->h = h;
+	/* wlroots makes this a no-op if size hasn't changed */
+	wlr_xdg_toplevel_set_size(c->xdg_surface,
+			c->w - 2 * c->bw, c->h - 2 * c->bw);
 }
 
 void
@@ -927,13 +936,10 @@ resizemouse(const Arg *arg)
 	if (!grabc)
 		return;
 
-	struct wlr_box sbox;
-	wlr_xdg_surface_get_geometry(grabc->xdg_surface, &sbox);
 	/* Doesn't work for X11 output - the next absolute motion event
 	 * returns the cursor to where it started */
 	wlr_cursor_warp_closest(cursor, NULL,
-			grabc->x + sbox.x + sbox.width + 2 * grabc->bw,
-			grabc->y + sbox.y + sbox.height + 2 * grabc->bw);
+			grabc->x + grabc->w, grabc->y + grabc->h);
 
 	/* Float the window and tell motionnotify to resize it */
 	if (!grabc->isfloating && selmon->lt[selmon->sellt]->arrange)
@@ -1218,7 +1224,6 @@ tile(Monitor *m)
 {
 	unsigned int i, n = 0, h, mw, my, ty;
 	Client *c;
-	struct wlr_box ca;
 
 	wl_list_for_each(c, &clients, link) {
 		if (VISIBLEON(c, m) && !c->isfloating)
@@ -1235,15 +1240,14 @@ tile(Monitor *m)
 	wl_list_for_each(c, &clients, link) {
 		if (!VISIBLEON(c, m) || c->isfloating)
 			continue;
-		wlr_xdg_surface_get_geometry(c->xdg_surface, &ca);
 		if (i < m->nmaster) {
 			h = (m->w.height - my) / (MIN(n, m->nmaster) - i);
-			resize(c, m->w.x, m->w.y + my, mw, h);
-			my += ca.height + 2 * c->bw;
+			resize(c, m->w.x, m->w.y + my, mw, h, 0);
+			my += c->h;
 		} else {
 			h = (m->w.height - ty) / (n - i);
-			resize(c, m->w.x + mw, m->w.y + ty, m->w.width - mw, h);
-			ty += ca.height + 2 * c->bw;
+			resize(c, m->w.x + mw, m->w.y + ty, m->w.width - mw, h, 0);
+			ty += c->h;
 		}
 		i++;
 	}
