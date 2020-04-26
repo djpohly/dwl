@@ -150,7 +150,7 @@ static void motionnotify(uint32_t time);
 static void motionrelative(struct wl_listener *listener, void *data);
 static void movemouse(const Arg *arg);
 static void pointerfocus(Client *c, struct wlr_surface *surface,
-		double sx, double sy);
+		double sx, double sy, uint32_t time);
 static void quit(const Arg *arg);
 static void raiseclient(Client *c);
 static void refocus(void);
@@ -701,7 +701,7 @@ motionnotify(uint32_t time)
 	}
 
 	/* Otherwise, find the client under the pointer and send the event along. */
-	double sx, sy;
+	double sx = 0, sy = 0;
 	struct wlr_surface *surface = NULL;
 	Client *c = xytoclient(cursor->x, cursor->y, &surface, &sx, &sy);
 	/* If there's no client under the cursor, set the cursor image to a
@@ -711,12 +711,7 @@ motionnotify(uint32_t time)
 		wlr_xcursor_manager_set_cursor_image(cursor_mgr,
 				"left_ptr", cursor);
 
-	/* If surface is already focused, only notify of motion, otherwise give
-	 * surface the pointer focus */
-	if (surface && surface == seat->pointer_state.focused_surface)
-		wlr_seat_pointer_notify_motion(seat, time, sx, sy);
-	else
-		pointerfocus(c, surface, sx, sy);
+	pointerfocus(c, surface, sx, sy, time);
 }
 
 void
@@ -751,17 +746,19 @@ movemouse(const Arg *arg)
 }
 
 void
-pointerfocus(Client *c, struct wlr_surface *surface, double sx, double sy)
+pointerfocus(Client *c, struct wlr_surface *surface, double sx, double sy,
+		uint32_t time)
 {
+	/* If surface is already focused, only notify of motion */
+	if (surface && surface == seat->pointer_state.focused_surface) {
+		wlr_seat_pointer_notify_motion(seat, time, sx, sy);
+		return;
+	}
 	/* If surface is NULL, clear pointer focus, otherwise let the client
 	 * know that the mouse cursor has entered one of its surfaces. */
-	if (!surface)
-		wlr_seat_pointer_clear_focus(seat);
-	else
-		wlr_seat_pointer_notify_enter(seat, surface, sx, sy);
-
+	wlr_seat_pointer_notify_enter(seat, surface, sx, sy);
 	/* If keyboard focus follows mouse, enforce that */
-	if (sloppyfocus && c)
+	if (sloppyfocus && surface)
 		keyboardfocus(c, surface);
 }
 
