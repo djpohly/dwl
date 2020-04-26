@@ -1381,7 +1381,7 @@ xytomon(double x, double y)
 int
 main(int argc, char *argv[])
 {
-	wlr_log_init(WLR_DEBUG, NULL);
+	wlr_log_init(WLR_INFO, NULL);
 	char *startup_cmd = NULL;
 
 	int c;
