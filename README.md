@@ -34,9 +34,12 @@ Other features under consideration are:
 
 - Additional Wayland compositor protocols which are trivially provided by
   wlroots or can be conditionally included via `config.h` settings: xwayland,
-  xdg-portal, etc.
+  screen capture, etc.
 - External bar support instead of a built-in status bar, to avoid taking a
   dependency on FreeType or Pango
+- Buffering of input when spawning a client so you don't have to wait for the
+  window (use `wl_client_get_credentials` to get the PID) - would this require
+  passing through something like dmenu?  Extension protocol?
 - More in-depth damage region tracking
 
 
