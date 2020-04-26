@@ -77,10 +77,13 @@ user-level service manager like s6 or `systemd --user`.
 dwl is a work in progress, and it has not yet reached its feature goals in a
 number of ways:
 
-- Urgent/attention/focus-request
+- Portions of a window not on its current "home" monitor are not drawn (e.g.
+  when window sits across a monitor boundary)
+- Urgent/attention/focus-request ([not yet supported](https://gitlab.freedesktop.org/wayland/wayland-protocols/-/merge_requests/9)
+  by xdg-shell protocol)
 - Normal/selected/urgent border colors
-- layer-shell
 - Statusbar support (built-in or external)
+- layer-shell
 - Damage tracking
 - Fullscreen/fixed windows (or whatever the Wayland analogues are)
 - XWayland
