@@ -304,7 +304,7 @@ buttonpress(struct wl_listener *listener, void *data)
 void
 createkeyboard(struct wlr_input_device *device)
 {
-	Keyboard *kb = calloc(1, sizeof(*kb));
+	Keyboard *kb = device->data = calloc(1, sizeof(*kb));
 	kb->device = device;
 
 	/* Prepare an XKB keymap and assign it to the keyboard. */
@@ -350,7 +350,7 @@ createmon(struct wl_listener *listener, void *data)
 	}
 
 	/* Allocates and configures monitor state using configured rules */
-	Monitor *m = calloc(1, sizeof(*m));
+	Monitor *m = wlr_output->data = calloc(1, sizeof(*m));
 	m->wlr_output = wlr_output;
 	m->tagset[0] = m->tagset[1] = 1;
 	int i;
@@ -393,7 +393,7 @@ createnotify(struct wl_listener *listener, void *data)
 		return;
 
 	/* Allocate a Client for this surface */
-	Client *c = calloc(1, sizeof(*c));
+	Client *c = xdg_surface->data = calloc(1, sizeof(*c));
 	c->xdg_surface = xdg_surface;
 	c->bw = borderpx;
 	struct wlr_box geom;
@@ -1375,11 +1375,7 @@ Monitor *
 xytomon(double x, double y)
 {
 	struct wlr_output *o = wlr_output_layout_output_at(output_layout, x, y);
-	Monitor *m;
-	wl_list_for_each(m, &mons, link)
-		if (m->wlr_output == o)
-			return m;
-	return NULL;
+	return o ? o->data : NULL;
 }
 
 int
