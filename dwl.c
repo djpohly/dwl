@@ -124,6 +124,7 @@ struct render_data {
 };
 
 /* function declarations */
+static void applybounds(Client *c, struct wlr_box *bbox);
 static void arrange(Monitor *m);
 static void axisnotify(struct wl_listener *listener, void *data);
 static void buttonpress(struct wl_listener *listener, void *data);
@@ -156,7 +157,7 @@ static void refocus(void);
 static void render(struct wlr_surface *surface, int sx, int sy, void *data);
 static void renderclients(Monitor *m, struct timespec *now);
 static void rendermon(struct wl_listener *listener, void *data);
-static void resize(Client *c, int x, int y, int w, int h);
+static void resize(Client *c, int x, int y, int w, int h, int interact);
 static void resizemouse(const Arg *arg);
 static void run(char *startup_cmd);
 static void scalebox(struct wlr_box *box, float scale);
@@ -207,12 +208,30 @@ static Client *grabc;
 static double grabsx, grabsy; /* surface-relative */
 
 static struct wlr_output_layout *output_layout;
+static struct wlr_box sgeom;
 static struct wl_list mons;
 static struct wl_listener new_output;
 static Monitor *selmon;
 
 /* configuration, allows nested code to access above variables */
 #include "config.h"
+
+void
+applybounds(Client *c, struct wlr_box *bbox)
+{
+	/* set minimum possible */
+	c->w = MAX(1, c->w);
+	c->h = MAX(1, c->h);
+
+	if (c->x >= bbox->x + bbox->width)
+		c->x = bbox->x + bbox->width - c->w;
+	if (c->y >= bbox->y + bbox->height)
+		c->y = bbox->y + bbox->height - c->h;
+	if (c->x + c->w + 2 * c->bw <= bbox->x)
+		c->x = bbox->x;
+	if (c->y + c->h + 2 * c->bw <= bbox->y)
+		c->y = bbox->y;
+}
 
 void
 arrange(Monitor *m)
@@ -361,6 +380,7 @@ createmon(struct wl_listener *listener, void *data)
 	 * output (such as DPI, scale factor, manufacturer, etc).
 	 */
 	wlr_output_layout_add_auto(output_layout, wlr_output);
+	sgeom = *wlr_output_layout_get_box(output_layout, NULL);
 }
 
 void
@@ -630,6 +650,7 @@ maprequest(struct wl_listener *listener, void *data)
 	/* XXX Apply client rules here */
 	/* Insert this client into the list and focus it. */
 	c->mon = selmon;
+	applybounds(c, &c->mon->m);
 	c->tags = c->mon->tagset[c->mon->seltags];
 	wl_list_insert(&clients, &c->link);
 	wl_list_insert(&fstack, &c->flink);
@@ -666,7 +687,7 @@ motionnotify(uint32_t time)
 		/* XXX assumes the surface is at (0,0) within grabc */
 		resize(grabc, cursor->x - grabsx - grabc->bw,
 				cursor->y - grabsy - grabc->bw,
-				grabc->w, grabc->h);
+				grabc->w, grabc->h, 1);
 		return;
 	} else if (cursor_mode == CurResize) {
 		/*
@@ -675,7 +696,7 @@ motionnotify(uint32_t time)
 		 * the new size, then commit any movement that was prepared.
 		 */
 		resize(grabc, grabc->x, grabc->y,
-				cursor->x - grabc->x, cursor->y - grabc->y);
+				cursor->x - grabc->x, cursor->y - grabc->y, 1);
 		return;
 	}
 
@@ -917,12 +938,14 @@ rendermon(struct wl_listener *listener, void *data)
 }
 
 void
-resize(Client *c, int x, int y, int w, int h)
+resize(Client *c, int x, int y, int w, int h, int interact)
 {
+	struct wlr_box *bbox = interact ? &sgeom : &c->mon->w;
 	c->x = x;
 	c->y = y;
 	c->w = w;
 	c->h = h;
+	applybounds(c, bbox);
 	/* wlroots makes this a no-op if size hasn't changed */
 	wlr_xdg_toplevel_set_size(c->xdg_surface,
 			c->w - 2 * c->bw, c->h - 2 * c->bw);
@@ -1035,6 +1058,8 @@ sendmon(Client *c, Monitor *m)
 	if (c->mon == m)
 		return;
 	c->mon = m;
+	/* Make sure window actually overlaps with the monitor */
+	applybounds(c, &c->mon->m);
 	/* XXX should check all outputs, also needs a send_leave counterpart */
 	wlr_surface_send_enter(c->xdg_surface->surface, c->mon->wlr_output);
 	c->tags = m->tagset[m->seltags]; /* assign tags of target monitor */
