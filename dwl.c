@@ -1057,6 +1057,7 @@ sendmon(Client *c, Monitor *m)
 {
 	if (c->mon == m)
 		return;
+	int hadfocus = (c == selclient());
 	c->mon = m;
 	/* Make sure window actually overlaps with the monitor */
 	applybounds(c, &c->mon->m);
@@ -1064,7 +1065,7 @@ sendmon(Client *c, Monitor *m)
 	wlr_surface_send_enter(c->xdg_surface->surface, c->mon->wlr_output);
 	c->tags = m->tagset[m->seltags]; /* assign tags of target monitor */
 
-	if (c == selclient())
+	if (hadfocus)
 		refocus();
 }
 
