@@ -96,8 +96,8 @@ struct Monitor {
 	struct wl_list link;
 	struct wlr_output *wlr_output;
 	struct wl_listener frame;
-	struct wlr_box *geom; /* layout-relative */
-	int wx, wy, ww, wh; /* layout-relative */
+	struct wlr_box m;      /* monitor area, layout-relative */
+	struct wlr_box w;      /* window area, layout-relative */
 	const Layout *lt[2];
 	unsigned int seltags;
 	unsigned int sellt;
@@ -885,12 +885,9 @@ rendermon(struct wl_listener *listener, void *data)
 	/* wlr_output_attach_render makes the OpenGL context current. */
 	if (!wlr_output_attach_render(m->wlr_output, NULL))
 		return;
-	/* Get effective monitor geometry and window area */
-	m->geom = wlr_output_layout_get_box(output_layout, m->wlr_output);
-	m->wx = m->geom->x;
-	m->wy = m->geom->y;
-	m->ww = m->geom->width;
-	m->wh = m->geom->height;
+	/* Get effective monitor geometry to use for window area */
+	m->m = *wlr_output_layout_get_box(output_layout, m->wlr_output);
+	m->w = m->m;
 
 	arrange(m);
 
@@ -1231,21 +1228,21 @@ tile(Monitor *m)
 		return;
 
 	if (n > m->nmaster)
-		mw = m->nmaster ? m->ww * m->mfact : 0;
+		mw = m->nmaster ? m->w.width * m->mfact : 0;
 	else
-		mw = m->ww;
+		mw = m->w.width;
 	i = my = ty = 0;
 	wl_list_for_each(c, &clients, link) {
 		if (!VISIBLEON(c, m) || c->isfloating)
 			continue;
 		wlr_xdg_surface_get_geometry(c->xdg_surface, &ca);
 		if (i < m->nmaster) {
-			h = (m->wh - my) / (MIN(n, m->nmaster) - i);
-			resize(c, m->wx, m->wy + my, mw, h);
+			h = (m->w.height - my) / (MIN(n, m->nmaster) - i);
+			resize(c, m->w.x, m->w.y + my, mw, h);
 			my += ca.height + 2 * c->bw;
 		} else {
-			h = (m->wh - ty) / (n - i);
-			resize(c, m->wx + mw, m->wy + ty, m->ww - mw, h);
+			h = (m->w.height - ty) / (n - i);
+			resize(c, m->w.x + mw, m->w.y + ty, m->w.width - mw, h);
 			ty += ca.height + 2 * c->bw;
 		}
 		i++;
