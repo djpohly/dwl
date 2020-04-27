@@ -403,9 +403,6 @@ createnotify(struct wl_listener *listener, void *data)
 	Client *c = xdg_surface->data = calloc(1, sizeof(*c));
 	c->xdg_surface = xdg_surface;
 	c->bw = borderpx;
-	wlr_xdg_surface_get_geometry(c->xdg_surface, &c->geom);
-	c->geom.width += 2 * c->bw;
-	c->geom.height += 2 * c->bw;
 
 	/* Tell the client not to try anything fancy */
 	wlr_xdg_toplevel_set_tiled(c->xdg_surface, true);
@@ -658,6 +655,9 @@ maprequest(struct wl_listener *listener, void *data)
 	/* Called when the surface is mapped, or ready to display on-screen. */
 	Client *c = wl_container_of(listener, c, map);
 	/* XXX Apply client rules here */
+	wlr_xdg_surface_get_geometry(c->xdg_surface, &c->geom);
+	c->geom.width += 2 * c->bw;
+	c->geom.height += 2 * c->bw;
 	/* Insert this client into the list and put it on selmon. */
 	wl_list_insert(&clients, &c->link);
 	wl_list_insert(&fstack, &c->flink);
