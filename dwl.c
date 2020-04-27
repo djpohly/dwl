@@ -291,6 +291,9 @@ buttonpress(struct wl_listener *listener, void *data)
 			wlr_xcursor_manager_set_cursor_image(cursor_mgr,
 					"left_ptr", cursor);
 			cursor_mode = CurNormal;
+			/* Drop the window off on its new monitor */
+			selmon = xytomon(cursor->x, cursor->y);
+			setmon(grabc, selmon);
 			return;
 		}
 		break;
