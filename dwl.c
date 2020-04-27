@@ -1374,12 +1374,21 @@ xytomon(double x, double y)
 int
 main(int argc, char *argv[])
 {
-	wlr_log_init(WLR_INFO, NULL);
 	char *startup_cmd = NULL;
+	enum wlr_log_importance loglevel = WLR_ERROR;
 
 	int c;
-	while ((c = getopt(argc, argv, "s:h")) != -1) {
+	while ((c = getopt(argc, argv, "qvds:h")) != -1) {
 		switch (c) {
+		case 'q':
+			loglevel = WLR_SILENT;
+			break;
+		case 'v':
+			loglevel = WLR_INFO;
+			break;
+		case 'd':
+			loglevel = WLR_DEBUG;
+			break;
 		case 's':
 			startup_cmd = optarg;
 			break;
@@ -1392,6 +1401,7 @@ main(int argc, char *argv[])
 		printf("Usage: %s [-s startup command]\n", argv[0]);
 		return EXIT_FAILURE;
 	}
+	wlr_log_init(loglevel, NULL);
 
 	/* The Wayland display is managed by libwayland. It handles accepting
 	 * clients from the Unix socket, manging Wayland globals, and so on. */
