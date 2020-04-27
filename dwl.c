@@ -265,40 +265,43 @@ chvt(const Arg *arg)
 void
 buttonpress(struct wl_listener *listener, void *data)
 {
-	/* This event is forwarded by the cursor when a pointer emits a button
-	 * event. */
 	struct wlr_event_pointer_button *event = data;
-	/* Notify the client with pointer focus that a button press has occurred */
-	/* XXX probably don't want to pass the event if it's handled by the
-	 * compositor at the bottom of this function */
-	wlr_seat_pointer_notify_button(seat,
-			event->time_msec, event->button, event->state);
-	if (event->state == WLR_BUTTON_RELEASED) {
+	switch (event->state) {
+	case WLR_BUTTON_PRESSED:;
+		/* Change focus if the button was _pressed_ over a client */
+		double sx, sy;
+		struct wlr_surface *surface;
+		Client *c = xytoclient(cursor->x, cursor->y, &surface, &sx, &sy);
+		if (c) {
+			keyboardfocus(c, surface);
+			raiseclient(c);
+		}
+
+		struct wlr_keyboard *keyboard = wlr_seat_get_keyboard(seat);
+		uint32_t mods = wlr_keyboard_get_modifiers(keyboard);
+		for (int i = 0; i < LENGTH(buttons); i++)
+			if (event->button == buttons[i].button &&
+					CLEANMASK(mods) == CLEANMASK(buttons[i].mod) &&
+					buttons[i].func) {
+				buttons[i].func(&buttons[i].arg);
+				return;
+			}
+		break;
+	case WLR_BUTTON_RELEASED:
 		/* If you released any buttons, we exit interactive move/resize mode. */
 		/* XXX should reset to the pointer focus's current setcursor */
-		if (cursor_mode != CurNormal)
+		if (cursor_mode != CurNormal) {
 			wlr_xcursor_manager_set_cursor_image(cursor_mgr,
 					"left_ptr", cursor);
-		cursor_mode = CurNormal;
-		return;
+			cursor_mode = CurNormal;
+			return;
+		}
+		break;
 	}
-
-	/* Change focus if the button was _pressed_ over a client */
-	double sx, sy;
-	struct wlr_surface *surface;
-	Client *c = xytoclient(cursor->x, cursor->y, &surface, &sx, &sy);
-	if (c) {
-		keyboardfocus(c, surface);
-		raiseclient(c);
-	}
-
-	struct wlr_keyboard *keyboard = wlr_seat_get_keyboard(seat);
-	uint32_t mods = wlr_keyboard_get_modifiers(keyboard);
-	for (int i = 0; i < LENGTH(buttons); i++)
-		if (event->button == buttons[i].button &&
-				CLEANMASK(mods) == CLEANMASK(buttons[i].mod) &&
-				buttons[i].func)
-			buttons[i].func(&buttons[i].arg);
+	/* If the event wasn't handled by the compositor, notify the client with
+	 * pointer focus that a button press has occurred */
+	wlr_seat_pointer_notify_button(seat,
+			event->time_msec, event->button, event->state);
 }
 
 void
