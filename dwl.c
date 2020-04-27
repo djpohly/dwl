@@ -136,12 +136,12 @@ static void createpointer(struct wlr_input_device *device);
 static void cursorframe(struct wl_listener *listener, void *data);
 static void destroynotify(struct wl_listener *listener, void *data);
 static Monitor *dirtomon(int dir);
+static void focusclient(Client *c, struct wlr_surface *surface, int lift);
 static void focusmon(const Arg *arg);
 static void focusstack(const Arg *arg);
 static void incnmaster(const Arg *arg);
 static void inputdevice(struct wl_listener *listener, void *data);
 static bool keybinding(uint32_t mods, xkb_keysym_t sym);
-static void keyboardfocus(Client *c, struct wlr_surface *surface, int lift);
 static void keypress(struct wl_listener *listener, void *data);
 static void keypressmod(struct wl_listener *listener, void *data);
 static void maprequest(struct wl_listener *listener, void *data);
@@ -272,7 +272,7 @@ buttonpress(struct wl_listener *listener, void *data)
 		struct wlr_surface *surface;
 		Client *c = xytoclient(cursor->x, cursor->y, &surface, &sx, &sy);
 		if (c)
-			keyboardfocus(c, surface, 1);
+			focusclient(c, surface, 1);
 
 		struct wlr_keyboard *keyboard = wlr_seat_get_keyboard(seat);
 		uint32_t mods = wlr_keyboard_get_modifiers(keyboard);
@@ -459,6 +459,56 @@ dirtomon(int dir)
 }
 
 void
+focusclient(Client *c, struct wlr_surface *surface, int lift)
+{
+	if (c) {
+		/* assert(VISIBLEON(c, c->mon)); ? */
+		/* If no surface provided, use the client's xdg_surface */
+		if (!surface)
+			surface = c->xdg_surface->surface;
+		/* Focus the correct monitor as well */
+		selmon = c->mon;
+	}
+
+	/* XXX Need to understand xdg toplevel/popups to know if there's more
+	 * simplification that can be done in this function */
+	struct wlr_surface *prev_surface = seat->keyboard_state.focused_surface;
+	/* Don't re-focus an already focused surface. */
+	if (prev_surface == surface)
+		return;
+	if (prev_surface) {
+		/*
+		 * Deactivate the previously focused surface. This lets the
+		 * client know it no longer has focus and the client will
+		 * repaint accordingly, e.g. stop displaying a caret.
+		 */
+		struct wlr_xdg_surface *previous = wlr_xdg_surface_from_wlr_surface(
+					seat->keyboard_state.focused_surface);
+		wlr_xdg_toplevel_set_activated(previous, false);
+	}
+	/*
+	 * Tell the seat to have the keyboard enter this surface.
+	 * wlroots will keep track of this and automatically send key
+	 * events to the appropriate clients without additional work on
+	 * your part.  If surface == NULL, this will clear focus.
+	 */
+	struct wlr_keyboard *kb = wlr_seat_get_keyboard(seat);
+	wlr_seat_keyboard_notify_enter(seat, surface,
+			kb->keycodes, kb->num_keycodes, &kb->modifiers);
+	if (c) {
+		/* Move the client to the front of the focus stack */
+		wl_list_remove(&c->flink);
+		wl_list_insert(&fstack, &c->flink);
+		if (lift) {
+			wl_list_remove(&c->slink);
+			wl_list_insert(&stack, &c->slink);
+		}
+		/* Activate the new surface */
+		wlr_xdg_toplevel_set_activated(c->xdg_surface, true);
+	}
+}
+
+void
 focusmon(const Arg *arg)
 {
 	Monitor *m = dirtomon(arg->i);
@@ -493,7 +543,7 @@ focusstack(const Arg *arg)
 		}
 	}
 	/* If only one client is visible on selmon, then c == sel */
-	keyboardfocus(c, NULL, 1);
+	focusclient(c, NULL, 1);
 }
 
 void
@@ -546,56 +596,6 @@ keybinding(uint32_t mods, xkb_keysym_t sym)
 			handled = true;
 		}
 	return handled;
-}
-
-void
-keyboardfocus(Client *c, struct wlr_surface *surface, int lift)
-{
-	if (c) {
-		/* assert(VISIBLEON(c, c->mon)); ? */
-		/* If no surface provided, use the client's xdg_surface */
-		if (!surface)
-			surface = c->xdg_surface->surface;
-		/* Focus the correct monitor as well */
-		selmon = c->mon;
-	}
-
-	/* XXX Need to understand xdg toplevel/popups to know if there's more
-	 * simplification that can be done in this function */
-	struct wlr_surface *prev_surface = seat->keyboard_state.focused_surface;
-	/* Don't re-focus an already focused surface. */
-	if (prev_surface == surface)
-		return;
-	if (prev_surface) {
-		/*
-		 * Deactivate the previously focused surface. This lets the
-		 * client know it no longer has focus and the client will
-		 * repaint accordingly, e.g. stop displaying a caret.
-		 */
-		struct wlr_xdg_surface *previous = wlr_xdg_surface_from_wlr_surface(
-					seat->keyboard_state.focused_surface);
-		wlr_xdg_toplevel_set_activated(previous, false);
-	}
-	/*
-	 * Tell the seat to have the keyboard enter this surface.
-	 * wlroots will keep track of this and automatically send key
-	 * events to the appropriate clients without additional work on
-	 * your part.  If surface == NULL, this will clear focus.
-	 */
-	struct wlr_keyboard *kb = wlr_seat_get_keyboard(seat);
-	wlr_seat_keyboard_notify_enter(seat, surface,
-			kb->keycodes, kb->num_keycodes, &kb->modifiers);
-	if (c) {
-		/* Move the client to the front of the focus stack */
-		wl_list_remove(&c->flink);
-		wl_list_insert(&fstack, &c->flink);
-		if (lift) {
-			wl_list_remove(&c->slink);
-			wl_list_insert(&stack, &c->slink);
-		}
-		/* Activate the new surface */
-		wlr_xdg_toplevel_set_activated(c->xdg_surface, true);
-	}
 }
 
 void
@@ -656,7 +656,7 @@ maprequest(struct wl_listener *listener, void *data)
 	wl_list_insert(&fstack, &c->flink);
 	wl_list_insert(&stack, &c->slink);
 	setmon(c, selmon);
-	keyboardfocus(c, c->xdg_surface->surface, 0);
+	focusclient(c, c->xdg_surface->surface, 0);
 }
 
 void
@@ -758,7 +758,7 @@ pointerfocus(Client *c, struct wlr_surface *surface, double sx, double sy,
 	wlr_seat_pointer_notify_enter(seat, surface, sx, sy);
 	/* If keyboard focus follows mouse, enforce that */
 	if (sloppyfocus && surface)
-		keyboardfocus(c, surface, 0);
+		focusclient(c, surface, 0);
 }
 
 void
@@ -778,7 +778,7 @@ refocus(void)
 		}
 	}
 	/* XXX consider: should this ever? always? raise the client? */
-	keyboardfocus(c, NULL, 0);
+	focusclient(c, NULL, 0);
 }
 
 void
