@@ -65,8 +65,8 @@ typedef struct {
 	struct wl_listener destroy;
 	struct wl_listener request_move;
 	struct wl_listener request_resize;
+	struct wlr_box geom;  /* layout-relative, includes border */
 	Monitor *mon;
-	int x, y, w, h; /* layout-relative, includes border */
 	int bw;
 	unsigned int tags;
 	int isfloating;
@@ -220,17 +220,17 @@ void
 applybounds(Client *c, struct wlr_box *bbox)
 {
 	/* set minimum possible */
-	c->w = MAX(1, c->w);
-	c->h = MAX(1, c->h);
+	c->geom.width = MAX(1, c->geom.width);
+	c->geom.height = MAX(1, c->geom.height);
 
-	if (c->x >= bbox->x + bbox->width)
-		c->x = bbox->x + bbox->width - c->w;
-	if (c->y >= bbox->y + bbox->height)
-		c->y = bbox->y + bbox->height - c->h;
-	if (c->x + c->w + 2 * c->bw <= bbox->x)
-		c->x = bbox->x;
-	if (c->y + c->h + 2 * c->bw <= bbox->y)
-		c->y = bbox->y;
+	if (c->geom.x >= bbox->x + bbox->width)
+		c->geom.x = bbox->x + bbox->width - c->geom.width;
+	if (c->geom.y >= bbox->y + bbox->height)
+		c->geom.y = bbox->y + bbox->height - c->geom.height;
+	if (c->geom.x + c->geom.width + 2 * c->bw <= bbox->x)
+		c->geom.x = bbox->x;
+	if (c->geom.y + c->geom.height + 2 * c->bw <= bbox->y)
+		c->geom.y = bbox->y;
 }
 
 void
@@ -403,10 +403,9 @@ createnotify(struct wl_listener *listener, void *data)
 	Client *c = xdg_surface->data = calloc(1, sizeof(*c));
 	c->xdg_surface = xdg_surface;
 	c->bw = borderpx;
-	struct wlr_box geom;
-	wlr_xdg_surface_get_geometry(c->xdg_surface, &geom);
-	c->w = geom.width + 2 * c->bw;
-	c->h = geom.height + 2 * c->bw;
+	wlr_xdg_surface_get_geometry(c->xdg_surface, &c->geom);
+	c->geom.width += 2 * c->bw;
+	c->geom.height += 2 * c->bw;
 
 	/* Tell the client not to try anything fancy */
 	wlr_xdg_toplevel_set_tiled(c->xdg_surface, true);
@@ -694,11 +693,11 @@ motionnotify(uint32_t time)
 		/* XXX assumes the surface is at (0,0) within grabc */
 		resize(grabc, cursor->x - grabsx - grabc->bw,
 				cursor->y - grabsy - grabc->bw,
-				grabc->w, grabc->h, 1);
+				grabc->geom.width, grabc->geom.height, 1);
 		return;
 	} else if (cursor_mode == CurResize) {
-		resize(grabc, grabc->x, grabc->y,
-				cursor->x - grabc->x, cursor->y - grabc->y, 1);
+		resize(grabc, grabc->geom.x, grabc->geom.y,
+				cursor->x - grabc->geom.x, cursor->y - grabc->geom.y, 1);
 		return;
 	}
 
@@ -852,14 +851,11 @@ renderclients(Monitor *m, struct timespec *now)
 	Client *c;
 	wl_list_for_each_reverse(c, &stack, slink) {
 		/* Only render visible clients which show on this monitor */
-		struct wlr_box cbox = {
-			.x = c->x, .y = c->y, .width = c->w, .height = c->h,
-		};
 		if (!VISIBLEON(c, c->mon) || !wlr_output_layout_intersects(
-					output_layout, m->wlr_output, &cbox))
+					output_layout, m->wlr_output, &c->geom))
 			continue;
 
-		double ox = c->x, oy = c->y;
+		double ox = c->geom.x, oy = c->geom.y;
 		wlr_output_layout_output_coords(output_layout, m->wlr_output,
 				&ox, &oy);
 		int w = c->xdg_surface->surface->current.width;
@@ -880,8 +876,8 @@ renderclients(Monitor *m, struct timespec *now)
 		struct render_data rdata = {
 			.output = m->wlr_output,
 			.when = now,
-			.x = c->x + c->bw,
-			.y = c->y + c->bw,
+			.x = c->geom.x + c->bw,
+			.y = c->geom.y + c->bw,
 		};
 		/* This calls our render function for each surface among the
 		 * xdg_surface's toplevel and popups. */
@@ -932,14 +928,14 @@ resize(Client *c, int x, int y, int w, int h, int interact)
 	 * the new size, then commit any movement that was prepared.
 	 */
 	struct wlr_box *bbox = interact ? &sgeom : &c->mon->w;
-	c->x = x;
-	c->y = y;
-	c->w = w;
-	c->h = h;
+	c->geom.x = x;
+	c->geom.y = y;
+	c->geom.width = w;
+	c->geom.height = h;
 	applybounds(c, bbox);
 	/* wlroots makes this a no-op if size hasn't changed */
 	wlr_xdg_toplevel_set_size(c->xdg_surface,
-			c->w - 2 * c->bw, c->h - 2 * c->bw);
+			c->geom.width - 2 * c->bw, c->geom.height - 2 * c->bw);
 }
 
 void
@@ -953,7 +949,8 @@ resizemouse(const Arg *arg)
 	/* Doesn't work for X11 output - the next absolute motion event
 	 * returns the cursor to where it started */
 	wlr_cursor_warp_closest(cursor, NULL,
-			grabc->x + grabc->w, grabc->y + grabc->h);
+			grabc->geom.x + grabc->geom.width,
+			grabc->geom.y + grabc->geom.height);
 
 	/* Float the window and tell motionnotify to resize it */
 	setfloating(grabc, 1);
@@ -1279,11 +1276,11 @@ tile(Monitor *m)
 		if (i < m->nmaster) {
 			h = (m->w.height - my) / (MIN(n, m->nmaster) - i);
 			resize(c, m->w.x, m->w.y + my, mw, h, 0);
-			my += c->h;
+			my += c->geom.height;
 		} else {
 			h = (m->w.height - ty) / (n - i);
 			resize(c, m->w.x + mw, m->w.y + ty, m->w.width - mw, h, 0);
-			ty += c->h;
+			ty += c->geom.height;
 		}
 		i++;
 	}
@@ -1372,7 +1369,8 @@ xytoclient(double x, double y,
 		double _sx, _sy;
 		struct wlr_surface *_surface = NULL;
 		_surface = wlr_xdg_surface_surface_at(c->xdg_surface,
-				x - c->x - c->bw, y - c->y - c->bw, &_sx, &_sy);
+				x - c->geom.x - c->bw, y - c->geom.y - c->bw,
+				&_sx, &_sy);
 
 		if (_surface) {
 			*sx = _sx;
