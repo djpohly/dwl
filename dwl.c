@@ -692,11 +692,6 @@ motionnotify(uint32_t time)
 				grabc->w, grabc->h, 1);
 		return;
 	} else if (cursor_mode == CurResize) {
-		/*
-		 * Note that I took some shortcuts here. In a more fleshed-out
-		 * compositor, you'd wait for the client to prepare a buffer at
-		 * the new size, then commit any movement that was prepared.
-		 */
 		resize(grabc, grabc->x, grabc->y,
 				cursor->x - grabc->x, cursor->y - grabc->y, 1);
 		return;
@@ -932,6 +927,11 @@ rendermon(struct wl_listener *listener, void *data)
 void
 resize(Client *c, int x, int y, int w, int h, int interact)
 {
+	/*
+	 * Note that I took some shortcuts here. In a more fleshed-out
+	 * compositor, you'd wait for the client to prepare a buffer at
+	 * the new size, then commit any movement that was prepared.
+	 */
 	struct wlr_box *bbox = interact ? &sgeom : &c->mon->w;
 	c->x = x;
 	c->y = y;
