@@ -162,10 +162,10 @@ static void resizemouse(const Arg *arg);
 static void run(char *startup_cmd);
 static void scalebox(struct wlr_box *box, float scale);
 static Client *selclient(void);
-static void setmon(Client *c, Monitor *m);
 static void setcursor(struct wl_listener *listener, void *data);
 static void setlayout(const Arg *arg);
 static void setmfact(const Arg *arg);
+static void setmon(Client *c, Monitor *m);
 static void setup(void);
 static void spawn(const Arg *arg);
 static void tag(const Arg *arg);
@@ -1046,27 +1046,6 @@ selclient(void)
 }
 
 void
-setmon(Client *c, Monitor *m)
-{
-	if (c->mon == m)
-		return;
-	int hadfocus = (c == selclient());
-	/* XXX leave/enter should be in resize and check all outputs */
-	if (c->mon)
-		wlr_surface_send_leave(c->xdg_surface->surface, c->mon->wlr_output);
-	c->mon = m;
-	if (m) {
-		/* Make sure window actually overlaps with the monitor */
-		applybounds(c, &m->m);
-		wlr_surface_send_enter(c->xdg_surface->surface, m->wlr_output);
-		c->tags = m->tagset[m->seltags]; /* assign tags of target monitor */
-	}
-	/* Focus can change if c is the top of selmon before or after */
-	if (hadfocus || c == selclient())
-		refocus();
-}
-
-void
 setcursor(struct wl_listener *listener, void *data)
 {
 	/* If we're "grabbing" the cursor, don't use the client's image */
@@ -1107,6 +1086,27 @@ setmfact(const Arg *arg)
 	if (f < 0.1 || f > 0.9)
 		return;
 	selmon->mfact = f;
+}
+
+void
+setmon(Client *c, Monitor *m)
+{
+	if (c->mon == m)
+		return;
+	int hadfocus = (c == selclient());
+	/* XXX leave/enter should be in resize and check all outputs */
+	if (c->mon)
+		wlr_surface_send_leave(c->xdg_surface->surface, c->mon->wlr_output);
+	c->mon = m;
+	if (m) {
+		/* Make sure window actually overlaps with the monitor */
+		applybounds(c, &m->m);
+		wlr_surface_send_enter(c->xdg_surface->surface, m->wlr_output);
+		c->tags = m->tagset[m->seltags]; /* assign tags of target monitor */
+	}
+	/* Focus can change if c is the top of selmon before or after */
+	if (hadfocus || c == selclient())
+		refocus();
 }
 
 void
