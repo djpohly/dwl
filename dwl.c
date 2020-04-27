@@ -141,7 +141,7 @@ static void focusstack(const Arg *arg);
 static void incnmaster(const Arg *arg);
 static void inputdevice(struct wl_listener *listener, void *data);
 static bool keybinding(uint32_t mods, xkb_keysym_t sym);
-static void keyboardfocus(Client *c, struct wlr_surface *surface);
+static void keyboardfocus(Client *c, struct wlr_surface *surface, int lift);
 static void keypress(struct wl_listener *listener, void *data);
 static void keypressmod(struct wl_listener *listener, void *data);
 static void maprequest(struct wl_listener *listener, void *data);
@@ -152,7 +152,6 @@ static void movemouse(const Arg *arg);
 static void pointerfocus(Client *c, struct wlr_surface *surface,
 		double sx, double sy, uint32_t time);
 static void quit(const Arg *arg);
-static void raiseclient(Client *c);
 static void refocus(void);
 static void render(struct wlr_surface *surface, int sx, int sy, void *data);
 static void renderclients(Monitor *m, struct timespec *now);
@@ -272,10 +271,8 @@ buttonpress(struct wl_listener *listener, void *data)
 		double sx, sy;
 		struct wlr_surface *surface;
 		Client *c = xytoclient(cursor->x, cursor->y, &surface, &sx, &sy);
-		if (c) {
-			keyboardfocus(c, surface);
-			raiseclient(c);
-		}
+		if (c)
+			keyboardfocus(c, surface, 1);
 
 		struct wlr_keyboard *keyboard = wlr_seat_get_keyboard(seat);
 		uint32_t mods = wlr_keyboard_get_modifiers(keyboard);
@@ -496,8 +493,7 @@ focusstack(const Arg *arg)
 		}
 	}
 	/* If only one client is visible on selmon, then c == sel */
-	keyboardfocus(c, NULL);
-	raiseclient(c);
+	keyboardfocus(c, NULL, 1);
 }
 
 void
@@ -553,7 +549,7 @@ keybinding(uint32_t mods, xkb_keysym_t sym)
 }
 
 void
-keyboardfocus(Client *c, struct wlr_surface *surface)
+keyboardfocus(Client *c, struct wlr_surface *surface, int lift)
 {
 	if (c) {
 		/* assert(VISIBLEON(c, c->mon)); ? */
@@ -593,6 +589,10 @@ keyboardfocus(Client *c, struct wlr_surface *surface)
 		/* Move the client to the front of the focus stack */
 		wl_list_remove(&c->flink);
 		wl_list_insert(&fstack, &c->flink);
+		if (lift) {
+			wl_list_remove(&c->slink);
+			wl_list_insert(&stack, &c->slink);
+		}
 		/* Activate the new surface */
 		wlr_xdg_toplevel_set_activated(c->xdg_surface, true);
 	}
@@ -656,7 +656,7 @@ maprequest(struct wl_listener *listener, void *data)
 	wl_list_insert(&fstack, &c->flink);
 	wl_list_insert(&stack, &c->slink);
 	setmon(c, selmon);
-	keyboardfocus(c, c->xdg_surface->surface);
+	keyboardfocus(c, c->xdg_surface->surface, 0);
 }
 
 void
@@ -758,7 +758,7 @@ pointerfocus(Client *c, struct wlr_surface *surface, double sx, double sy,
 	wlr_seat_pointer_notify_enter(seat, surface, sx, sy);
 	/* If keyboard focus follows mouse, enforce that */
 	if (sloppyfocus && surface)
-		keyboardfocus(c, surface);
+		keyboardfocus(c, surface, 0);
 }
 
 void
@@ -778,16 +778,7 @@ refocus(void)
 		}
 	}
 	/* XXX consider: should this ever? always? raise the client? */
-	keyboardfocus(c, NULL);
-}
-
-void
-raiseclient(Client *c)
-{
-	if (!c)
-		return;
-	wl_list_remove(&c->slink);
-	wl_list_insert(&stack, &c->slink);
+	keyboardfocus(c, NULL, 0);
 }
 
 void
