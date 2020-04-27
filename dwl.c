@@ -162,6 +162,7 @@ static void run(char *startup_cmd);
 static void scalebox(struct wlr_box *box, float scale);
 static Client *selclient(void);
 static void setcursor(struct wl_listener *listener, void *data);
+static void setfloating(Client *c, int floating);
 static void setlayout(const Arg *arg);
 static void setmfact(const Arg *arg);
 static void setmon(Client *c, Monitor *m);
@@ -736,8 +737,7 @@ movemouse(const Arg *arg)
 		return;
 
 	/* Float the window and tell motionnotify to grab it */
-	if (!grabc->isfloating && selmon->lt[selmon->sellt]->arrange)
-		grabc->isfloating = 1;
+	setfloating(grabc, 1);
 	cursor_mode = CurMove;
 	wlr_xcursor_manager_set_cursor_image(cursor_mgr, "fleur", cursor);
 }
@@ -957,8 +957,7 @@ resizemouse(const Arg *arg)
 			grabc->x + grabc->w, grabc->y + grabc->h);
 
 	/* Float the window and tell motionnotify to resize it */
-	if (!grabc->isfloating && selmon->lt[selmon->sellt]->arrange)
-		grabc->isfloating = 1;
+	setfloating(grabc, 1);
 	cursor_mode = CurResize;
 	wlr_xcursor_manager_set_cursor_image(cursor_mgr,
 			"bottom_right_corner", cursor);
@@ -1061,6 +1060,14 @@ setcursor(struct wl_listener *listener, void *data)
 	if (event->seat_client == seat->pointer_state.focused_client)
 		wlr_cursor_set_surface(cursor, event->surface,
 				event->hotspot_x, event->hotspot_y);
+}
+
+void
+setfloating(Client *c, int floating)
+{
+	if (c->isfloating == floating)
+		return;
+	c->isfloating = floating;
 }
 
 void
@@ -1282,7 +1289,7 @@ togglefloating(const Arg *arg)
 	if (!sel)
 		return;
 	/* return if fullscreen */
-	sel->isfloating = !sel->isfloating /* || sel->isfixed */;
+	setfloating(sel, !sel->isfloating /* || sel->isfixed */);
 }
 
 void
