@@ -236,6 +236,9 @@ applybounds(Client *c, struct wlr_box *bbox)
 void
 arrange(Monitor *m)
 {
+	/* Get effective monitor geometry to use for window area */
+	m->m = *wlr_output_layout_get_box(output_layout, m->wlr_output);
+	m->w = m->m;
 	if (m->lt[m->sellt]->arrange)
 		m->lt[m->sellt]->arrange(m);
 	/* XXX recheck pointer focus here... or in resize()? */
@@ -554,6 +557,7 @@ void
 incnmaster(const Arg *arg)
 {
 	selmon->nmaster = MAX(selmon->nmaster + arg->i, 0);
+	arrange(selmon);
 }
 
 void
@@ -898,11 +902,6 @@ rendermon(struct wl_listener *listener, void *data)
 	/* wlr_output_attach_render makes the OpenGL context current. */
 	if (!wlr_output_attach_render(m->wlr_output, NULL))
 		return;
-	/* Get effective monitor geometry to use for window area */
-	m->m = *wlr_output_layout_get_box(output_layout, m->wlr_output);
-	m->w = m->m;
-
-	arrange(m);
 
 	/* Begin the renderer (calls glViewport and some other GL sanity checks) */
 	wlr_renderer_begin(drw, m->wlr_output->width, m->wlr_output->height);
@@ -1068,6 +1067,7 @@ setfloating(Client *c, int floating)
 	if (c->isfloating == floating)
 		return;
 	c->isfloating = floating;
+	arrange(c->mon);
 }
 
 void
@@ -1078,6 +1078,7 @@ setlayout(const Arg *arg)
 	if (arg && arg->v)
 		selmon->lt[selmon->sellt] = (Layout *)arg->v;
 	/* XXX change layout symbol? */
+	arrange(selmon);
 }
 
 /* arg > 1.0 will set mfact absolutely */
@@ -1092,6 +1093,7 @@ setmfact(const Arg *arg)
 	if (f < 0.1 || f > 0.9)
 		return;
 	selmon->mfact = f;
+	arrange(selmon);
 }
 
 void
@@ -1100,15 +1102,19 @@ setmon(Client *c, Monitor *m)
 	if (c->mon == m)
 		return;
 	int hadfocus = (c == selclient());
-	/* XXX leave/enter should be in resize and check all outputs */
-	if (c->mon)
-		wlr_surface_send_leave(c->xdg_surface->surface, c->mon->wlr_output);
+	Monitor *oldmon = c->mon;
 	c->mon = m;
+	/* XXX leave/enter is not optimal but works */
+	if (oldmon) {
+		wlr_surface_send_leave(c->xdg_surface->surface, oldmon->wlr_output);
+		arrange(oldmon);
+	}
 	if (m) {
 		/* Make sure window actually overlaps with the monitor */
 		applybounds(c, &m->m);
 		wlr_surface_send_enter(c->xdg_surface->surface, m->wlr_output);
 		c->tags = m->tagset[m->seltags]; /* assign tags of target monitor */
+		arrange(m);
 	}
 	/* Focus can change if c is the top of selmon before or after */
 	if (hadfocus || c == selclient())
@@ -1236,6 +1242,7 @@ tag(const Arg *arg)
 	if (sel && arg->ui & TAGMASK) {
 		sel->tags = arg->ui & TAGMASK;
 		refocus();
+		arrange(selmon);
 	}
 }
 
@@ -1303,6 +1310,7 @@ toggletag(const Arg *arg)
 	if (newtags) {
 		sel->tags = newtags;
 		refocus();
+		arrange(selmon);
 	}
 }
 
@@ -1314,6 +1322,7 @@ toggleview(const Arg *arg)
 	if (newtagset) {
 		selmon->tagset[selmon->seltags] = newtagset;
 		refocus();
+		arrange(selmon);
 	}
 }
 
@@ -1337,6 +1346,7 @@ view(const Arg *arg)
 	if (arg->ui & TAGMASK)
 		selmon->tagset[selmon->seltags] = arg->ui & TAGMASK;
 	refocus();
+	arrange(selmon);
 }
 
 Client *
