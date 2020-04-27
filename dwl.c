@@ -697,7 +697,8 @@ motionnotify(uint32_t time)
 		return;
 	} else if (cursor_mode == CurResize) {
 		resize(grabc, grabc->geom.x, grabc->geom.y,
-				cursor->x - grabc->geom.x, cursor->y - grabc->geom.y, 1);
+				cursor->x - grabc->geom.x,
+				cursor->y - grabc->geom.y, 1);
 		return;
 	}
 
