@@ -855,10 +855,12 @@ renderclients(Monitor *m, struct timespec *now)
 	 * our stacking list is ordered front-to-back, we iterate over it backwards. */
 	Client *c;
 	wl_list_for_each_reverse(c, &stack, slink) {
-		/* Only render clients which are on this monitor. */
-		/* XXX consider checking wlr_output_layout_intersects, in case a
-		 * window can be seen on multiple outputs */
-		if (!VISIBLEON(c, m))
+		/* Only render visible clients which show on this monitor */
+		struct wlr_box cbox = {
+			.x = c->x, .y = c->y, .width = c->w, .height = c->h,
+		};
+		if (!VISIBLEON(c, c->mon) || !wlr_output_layout_intersects(
+					output_layout, m->wlr_output, &cbox))
 			continue;
 
 		double ox = c->x, oy = c->y;
