@@ -162,7 +162,7 @@ static void resizemouse(const Arg *arg);
 static void run(char *startup_cmd);
 static void scalebox(struct wlr_box *box, float scale);
 static Client *selclient(void);
-static void sendmon(Client *c, Monitor *m);
+static void setmon(Client *c, Monitor *m);
 static void setcursor(struct wl_listener *listener, void *data);
 static void setlayout(const Arg *arg);
 static void setmfact(const Arg *arg);
@@ -648,16 +648,12 @@ maprequest(struct wl_listener *listener, void *data)
 	/* Called when the surface is mapped, or ready to display on-screen. */
 	Client *c = wl_container_of(listener, c, map);
 	/* XXX Apply client rules here */
-	/* Insert this client into the list and focus it. */
-	c->mon = selmon;
-	applybounds(c, &c->mon->m);
-	c->tags = c->mon->tagset[c->mon->seltags];
+	/* Insert this client into the list and put it on selmon. */
 	wl_list_insert(&clients, &c->link);
 	wl_list_insert(&fstack, &c->flink);
 	wl_list_insert(&stack, &c->slink);
-	/* XXX should check all outputs, also needs a send_leave counterpart */
-	wlr_surface_send_enter(c->xdg_surface->surface, c->mon->wlr_output);
-	keyboardfocus(c, NULL);
+	setmon(c, selmon);
+	keyboardfocus(c, c->xdg_surface->surface);
 }
 
 void
@@ -1050,19 +1046,23 @@ selclient(void)
 }
 
 void
-sendmon(Client *c, Monitor *m)
+setmon(Client *c, Monitor *m)
 {
 	if (c->mon == m)
 		return;
 	int hadfocus = (c == selclient());
+	/* XXX leave/enter should be in resize and check all outputs */
+	if (c->mon)
+		wlr_surface_send_leave(c->xdg_surface->surface, c->mon->wlr_output);
 	c->mon = m;
-	/* Make sure window actually overlaps with the monitor */
-	applybounds(c, &c->mon->m);
-	/* XXX should check all outputs, also needs a send_leave counterpart */
-	wlr_surface_send_enter(c->xdg_surface->surface, c->mon->wlr_output);
-	c->tags = m->tagset[m->seltags]; /* assign tags of target monitor */
-
-	if (hadfocus)
+	if (m) {
+		/* Make sure window actually overlaps with the monitor */
+		applybounds(c, &m->m);
+		wlr_surface_send_enter(c->xdg_surface->surface, m->wlr_output);
+		c->tags = m->tagset[m->seltags]; /* assign tags of target monitor */
+	}
+	/* Focus can change if c is the top of selmon before or after */
+	if (hadfocus || c == selclient())
 		refocus();
 }
 
@@ -1239,7 +1239,7 @@ tagmon(const Arg *arg)
 	Client *sel = selclient();
 	if (!sel)
 		return;
-	sendmon(sel, dirtomon(arg->i));
+	setmon(sel, dirtomon(arg->i));
 }
 
 void
@@ -1316,13 +1316,10 @@ unmapnotify(struct wl_listener *listener, void *data)
 {
 	/* Called when the surface is unmapped, and should no longer be shown. */
 	Client *c = wl_container_of(listener, c, unmap);
-	int hadfocus = (c == selclient());
+	setmon(c, NULL);
 	wl_list_remove(&c->link);
 	wl_list_remove(&c->flink);
 	wl_list_remove(&c->slink);
-
-	if (hadfocus)
-		refocus();
 }
 
 void
