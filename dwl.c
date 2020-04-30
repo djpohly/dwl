@@ -1346,32 +1346,24 @@ Client *
 xytoclient(double x, double y,
 		struct wlr_surface **surface, double *sx, double *sy)
 {
-	/* XXX what if (x,y) is within a window's border? */
-	/* This iterates over all of our surfaces and attempts to find one under the
-	 * cursor. This relies on stack being ordered from top-to-bottom. */
+	/* Find the topmost visible client (if any) under the cursor, including
+	 * borders. This relies on stack being ordered from top to bottom. */
 	Client *c;
 	wl_list_for_each(c, &stack, slink) {
-		/* Skip clients that aren't visible */
-		if (!VISIBLEON(c, c->mon))
-			continue;
-		/*
-		 * XDG toplevels may have nested surfaces, such as popup windows
-		 * for context menus or tooltips. This function tests if any of
-		 * those are underneath the coordinates x and y (in layout
-		 * coordinates). If so, it sets the surface pointer to that
-		 * wlr_surface and the sx and sy coordinates to the coordinates
-		 * relative to that surface's top-left corner.
-		 */
-		double _sx, _sy;
-		struct wlr_surface *_surface = NULL;
-		_surface = wlr_xdg_surface_surface_at(c->xdg_surface,
-				x - c->geom.x - c->bw, y - c->geom.y - c->bw,
-				&_sx, &_sy);
-
-		if (_surface) {
-			*sx = _sx;
-			*sy = _sy;
-			*surface = _surface;
+		if (VISIBLEON(c, c->mon) && wlr_box_contains_point(&c->geom, x, y)) {
+			/*
+			 * XDG toplevels may have nested surfaces, such as popup windows
+			 * for context menus or tooltips. This function tests if any of
+			 * those are underneath the coordinates x and y (in layout
+			 * coordinates). If so, it sets the surface pointer to that
+			 * wlr_surface and the sx and sy coordinates to the coordinates
+			 * relative to that surface's top-left corner.
+			 */
+			/* XXX set *surface to xdg_surface->surface instead of
+			 * NULL?  what should sx/sy be in that case? */
+			*surface = wlr_xdg_surface_surface_at(c->xdg_surface,
+					x - c->geom.x - c->bw, y - c->geom.y - c->bw,
+					sx, sy);
 			return c;
 		}
 	}
