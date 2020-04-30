@@ -148,7 +148,7 @@ static void maprequest(struct wl_listener *listener, void *data);
 static void motionabsolute(struct wl_listener *listener, void *data);
 static void motionnotify(uint32_t time);
 static void motionrelative(struct wl_listener *listener, void *data);
-static void movemouse(const Arg *arg);
+static void moveresize(const Arg *arg);
 static void pointerfocus(Client *c, struct wlr_surface *surface,
 		double sx, double sy, uint32_t time);
 static void quit(const Arg *arg);
@@ -157,7 +157,6 @@ static void render(struct wlr_surface *surface, int sx, int sy, void *data);
 static void renderclients(Monitor *m, struct timespec *now);
 static void rendermon(struct wl_listener *listener, void *data);
 static void resize(Client *c, int x, int y, int w, int h, int interact);
-static void resizemouse(const Arg *arg);
 static void run(char *startup_cmd);
 static void scalebox(struct wlr_box *box, float scale);
 static Client *selclient(void);
@@ -733,7 +732,7 @@ motionrelative(struct wl_listener *listener, void *data)
 }
 
 void
-movemouse(const Arg *arg)
+moveresize(const Arg *arg)
 {
 	struct wlr_surface *surface;
 	grabc = xytoclient(cursor->x, cursor->y, &surface, &grabsx, &grabsy);
@@ -742,8 +741,20 @@ movemouse(const Arg *arg)
 
 	/* Float the window and tell motionnotify to grab it */
 	setfloating(grabc, 1);
-	cursor_mode = CurMove;
-	wlr_xcursor_manager_set_cursor_image(cursor_mgr, "fleur", cursor);
+	switch (cursor_mode = arg->ui) {
+	case CurMove:
+		wlr_xcursor_manager_set_cursor_image(cursor_mgr, "fleur", cursor);
+		break;
+	case CurResize:
+		/* Doesn't work for X11 output - the next absolute motion event
+		 * returns the cursor to where it started */
+		wlr_cursor_warp_closest(cursor, NULL,
+				grabc->geom.x + grabc->geom.width,
+				grabc->geom.y + grabc->geom.height);
+		wlr_xcursor_manager_set_cursor_image(cursor_mgr,
+				"bottom_right_corner", cursor);
+		break;
+	}
 }
 
 void
@@ -937,27 +948,6 @@ resize(Client *c, int x, int y, int w, int h, int interact)
 	/* wlroots makes this a no-op if size hasn't changed */
 	wlr_xdg_toplevel_set_size(c->xdg_surface,
 			c->geom.width - 2 * c->bw, c->geom.height - 2 * c->bw);
-}
-
-void
-resizemouse(const Arg *arg)
-{
-	struct wlr_surface *surface;
-	grabc = xytoclient(cursor->x, cursor->y, &surface, &grabsx, &grabsy);
-	if (!grabc)
-		return;
-
-	/* Doesn't work for X11 output - the next absolute motion event
-	 * returns the cursor to where it started */
-	wlr_cursor_warp_closest(cursor, NULL,
-			grabc->geom.x + grabc->geom.width,
-			grabc->geom.y + grabc->geom.height);
-
-	/* Float the window and tell motionnotify to resize it */
-	setfloating(grabc, 1);
-	cursor_mode = CurResize;
-	wlr_xcursor_manager_set_cursor_image(cursor_mgr,
-			"bottom_right_corner", cursor);
 }
 
 void
