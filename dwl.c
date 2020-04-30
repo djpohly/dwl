@@ -204,7 +204,7 @@ static struct wl_listener request_cursor;
 static struct wl_list keyboards;
 static unsigned int cursor_mode;
 static Client *grabc;
-static double grabsx, grabsy; /* surface-relative */
+static int grabcx, grabcy; /* client-relative */
 
 static struct wlr_output_layout *output_layout;
 static struct wlr_box sgeom;
@@ -690,8 +690,7 @@ motionnotify(uint32_t time)
 	if (cursor_mode == CurMove) {
 		/* Move the grabbed client to the new position. */
 		/* XXX assumes the surface is at (0,0) within grabc */
-		resize(grabc, cursor->x - grabsx - grabc->bw,
-				cursor->y - grabsy - grabc->bw,
+		resize(grabc, cursor->x - grabcx, cursor->y - grabcy,
 				grabc->geom.width, grabc->geom.height, 1);
 		return;
 	} else if (cursor_mode == CurResize) {
@@ -735,7 +734,8 @@ void
 moveresize(const Arg *arg)
 {
 	struct wlr_surface *surface;
-	grabc = xytoclient(cursor->x, cursor->y, &surface, &grabsx, &grabsy);
+	double sx, sy;
+	grabc = xytoclient(cursor->x, cursor->y, &surface, &sx, &sy);
 	if (!grabc)
 		return;
 
@@ -743,6 +743,8 @@ moveresize(const Arg *arg)
 	setfloating(grabc, 1);
 	switch (cursor_mode = arg->ui) {
 	case CurMove:
+		grabcx = cursor->x - grabc->geom.x;
+		grabcy = cursor->y - grabc->geom.y;
 		wlr_xcursor_manager_set_cursor_image(cursor_mgr, "fleur", cursor);
 		break;
 	case CurResize:
