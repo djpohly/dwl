@@ -465,7 +465,7 @@ focusclient(Client *c, struct wlr_surface *surface, int lift)
 {
 	if (c) {
 		/* assert(VISIBLEON(c, c->mon)); ? */
-		/* If no surface provided, use the client's xdg_surface */
+		/* Use top level surface if nothing more specific given */
 		if (!surface)
 			surface = c->xdg_surface->surface;
 		/* Focus the correct monitor as well */
@@ -763,6 +763,9 @@ void
 pointerfocus(Client *c, struct wlr_surface *surface, double sx, double sy,
 		uint32_t time)
 {
+	/* Use top level surface if nothing more specific given */
+	if (c && !surface)
+		surface = c->xdg_surface->surface;
 	/* If surface is already focused, only notify of motion */
 	if (surface && surface == seat->pointer_state.focused_surface) {
 		wlr_seat_pointer_notify_motion(seat, time, sx, sy);
