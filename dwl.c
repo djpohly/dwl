@@ -1,7 +1,7 @@
 /*
  * See LICENSE file for copyright and license details.
  */
-#define _POSIX_C_SOURCE 200112L
+#define _POSIX_C_SOURCE 200809L
 #include <getopt.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -267,23 +267,29 @@ void
 buttonpress(struct wl_listener *listener, void *data)
 {
 	struct wlr_event_pointer_button *event = data;
+	struct wlr_surface *surface;
+	struct wlr_keyboard *keyboard;
+	uint32_t mods;
+	Client *c;
+	int i;
+
 	switch (event->state) {
 	case WLR_BUTTON_PRESSED:;
 		/* Change focus if the button was _pressed_ over a client */
-		struct wlr_surface *surface;
-		Client *c = xytoclient(cursor->x, cursor->y, &surface, NULL, NULL);
+		c = xytoclient(cursor->x, cursor->y, &surface, NULL, NULL);
 		if (c)
 			focusclient(c, surface, 1);
 
-		struct wlr_keyboard *keyboard = wlr_seat_get_keyboard(seat);
-		uint32_t mods = wlr_keyboard_get_modifiers(keyboard);
-		for (int i = 0; i < LENGTH(buttons); i++)
+		keyboard = wlr_seat_get_keyboard(seat);
+		mods = wlr_keyboard_get_modifiers(keyboard);
+		for (i = 0; i < LENGTH(buttons); i++) {
 			if (event->button == buttons[i].button &&
 					CLEANMASK(mods) == CLEANMASK(buttons[i].mod) &&
 					buttons[i].func) {
 				buttons[i].func(&buttons[i].arg);
 				return;
 			}
+		}
 		break;
 	case WLR_BUTTON_RELEASED:
 		/* If you released any buttons, we exit interactive move/resize mode. */
@@ -308,12 +314,16 @@ buttonpress(struct wl_listener *listener, void *data)
 void
 createkeyboard(struct wlr_input_device *device)
 {
-	Keyboard *kb = device->data = calloc(1, sizeof(*kb));
+	struct xkb_context *context;
+	struct xkb_keymap *keymap;
+	Keyboard *kb;
+
+	kb = device->data = calloc(1, sizeof(*kb));
 	kb->device = device;
 
 	/* Prepare an XKB keymap and assign it to the keyboard. */
-	struct xkb_context *context = xkb_context_new(XKB_CONTEXT_NO_FLAGS);
-	struct xkb_keymap *keymap = xkb_map_new_from_names(context, &xkb_rules,
+	context = xkb_context_new(XKB_CONTEXT_NO_FLAGS);
+	keymap = xkb_map_new_from_names(context, &xkb_rules,
 		XKB_KEYMAP_COMPILE_NO_FLAGS);
 
 	wlr_keyboard_set_keymap(device->keyboard, keymap);
@@ -339,6 +349,9 @@ createmon(struct wl_listener *listener, void *data)
 	/* This event is raised by the backend when a new output (aka a display or
 	 * monitor) becomes available. */
 	struct wlr_output *wlr_output = data;
+	struct wlr_output_mode *mode;
+	Monitor *m;
+	int i;
 
 	/* Some backends don't have modes. DRM+KMS does, and we need to set a mode
 	 * before we can use the output. The mode is a tuple of (width, height,
@@ -346,7 +359,7 @@ createmon(struct wl_listener *listener, void *data)
 	 * just pick the monitor's preferred mode, a more sophisticated compositor
 	 * would let the user configure it. */
 	if (!wl_list_empty(&wlr_output->modes)) {
-		struct wlr_output_mode *mode = wlr_output_preferred_mode(wlr_output);
+		mode = wlr_output_preferred_mode(wlr_output);
 		wlr_output_set_mode(wlr_output, mode);
 		wlr_output_enable(wlr_output, 1);
 		if (!wlr_output_commit(wlr_output))
@@ -354,11 +367,10 @@ createmon(struct wl_listener *listener, void *data)
 	}
 
 	/* Allocates and configures monitor state using configured rules */
-	Monitor *m = wlr_output->data = calloc(1, sizeof(*m));
+	m = wlr_output->data = calloc(1, sizeof(*m));
 	m->wlr_output = wlr_output;
 	m->tagset[0] = m->tagset[1] = 1;
-	int i;
-	for (i = 0; i < LENGTH(monrules); i++)
+	for (i = 0; i < LENGTH(monrules); i++) {
 		if (!monrules[i].name ||
 				!strcmp(wlr_output->name, monrules[i].name)) {
 			m->mfact = monrules[i].mfact;
@@ -369,6 +381,7 @@ createmon(struct wl_listener *listener, void *data)
 			wlr_output_set_transform(wlr_output, monrules[i].rr);
 			break;
 		}
+	}
 	/* Sets up a listener for the frame notify event. */
 	m->frame.notify = rendermon;
 	wl_signal_add(&wlr_output->events.frame, &m->frame);
@@ -393,11 +406,13 @@ createnotify(struct wl_listener *listener, void *data)
 	/* This event is raised when wlr_xdg_shell receives a new xdg surface from a
 	 * client, either a toplevel (application window) or popup. */
 	struct wlr_xdg_surface *xdg_surface = data;
+	Client *c;
+
 	if (xdg_surface->role != WLR_XDG_SURFACE_ROLE_TOPLEVEL)
 		return;
 
 	/* Allocate a Client for this surface */
-	Client *c = xdg_surface->data = calloc(1, sizeof(*c));
+	c = xdg_surface->data = calloc(1, sizeof(*c));
 	c->xdg_surface = xdg_surface;
 	c->bw = borderpx;
 
@@ -461,6 +476,10 @@ dirtomon(int dir)
 void
 focusclient(Client *c, struct wlr_surface *surface, int lift)
 {
+	struct wlr_surface *prev_surface;
+	struct wlr_xdg_surface *previous;
+	struct wlr_keyboard *kb;
+
 	if (c) {
 		/* assert(VISIBLEON(c, c->mon)); ? */
 		/* Use top level surface if nothing more specific given */
@@ -472,7 +491,7 @@ focusclient(Client *c, struct wlr_surface *surface, int lift)
 
 	/* XXX Need to understand xdg toplevel/popups to know if there's more
 	 * simplification that can be done in this function */
-	struct wlr_surface *prev_surface = seat->keyboard_state.focused_surface;
+	prev_surface = seat->keyboard_state.focused_surface;
 	/* Don't re-focus an already focused surface. */
 	if (prev_surface == surface)
 		return;
@@ -482,7 +501,7 @@ focusclient(Client *c, struct wlr_surface *surface, int lift)
 		 * client know it no longer has focus and the client will
 		 * repaint accordingly, e.g. stop displaying a caret.
 		 */
-		struct wlr_xdg_surface *previous = wlr_xdg_surface_from_wlr_surface(
+		previous = wlr_xdg_surface_from_wlr_surface(
 					seat->keyboard_state.focused_surface);
 		wlr_xdg_toplevel_set_activated(previous, 0);
 	}
@@ -492,7 +511,7 @@ focusclient(Client *c, struct wlr_surface *surface, int lift)
 	 * events to the appropriate clients without additional work on
 	 * your part.  If surface == NULL, this will clear focus.
 	 */
-	struct wlr_keyboard *kb = wlr_seat_get_keyboard(seat);
+	kb = wlr_seat_get_keyboard(seat);
 	wlr_seat_keyboard_notify_enter(seat, surface,
 			kb->keycodes, kb->num_keycodes, &kb->modifiers);
 	if (c) {
@@ -523,10 +542,9 @@ void
 focusstack(const Arg *arg)
 {
 	/* Focus the next or previous client (in tiling order) on selmon */
-	Client *sel = selclient();
+	Client *c, *sel = selclient();
 	if (!sel)
 		return;
-	Client *c;
 	if (arg->i > 0) {
 		wl_list_for_each(c, &sel->link, link) {
 			if (&c->link == &clients)
@@ -559,6 +577,7 @@ inputdevice(struct wl_listener *listener, void *data)
 	/* This event is raised by the backend when a new input device becomes
 	 * available. */
 	struct wlr_input_device *device = data;
+	uint32_t caps;
 	switch (device->type) {
 	case WLR_INPUT_DEVICE_KEYBOARD:
 		createkeyboard(device);
@@ -574,7 +593,7 @@ inputdevice(struct wl_listener *listener, void *data)
 	 * communiciated to the client. In dwl we always have a cursor, even if
 	 * there are no pointer devices, so we always include that capability. */
 	/* XXX do we actually require a cursor? */
-	uint32_t caps = WL_SEAT_CAPABILITY_POINTER;
+	caps = WL_SEAT_CAPABILITY_POINTER;
 	if (!wl_list_empty(&keyboards))
 		caps |= WL_SEAT_CAPABILITY_KEYBOARD;
 	wlr_seat_set_capabilities(seat, caps);
@@ -589,13 +608,15 @@ keybinding(uint32_t mods, xkb_keysym_t sym)
 	 * processing.
 	 */
 	int handled = 0;
-	for (int i = 0; i < LENGTH(keys); i++)
+	int i;
+	for (i = 0; i < LENGTH(keys); i++) {
 		if (sym == keys[i].keysym &&
 				CLEANMASK(mods) == CLEANMASK(keys[i].mod) &&
 				keys[i].func) {
 			keys[i].func(&keys[i].arg);
 			handled = 1;
 		}
+	}
 	return handled;
 }
 
@@ -605,6 +626,7 @@ keypress(struct wl_listener *listener, void *data)
 	/* This event is raised when a key is pressed or released. */
 	Keyboard *kb = wl_container_of(listener, kb, key);
 	struct wlr_event_keyboard_key *event = data;
+	int i;
 
 	/* Translate libinput keycode -> xkbcommon */
 	uint32_t keycode = event->keycode + 8;
@@ -617,7 +639,7 @@ keypress(struct wl_listener *listener, void *data)
 	uint32_t mods = wlr_keyboard_get_modifiers(kb->device->keyboard);
 	/* On _press_, attempt to process a compositor keybinding. */
 	if (event->state == WLR_KEY_PRESSED)
-		for (int i = 0; i < nsyms; i++)
+		for (i = 0; i < nsyms; i++)
 			handled = keybinding(mods, syms[i]) || handled;
 
 	if (!handled) {
@@ -680,6 +702,10 @@ motionabsolute(struct wl_listener *listener, void *data)
 void
 motionnotify(uint32_t time)
 {
+	double sx = 0, sy = 0;
+	struct wlr_surface *surface = NULL;
+	Client *c;
+
 	/* Update selmon (even while dragging a window) */
 	if (sloppyfocus)
 		selmon = xytomon(cursor->x, cursor->y);
@@ -698,9 +724,7 @@ motionnotify(uint32_t time)
 	}
 
 	/* Otherwise, find the client under the pointer and send the event along. */
-	double sx = 0, sy = 0;
-	struct wlr_surface *surface = NULL;
-	Client *c = xytoclient(cursor->x, cursor->y, &surface, &sx, &sy);
+	c = xytoclient(cursor->x, cursor->y, &surface, &sx, &sy);
 	/* If there's no client under the cursor, set the cursor image to a
 	 * default. This is what makes the cursor image appear when you move it
 	 * around the screen, not over any clients. */
@@ -800,6 +824,10 @@ render(struct wlr_surface *surface, int sx, int sy, void *data)
 	/* This function is called for every surface that needs to be rendered. */
 	struct render_data *rdata = data;
 	struct wlr_output *output = rdata->output;
+	double ox = 0, oy = 0;
+	struct wlr_box obox;
+	float matrix[9];
+	enum wl_output_transform transform;
 
 	/* We first obtain a wlr_texture, which is a GPU resource. wlroots
 	 * automatically handles negotiating these with the client. The underlying
@@ -814,19 +842,15 @@ render(struct wlr_surface *surface, int sx, int sy, void *data)
 	 * one next to the other, both 1080p, a client on the rightmost display might
 	 * have layout coordinates of 2000,100. We need to translate that to
 	 * output-local coordinates, or (2000 - 1920). */
-	double ox = 0, oy = 0;
 	wlr_output_layout_output_coords(
 			output_layout, output, &ox, &oy);
-	ox += rdata->x + sx, oy += rdata->y + sy;
 
 	/* We also have to apply the scale factor for HiDPI outputs. This is only
 	 * part of the puzzle, dwl does not fully support HiDPI. */
-	struct wlr_box obox = {
-		.x = ox,
-		.y = oy,
-		.width = surface->current.width,
-		.height = surface->current.height,
-	};
+	obox.x = ox + rdata->x + sx;
+	obox.y = oy + rdata->y + sy;
+	obox.width = surface->current.width;
+	obox.height = surface->current.height;
 	scalebox(&obox, output->scale);
 
 	/*
@@ -840,9 +864,7 @@ render(struct wlr_surface *surface, int sx, int sy, void *data)
 	 * Naturally you can do this any way you like, for example to make a 3D
 	 * compositor.
 	 */
-	float matrix[9];
-	enum wl_output_transform transform =
-		wlr_output_transform_invert(surface->current.transform);
+	transform = wlr_output_transform_invert(surface->current.transform);
 	wlr_matrix_project_box(matrix, &obox, transform, 0,
 		output->transform_matrix);
 
@@ -858,41 +880,42 @@ render(struct wlr_surface *surface, int sx, int sy, void *data)
 void
 renderclients(Monitor *m, struct timespec *now)
 {
+	Client *c;
+	double ox, oy;
+	int i, w, h;
+	struct render_data rdata;
+	struct wlr_box *borders;
 	/* Each subsequent window we render is rendered on top of the last. Because
 	 * our stacking list is ordered front-to-back, we iterate over it backwards. */
-	Client *c;
 	wl_list_for_each_reverse(c, &stack, slink) {
 		/* Only render visible clients which show on this monitor */
 		if (!VISIBLEON(c, c->mon) || !wlr_output_layout_intersects(
 					output_layout, m->wlr_output, &c->geom))
 			continue;
 
-		double ox = c->geom.x, oy = c->geom.y;
+		ox = c->geom.x, oy = c->geom.y;
 		wlr_output_layout_output_coords(output_layout, m->wlr_output,
 				&ox, &oy);
-		int w = c->xdg_surface->surface->current.width;
-		int h = c->xdg_surface->surface->current.height;
-		struct wlr_box borders[] = {
+		w = c->xdg_surface->surface->current.width;
+		h = c->xdg_surface->surface->current.height;
+		borders = (struct wlr_box[4]) {
 			{ox, oy, w + 2 * c->bw, c->bw},             /* top */
 			{ox, oy + c->bw, c->bw, h},                 /* left */
 			{ox + c->bw + w, oy + c->bw, c->bw, h},     /* right */
 			{ox, oy + c->bw + h, w + 2 * c->bw, c->bw}, /* bottom */
 		};
-		int i;
-		for (i = 0; i < sizeof(borders) / sizeof(borders[0]); i++) {
+		for (i = 0; i < 4; i++) {
 			scalebox(&borders[i], m->wlr_output->scale);
 			wlr_render_rect(drw, &borders[i], bordercolor,
 					m->wlr_output->transform_matrix);
 		}
 
-		struct render_data rdata = {
-			.output = m->wlr_output,
-			.when = now,
-			.x = c->geom.x + c->bw,
-			.y = c->geom.y + c->bw,
-		};
 		/* This calls our render function for each surface among the
 		 * xdg_surface's toplevel and popups. */
+		rdata.output = m->wlr_output,
+		rdata.when = now,
+		rdata.x = c->geom.x + c->bw,
+		rdata.y = c->geom.y + c->bw,
 		wlr_xdg_surface_for_each_surface(c->xdg_surface, render, &rdata);
 	}
 }
@@ -1033,12 +1056,12 @@ selclient(void)
 void
 setcursor(struct wl_listener *listener, void *data)
 {
+	/* This event is raised by the seat when a client provides a cursor image */
+	struct wlr_seat_pointer_request_set_cursor_event *event = data;
 	/* If we're "grabbing" the cursor, don't use the client's image */
 	/* XXX still need to save the provided surface to restore later */
 	if (cursor_mode != CurNormal)
 		return;
-	/* This event is raised by the seat when a client provides a cursor image */
-	struct wlr_seat_pointer_request_set_cursor_event *event = data;
 	/* This can be sent by any client, so we check to make sure this one is
 	 * actually has pointer focus first. If so, we can tell the cursor to
 	 * use the provided surface as the cursor image. It will set the
@@ -1087,10 +1110,11 @@ setmfact(const Arg *arg)
 void
 setmon(Client *c, Monitor *m)
 {
-	if (c->mon == m)
-		return;
-	int hadfocus = (c == selclient());
+	int hadfocus;
 	Monitor *oldmon = c->mon;
+	if (oldmon == m)
+		return;
+	hadfocus = (c == selclient());
 	c->mon = m;
 	/* XXX leave/enter is not optimal but works */
 	if (oldmon) {
