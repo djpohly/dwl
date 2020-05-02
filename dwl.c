@@ -725,10 +725,10 @@ motionnotify(uint32_t time)
 
 	/* Otherwise, find the client under the pointer and send the event along. */
 	c = xytoclient(cursor->x, cursor->y, &surface, &sx, &sy);
-	/* If there's no client under the cursor, set the cursor image to a
+	/* If there's no client surface under the cursor, set the cursor image to a
 	 * default. This is what makes the cursor image appear when you move it
-	 * around the screen, not over any clients. */
-	if (!c)
+	 * off of a client or over its border. */
+	if (!surface)
 		wlr_xcursor_manager_set_cursor_image(cursor_mgr,
 				"left_ptr", cursor);
 
