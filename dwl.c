@@ -8,7 +8,7 @@
 #include <stdio.h>
 #include <time.h>
 #include <unistd.h>
-#include <sys/signal.h>
+#include <signal.h>
 #include <sys/wait.h>
 #include <linux/input-event-codes.h>
 #include <wayland-server-core.h>
