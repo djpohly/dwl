@@ -688,7 +688,6 @@ motionnotify(uint32_t time)
 	/* If we are currently grabbing the mouse, handle and return */
 	if (cursor_mode == CurMove) {
 		/* Move the grabbed client to the new position. */
-		/* XXX assumes the surface is at (0,0) within grabc */
 		resize(grabc, cursor->x - grabcx, cursor->y - grabcy,
 				grabc->geom.width, grabc->geom.height, 1);
 		return;
