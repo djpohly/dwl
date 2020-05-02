@@ -3,18 +3,18 @@
  */
 #define _POSIX_C_SOURCE 200809L
 #include <getopt.h>
-#include <stdlib.h>
+#include <linux/input-event-codes.h>
+#include <signal.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
-#include <signal.h>
-#include <sys/wait.h>
-#include <linux/input-event-codes.h>
 #include <wayland-server-core.h>
 #include <wlr/backend.h>
 #include <wlr/render/wlr_renderer.h>
-#include <wlr/types/wlr_cursor.h>
 #include <wlr/types/wlr_compositor.h>
+#include <wlr/types/wlr_cursor.h>
 #include <wlr/types/wlr_data_device.h>
 #include <wlr/types/wlr_input_device.h>
 #include <wlr/types/wlr_keyboard.h>
