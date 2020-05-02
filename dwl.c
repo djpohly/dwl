@@ -270,9 +270,8 @@ buttonpress(struct wl_listener *listener, void *data)
 	switch (event->state) {
 	case WLR_BUTTON_PRESSED:;
 		/* Change focus if the button was _pressed_ over a client */
-		double sx, sy;
 		struct wlr_surface *surface;
-		Client *c = xytoclient(cursor->x, cursor->y, &surface, &sx, &sy);
+		Client *c = xytoclient(cursor->x, cursor->y, &surface, NULL, NULL);
 		if (c)
 			focusclient(c, surface, 1);
 
@@ -731,9 +730,7 @@ motionrelative(struct wl_listener *listener, void *data)
 void
 moveresize(const Arg *arg)
 {
-	struct wlr_surface *surface;
-	double sx, sy;
-	grabc = xytoclient(cursor->x, cursor->y, &surface, &sx, &sy);
+	grabc = xytoclient(cursor->x, cursor->y, NULL, NULL, NULL);
 	if (!grabc)
 		return;
 
@@ -1359,9 +1356,10 @@ xytoclient(double x, double y,
 			 */
 			/* XXX set *surface to xdg_surface->surface instead of
 			 * NULL?  what should sx/sy be in that case? */
-			*surface = wlr_xdg_surface_surface_at(c->xdg_surface,
-					x - c->geom.x - c->bw, y - c->geom.y - c->bw,
-					sx, sy);
+			if (surface)
+				*surface = wlr_xdg_surface_surface_at(c->xdg_surface,
+						x - c->geom.x - c->bw,
+						y - c->geom.y - c->bw, sx, sy);
 			return c;
 		}
 	}
