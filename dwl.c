@@ -3,7 +3,6 @@
  */
 #define _POSIX_C_SOURCE 200112L
 #include <getopt.h>
-#include <stdbool.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <time.h>
@@ -141,7 +140,7 @@ static void focusmon(const Arg *arg);
 static void focusstack(const Arg *arg);
 static void incnmaster(const Arg *arg);
 static void inputdevice(struct wl_listener *listener, void *data);
-static bool keybinding(uint32_t mods, xkb_keysym_t sym);
+static int keybinding(uint32_t mods, xkb_keysym_t sym);
 static void keypress(struct wl_listener *listener, void *data);
 static void keypressmod(struct wl_listener *listener, void *data);
 static void maprequest(struct wl_listener *listener, void *data);
@@ -350,7 +349,7 @@ createmon(struct wl_listener *listener, void *data)
 	if (!wl_list_empty(&wlr_output->modes)) {
 		struct wlr_output_mode *mode = wlr_output_preferred_mode(wlr_output);
 		wlr_output_set_mode(wlr_output, mode);
-		wlr_output_enable(wlr_output, true);
+		wlr_output_enable(wlr_output, 1);
 		if (!wlr_output_commit(wlr_output))
 			return;
 	}
@@ -404,7 +403,7 @@ createnotify(struct wl_listener *listener, void *data)
 	c->bw = borderpx;
 
 	/* Tell the client not to try anything fancy */
-	wlr_xdg_toplevel_set_tiled(c->xdg_surface, true);
+	wlr_xdg_toplevel_set_tiled(c->xdg_surface, 1);
 
 	/* Listen to the various events it can emit */
 	c->map.notify = maprequest;
@@ -486,7 +485,7 @@ focusclient(Client *c, struct wlr_surface *surface, int lift)
 		 */
 		struct wlr_xdg_surface *previous = wlr_xdg_surface_from_wlr_surface(
 					seat->keyboard_state.focused_surface);
-		wlr_xdg_toplevel_set_activated(previous, false);
+		wlr_xdg_toplevel_set_activated(previous, 0);
 	}
 	/*
 	 * Tell the seat to have the keyboard enter this surface.
@@ -506,7 +505,7 @@ focusclient(Client *c, struct wlr_surface *surface, int lift)
 			wl_list_insert(&stack, &c->slink);
 		}
 		/* Activate the new surface */
-		wlr_xdg_toplevel_set_activated(c->xdg_surface, true);
+		wlr_xdg_toplevel_set_activated(c->xdg_surface, 1);
 	}
 }
 
@@ -582,7 +581,7 @@ inputdevice(struct wl_listener *listener, void *data)
 	wlr_seat_set_capabilities(seat, caps);
 }
 
-bool
+int
 keybinding(uint32_t mods, xkb_keysym_t sym)
 {
 	/*
@@ -590,13 +589,13 @@ keybinding(uint32_t mods, xkb_keysym_t sym)
 	 * processing keys, rather than passing them on to the client for its own
 	 * processing.
 	 */
-	bool handled = false;
+	int handled = 0;
 	for (int i = 0; i < LENGTH(keys); i++)
 		if (sym == keys[i].keysym &&
 				CLEANMASK(mods) == CLEANMASK(keys[i].mod) &&
 				keys[i].func) {
 			keys[i].func(&keys[i].arg);
-			handled = true;
+			handled = 1;
 		}
 	return handled;
 }
@@ -615,7 +614,7 @@ keypress(struct wl_listener *listener, void *data)
 	int nsyms = xkb_state_key_get_syms(
 			kb->device->keyboard->xkb_state, keycode, &syms);
 
-	bool handled = false;
+	int handled = 0;
 	uint32_t mods = wlr_keyboard_get_modifiers(kb->device->keyboard);
 	/* On _press_, attempt to process a compositor keybinding. */
 	if (event->state == WLR_KEY_PRESSED)
@@ -988,7 +987,7 @@ run(char *startup_cmd)
 
 	/* Set the WAYLAND_DISPLAY environment variable to our socket and run the
 	 * startup command if requested. */
-	setenv("WAYLAND_DISPLAY", socket, true);
+	setenv("WAYLAND_DISPLAY", socket, 1);
 	if (startup_cmd) {
 		startup_pid = fork();
 		if (startup_pid < 0) {
