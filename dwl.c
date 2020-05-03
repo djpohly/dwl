@@ -853,8 +853,8 @@ refocus(void)
 			break;
 		}
 	}
-	/* XXX consider: should this ever? always? raise the client? */
-	focusclient(c, NULL, 0);
+	/* XXX Perhaps reconsider whether to raise the client */
+	focusclient(c, NULL, 1);
 }
 
 void
