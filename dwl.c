@@ -153,6 +153,7 @@ static void inputdevice(struct wl_listener *listener, void *data);
 static int keybinding(uint32_t mods, xkb_keysym_t sym);
 static void keypress(struct wl_listener *listener, void *data);
 static void keypressmod(struct wl_listener *listener, void *data);
+static Client *lastfocused(void);
 static void maprequest(struct wl_listener *listener, void *data);
 static void motionabsolute(struct wl_listener *listener, void *data);
 static void motionnotify(uint32_t time);
@@ -161,7 +162,6 @@ static void moveresize(const Arg *arg);
 static void pointerfocus(Client *c, struct wlr_surface *surface,
 		double sx, double sy, uint32_t time);
 static void quit(const Arg *arg);
-static void refocus(void);
 static void render(struct wlr_surface *surface, int sx, int sy, void *data);
 static void renderclients(Monitor *m, struct timespec *now);
 static void rendermon(struct wl_listener *listener, void *data);
@@ -575,7 +575,7 @@ focusmon(const Arg *arg)
 	if (m == selmon)
 		return;
 	selmon = m;
-	refocus();
+	focusclient(lastfocused(), NULL, 1);
 }
 
 void
@@ -705,6 +705,16 @@ keypressmod(struct wl_listener *listener, void *data)
 	/* Send modifiers to the client. */
 	wlr_seat_keyboard_notify_modifiers(seat,
 		&kb->device->keyboard->modifiers);
+}
+
+Client *
+lastfocused(void)
+{
+	Client *c;
+	wl_list_for_each(c, &fstack, flink)
+		if (VISIBLEON(c, selmon))
+			return c;
+	return NULL;
 }
 
 void
@@ -841,20 +851,6 @@ void
 quit(const Arg *arg)
 {
 	wl_display_terminate(dpy);
-}
-
-void
-refocus(void)
-{
-	Client *c = NULL, *next;
-	wl_list_for_each(next, &fstack, flink) {
-		if (VISIBLEON(next, selmon)) {
-			c = next;
-			break;
-		}
-	}
-	/* XXX Perhaps reconsider whether to raise the client */
-	focusclient(c, NULL, 1);
 }
 
 void
@@ -1169,7 +1165,7 @@ setmon(Client *c, Monitor *m, unsigned int newtags)
 	}
 	/* Focus can change if c is the top of selmon before or after */
 	if (hadfocus || c == selclient())
-		refocus();
+		focusclient(lastfocused(), NULL, 1);
 }
 
 void
@@ -1292,7 +1288,7 @@ tag(const Arg *arg)
 	Client *sel = selclient();
 	if (sel && arg->ui & TAGMASK) {
 		sel->tags = arg->ui & TAGMASK;
-		refocus();
+		focusclient(lastfocused(), NULL, 1);
 		arrange(selmon);
 	}
 }
@@ -1360,7 +1356,7 @@ toggletag(const Arg *arg)
 	newtags = sel->tags ^ (arg->ui & TAGMASK);
 	if (newtags) {
 		sel->tags = newtags;
-		refocus();
+		focusclient(lastfocused(), NULL, 1);
 		arrange(selmon);
 	}
 }
@@ -1372,7 +1368,7 @@ toggleview(const Arg *arg)
 
 	if (newtagset) {
 		selmon->tagset[selmon->seltags] = newtagset;
-		refocus();
+		focusclient(lastfocused(), NULL, 1);
 		arrange(selmon);
 	}
 }
@@ -1396,7 +1392,7 @@ view(const Arg *arg)
 	selmon->seltags ^= 1; /* toggle sel tagset */
 	if (arg->ui & TAGMASK)
 		selmon->tagset[selmon->seltags] = arg->ui & TAGMASK;
-	refocus();
+	focusclient(lastfocused(), NULL, 1);
 	arrange(selmon);
 }
 
