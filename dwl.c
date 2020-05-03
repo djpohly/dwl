@@ -184,9 +184,10 @@ static void toggletag(const Arg *arg);
 static void toggleview(const Arg *arg);
 static void unmapnotify(struct wl_listener *listener, void *data);
 static void view(const Arg *arg);
-static Client *xytoclient(double x, double y,
-		struct wlr_surface **surface, double *sx, double *sy);
+static Client *xytoclient(double x, double y);
 static Monitor *xytomon(double x, double y);
+static Client *xytosurface(double x, double y,
+		struct wlr_surface **surface, double *sx, double *sy);
 
 /* variables */
 static const char broken[] = "broken";
@@ -318,7 +319,7 @@ buttonpress(struct wl_listener *listener, void *data)
 	switch (event->state) {
 	case WLR_BUTTON_PRESSED:;
 		/* Change focus if the button was _pressed_ over a client */
-		c = xytoclient(cursor->x, cursor->y, &surface, NULL, NULL);
+		c = xytosurface(cursor->x, cursor->y, &surface, NULL, NULL);
 		if (c)
 			focusclient(c, surface, 1);
 
@@ -773,7 +774,7 @@ motionnotify(uint32_t time)
 	}
 
 	/* Otherwise, find the client under the pointer and send the event along. */
-	c = xytoclient(cursor->x, cursor->y, &surface, &sx, &sy);
+	c = xytosurface(cursor->x, cursor->y, &surface, &sx, &sy);
 	/* If there's no client surface under the cursor, set the cursor image to a
 	 * default. This is what makes the cursor image appear when you move it
 	 * off of a client or over its border. */
@@ -803,7 +804,7 @@ motionrelative(struct wl_listener *listener, void *data)
 void
 moveresize(const Arg *arg)
 {
-	grabc = xytoclient(cursor->x, cursor->y, NULL, NULL, NULL);
+	grabc = xytoclient(cursor->x, cursor->y);
 	if (!grabc)
 		return;
 
@@ -1396,31 +1397,14 @@ view(const Arg *arg)
 }
 
 Client *
-xytoclient(double x, double y,
-		struct wlr_surface **surface, double *sx, double *sy)
+xytoclient(double x, double y)
 {
-	/* Find the topmost visible client (if any) under the cursor, including
+	/* Find the topmost visible client (if any) at point (x, y), including
 	 * borders. This relies on stack being ordered from top to bottom. */
 	Client *c;
-	wl_list_for_each(c, &stack, slink) {
-		if (VISIBLEON(c, c->mon) && wlr_box_contains_point(&c->geom, x, y)) {
-			/*
-			 * XDG toplevels may have nested surfaces, such as popup windows
-			 * for context menus or tooltips. This function tests if any of
-			 * those are underneath the coordinates x and y (in layout
-			 * coordinates). If so, it sets the surface pointer to that
-			 * wlr_surface and the sx and sy coordinates to the coordinates
-			 * relative to that surface's top-left corner.
-			 */
-			/* XXX set *surface to xdg_surface->surface instead of
-			 * NULL?  what should sx/sy be in that case? */
-			if (surface)
-				*surface = wlr_xdg_surface_surface_at(c->xdg_surface,
-						x - c->geom.x - c->bw,
-						y - c->geom.y - c->bw, sx, sy);
+	wl_list_for_each(c, &stack, slink)
+		if (VISIBLEON(c, c->mon) && wlr_box_contains_point(&c->geom, x, y))
 			return c;
-		}
-	}
 	return NULL;
 }
 
@@ -1429,6 +1413,28 @@ xytomon(double x, double y)
 {
 	struct wlr_output *o = wlr_output_layout_output_at(output_layout, x, y);
 	return o ? o->data : NULL;
+}
+
+Client *
+xytosurface(double x, double y,
+		struct wlr_surface **surface, double *sx, double *sy)
+{
+	Client *c = xytoclient(x, y);
+	/*
+	 * XDG toplevels may have nested surfaces, such as popup windows
+	 * for context menus or tooltips. This function tests if any of
+	 * those are underneath the coordinates x and y (in layout
+	 * coordinates). If so, it sets the surface pointer to that
+	 * wlr_surface and the sx and sy coordinates to the coordinates
+	 * relative to that surface's top-left corner.
+	 */
+	/* XXX set *surface to xdg_surface->surface otherwise?  what should
+	 * sx/sy be in that case? */
+	if (c)
+		*surface = wlr_xdg_surface_surface_at(c->xdg_surface,
+				x - c->geom.x - c->bw,
+				y - c->geom.y - c->bw, sx, sy);
+	return c;
 }
 
 int
