@@ -414,7 +414,7 @@ createmon(struct wl_listener *listener, void *data)
 	m->wlr_output = wlr_output;
 	m->tagset[0] = m->tagset[1] = 1;
 	for (r = monrules; r < END(monrules); r++) {
-		if (!r->name || !strcmp(wlr_output->name, r->name)) {
+		if (!r->name || strstr(wlr_output->name, r->name)) {
 			m->mfact = r->mfact;
 			m->nmaster = r->nmaster;
 			wlr_output_set_scale(wlr_output, r->scale);
