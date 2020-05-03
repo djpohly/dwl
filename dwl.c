@@ -535,6 +535,7 @@ focusclient(Client *c, struct wlr_surface *surface, int lift)
 	 * simplification that can be done in this function */
 	prev_surface = seat->keyboard_state.focused_surface;
 	/* Don't re-focus an already focused surface. */
+	/* XXX need to move raiseclient before this */
 	if (prev_surface == surface)
 		return;
 	if (prev_surface) {
