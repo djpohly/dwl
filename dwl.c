@@ -392,22 +392,14 @@ createmon(struct wl_listener *listener, void *data)
 	/* This event is raised by the backend when a new output (aka a display or
 	 * monitor) becomes available. */
 	struct wlr_output *wlr_output = data;
-	struct wlr_output_mode *mode;
 	Monitor *m;
 	const MonitorRule *r;
 
-	/* Some backends don't have modes. DRM+KMS does, and we need to set a mode
-	 * before we can use the output. The mode is a tuple of (width, height,
-	 * refresh rate), and each monitor supports only a specific set of modes. We
-	 * just pick the monitor's preferred mode, a more sophisticated compositor
-	 * would let the user configure it. */
-	if (!wl_list_empty(&wlr_output->modes)) {
-		mode = wlr_output_preferred_mode(wlr_output);
-		wlr_output_set_mode(wlr_output, mode);
-		wlr_output_enable(wlr_output, 1);
-		if (!wlr_output_commit(wlr_output))
-			return;
-	}
+	/* The mode is a tuple of (width, height, refresh rate), and each
+	 * monitor supports only a specific set of modes. We just pick the
+	 * monitor's preferred mode; a more sophisticated compositor would let
+	 * the user configure it. */
+	wlr_output_set_mode(wlr_output, wlr_output_preferred_mode(wlr_output));
 
 	/* Allocates and configures monitor state using configured rules */
 	m = wlr_output->data = calloc(1, sizeof(*m));
@@ -428,6 +420,10 @@ createmon(struct wl_listener *listener, void *data)
 	m->frame.notify = rendermon;
 	wl_signal_add(&wlr_output->events.frame, &m->frame);
 	wl_list_insert(&mons, &m->link);
+
+	wlr_output_enable(wlr_output, 1);
+	if (!wlr_output_commit(wlr_output))
+		return;
 
 	/* Adds this to the output layout. The add_auto function arranges outputs
 	 * from left-to-right in the order they appear. A more sophisticated
