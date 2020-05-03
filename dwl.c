@@ -294,15 +294,6 @@ axisnotify(struct wl_listener *listener, void *data)
 }
 
 void
-chvt(const Arg *arg)
-{
-	struct wlr_session *s = wlr_backend_get_session(backend);
-	if (!s)
-		return;
-	wlr_session_change_vt(s, arg->ui);
-}
-
-void
 buttonpress(struct wl_listener *listener, void *data)
 {
 	struct wlr_event_pointer_button *event = data;
@@ -350,6 +341,15 @@ buttonpress(struct wl_listener *listener, void *data)
 	 * pointer focus that a button press has occurred */
 	wlr_seat_pointer_notify_button(seat,
 			event->time_msec, event->button, event->state);
+}
+
+void
+chvt(const Arg *arg)
+{
+	struct wlr_session *s = wlr_backend_get_session(backend);
+	if (!s)
+		return;
+	wlr_session_change_vt(s, arg->ui);
 }
 
 void
