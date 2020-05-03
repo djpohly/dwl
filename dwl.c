@@ -879,8 +879,7 @@ render(struct wlr_surface *surface, int sx, int sy, void *data)
 	 * one next to the other, both 1080p, a client on the rightmost display might
 	 * have layout coordinates of 2000,100. We need to translate that to
 	 * output-local coordinates, or (2000 - 1920). */
-	wlr_output_layout_output_coords(
-			output_layout, output, &ox, &oy);
+	wlr_output_layout_output_coords(output_layout, output, &ox, &oy);
 
 	/* We also have to apply the scale factor for HiDPI outputs. This is only
 	 * part of the puzzle, dwl does not fully support HiDPI. */
