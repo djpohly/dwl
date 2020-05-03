@@ -1308,10 +1308,9 @@ tile(Monitor *m)
 	unsigned int i, n = 0, h, mw, my, ty;
 	Client *c;
 
-	wl_list_for_each(c, &clients, link) {
+	wl_list_for_each(c, &clients, link)
 		if (VISIBLEON(c, m) && !c->isfloating)
 			n++;
-	}
 	if (n == 0)
 		return;
 
