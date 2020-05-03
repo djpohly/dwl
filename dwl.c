@@ -164,7 +164,7 @@ static void setcursor(struct wl_listener *listener, void *data);
 static void setfloating(Client *c, int floating);
 static void setlayout(const Arg *arg);
 static void setmfact(const Arg *arg);
-static void setmon(Client *c, Monitor *m);
+static void setmon(Client *c, Monitor *m, unsigned int newtags);
 static void setup(void);
 static void spawn(const Arg *arg);
 static void tag(const Arg *arg);
@@ -300,7 +300,7 @@ buttonpress(struct wl_listener *listener, void *data)
 			cursor_mode = CurNormal;
 			/* Drop the window off on its new monitor */
 			selmon = xytomon(cursor->x, cursor->y);
-			setmon(grabc, selmon);
+			setmon(grabc, selmon, 0);
 			return;
 		}
 		break;
@@ -1106,7 +1106,7 @@ setmfact(const Arg *arg)
 }
 
 void
-setmon(Client *c, Monitor *m)
+setmon(Client *c, Monitor *m, unsigned int newtags)
 {
 	int hadfocus;
 	Monitor *oldmon = c->mon;
@@ -1123,7 +1123,7 @@ setmon(Client *c, Monitor *m)
 		/* Make sure window actually overlaps with the monitor */
 		applybounds(c, &m->m);
 		wlr_surface_send_enter(c->xdg_surface->surface, m->wlr_output);
-		c->tags = m->tagset[m->seltags]; /* assign tags of target monitor */
+		c->tags = newtags ? newtags : m->tagset[m->seltags]; /* assign tags of target monitor */
 		arrange(m);
 	}
 	/* Focus can change if c is the top of selmon before or after */
@@ -1262,7 +1262,7 @@ tagmon(const Arg *arg)
 	Client *sel = selclient();
 	if (!sel)
 		return;
-	setmon(sel, dirtomon(arg->i));
+	setmon(sel, dirtomon(arg->i), 0);
 }
 
 void
@@ -1341,7 +1341,7 @@ unmapnotify(struct wl_listener *listener, void *data)
 {
 	/* Called when the surface is unmapped, and should no longer be shown. */
 	Client *c = wl_container_of(listener, c, unmap);
-	setmon(c, NULL);
+	setmon(c, NULL, 0);
 	wl_list_remove(&c->link);
 	wl_list_remove(&c->flink);
 	wl_list_remove(&c->slink);
