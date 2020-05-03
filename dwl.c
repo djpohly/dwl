@@ -63,8 +63,6 @@ typedef struct {
 	struct wl_listener map;
 	struct wl_listener unmap;
 	struct wl_listener destroy;
-	struct wl_listener request_move;
-	struct wl_listener request_resize;
 	struct wlr_box geom;  /* layout-relative, includes border */
 	Monitor *mon;
 	int bw;
