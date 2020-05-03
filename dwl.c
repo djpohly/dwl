@@ -34,6 +34,7 @@
 #define CLEANMASK(mask)         (mask & ~WLR_MODIFIER_CAPS)
 #define VISIBLEON(C, M)         ((C)->mon == (M) && ((C)->tags & (M)->tagset[(M)->seltags]))
 #define LENGTH(X)               (sizeof X / sizeof X[0])
+#define END(A)                  ((A) + LENGTH(A))
 #define TAGMASK                 ((1 << LENGTH(tags)) - 1)
 
 /* enums */
@@ -271,7 +272,7 @@ buttonpress(struct wl_listener *listener, void *data)
 	struct wlr_keyboard *keyboard;
 	uint32_t mods;
 	Client *c;
-	int i;
+	const Button *b;
 
 	switch (event->state) {
 	case WLR_BUTTON_PRESSED:;
@@ -282,11 +283,10 @@ buttonpress(struct wl_listener *listener, void *data)
 
 		keyboard = wlr_seat_get_keyboard(seat);
 		mods = wlr_keyboard_get_modifiers(keyboard);
-		for (i = 0; i < LENGTH(buttons); i++) {
-			if (event->button == buttons[i].button &&
-					CLEANMASK(mods) == CLEANMASK(buttons[i].mod) &&
-					buttons[i].func) {
-				buttons[i].func(&buttons[i].arg);
+		for (b = buttons; b < END(buttons); b++) {
+			if (CLEANMASK(mods) == CLEANMASK(b->mod) &&
+					event->button == b->button && b->func) {
+				b->func(&b->arg);
 				return;
 			}
 		}
@@ -351,7 +351,7 @@ createmon(struct wl_listener *listener, void *data)
 	struct wlr_output *wlr_output = data;
 	struct wlr_output_mode *mode;
 	Monitor *m;
-	int i;
+	const MonitorRule *r;
 
 	/* Some backends don't have modes. DRM+KMS does, and we need to set a mode
 	 * before we can use the output. The mode is a tuple of (width, height,
@@ -370,15 +370,14 @@ createmon(struct wl_listener *listener, void *data)
 	m = wlr_output->data = calloc(1, sizeof(*m));
 	m->wlr_output = wlr_output;
 	m->tagset[0] = m->tagset[1] = 1;
-	for (i = 0; i < LENGTH(monrules); i++) {
-		if (!monrules[i].name ||
-				!strcmp(wlr_output->name, monrules[i].name)) {
-			m->mfact = monrules[i].mfact;
-			m->nmaster = monrules[i].nmaster;
-			wlr_output_set_scale(wlr_output, monrules[i].scale);
-			wlr_xcursor_manager_load(cursor_mgr, monrules[i].scale);
-			m->lt[0] = m->lt[1] = monrules[i].lt;
-			wlr_output_set_transform(wlr_output, monrules[i].rr);
+	for (r = monrules; r < END(monrules); r++) {
+		if (!r->name || !strcmp(wlr_output->name, r->name)) {
+			m->mfact = r->mfact;
+			m->nmaster = r->nmaster;
+			wlr_output_set_scale(wlr_output, r->scale);
+			wlr_xcursor_manager_load(cursor_mgr, r->scale);
+			m->lt[0] = m->lt[1] = r->lt;
+			wlr_output_set_transform(wlr_output, r->rr);
 			break;
 		}
 	}
@@ -608,12 +607,11 @@ keybinding(uint32_t mods, xkb_keysym_t sym)
 	 * processing.
 	 */
 	int handled = 0;
-	int i;
-	for (i = 0; i < LENGTH(keys); i++) {
-		if (sym == keys[i].keysym &&
-				CLEANMASK(mods) == CLEANMASK(keys[i].mod) &&
-				keys[i].func) {
-			keys[i].func(&keys[i].arg);
+	const Key *k;
+	for (k = keys; k < END(keys); k++) {
+		if (CLEANMASK(mods) == CLEANMASK(k->mod) &&
+				sym == k->keysym && k->func) {
+			k->func(&k->arg);
 			handled = 1;
 		}
 	}
