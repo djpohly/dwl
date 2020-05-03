@@ -115,6 +115,14 @@ typedef struct {
 	enum wl_output_transform rr;
 } MonitorRule;
 
+typedef struct {
+	const char *id;
+	const char *title;
+	unsigned int tags;
+	int isfloating;
+	int monitor;
+} Rule;
+
 /* Used to move all of the data necessary to render a surface from the top-level
  * frame handler to the per-surface render function. */
 struct render_data {
@@ -125,6 +133,7 @@ struct render_data {
 
 /* function declarations */
 static void applybounds(Client *c, struct wlr_box *bbox);
+static void applyrules(Client *c);
 static void arrange(Monitor *m);
 static void axisnotify(struct wl_listener *listener, void *data);
 static void buttonpress(struct wl_listener *listener, void *data);
@@ -180,6 +189,7 @@ static Client *xytoclient(double x, double y,
 static Monitor *xytomon(double x, double y);
 
 /* variables */
+static const char broken[] = "broken";
 static struct wl_display *dpy;
 static struct wlr_backend *backend;
 static struct wlr_renderer *drw;
@@ -215,6 +225,7 @@ static Monitor *selmon;
 /* configuration, allows nested code to access above variables */
 #include "config.h"
 
+/* function implementations */
 void
 applybounds(Client *c, struct wlr_box *bbox)
 {
@@ -230,6 +241,36 @@ applybounds(Client *c, struct wlr_box *bbox)
 		c->geom.x = bbox->x;
 	if (c->geom.y + c->geom.height + 2 * c->bw <= bbox->y)
 		c->geom.y = bbox->y;
+}
+
+void
+applyrules(Client *c)
+{
+	const char *appid, *title;
+	unsigned int i, newtags = 0;
+	const Rule *r;
+	Monitor *mon = selmon, *m;
+
+	/* rule matching */
+	c->isfloating = 0;
+	if (!(appid = c->xdg_surface->toplevel->app_id))
+		appid = broken;
+	if (!(title = c->xdg_surface->toplevel->title))
+		title = broken;
+
+	for (r = rules; r < END(rules); r++) {
+		if ((!r->title || strstr(title, r->title))
+				&& (!r->id || strstr(appid, r->id)))
+		{
+			c->isfloating = r->isfloating;
+			newtags |= r->tags;
+			i = 0;
+			wl_list_for_each(m, &mons, link)
+				if (r->monitor == i++)
+					mon = m;
+		}
+	}
+	setmon(c, mon, newtags);
 }
 
 void
@@ -671,16 +712,16 @@ maprequest(struct wl_listener *listener, void *data)
 {
 	/* Called when the surface is mapped, or ready to display on-screen. */
 	Client *c = wl_container_of(listener, c, map);
-	/* XXX Apply client rules here */
-	wlr_xdg_surface_get_geometry(c->xdg_surface, &c->geom);
-	c->geom.width += 2 * c->bw;
-	c->geom.height += 2 * c->bw;
-	/* Insert this client into the list and put it on selmon. */
+	/* Insert this client into client lists. */
 	wl_list_insert(&clients, &c->link);
 	wl_list_insert(&fstack, &c->flink);
 	wl_list_insert(&stack, &c->slink);
-	setmon(c, selmon);
-	focusclient(c, c->xdg_surface->surface, 0);
+	wlr_xdg_surface_get_geometry(c->xdg_surface, &c->geom);
+	c->geom.width += 2 * c->bw;
+	c->geom.height += 2 * c->bw;
+
+	/* Set initial monitor, tags, floating status, and focus */
+	applyrules(c);
 }
 
 void
