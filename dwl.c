@@ -459,7 +459,7 @@ createnotify(struct wl_listener *listener, void *data)
 	c->bw = borderpx;
 
 	/* Tell the client not to try anything fancy */
-	wlr_xdg_toplevel_set_tiled(c->xdg_surface, 1);
+	wlr_xdg_toplevel_set_maximized(c->xdg_surface, 1);
 
 	/* Listen to the various events it can emit */
 	c->map.notify = maprequest;
