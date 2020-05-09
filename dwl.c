@@ -192,22 +192,14 @@ static struct wlr_backend *backend;
 static struct wlr_renderer *drw;
 
 static struct wlr_xdg_shell *xdg_shell;
-static struct wl_listener new_xdg_surface;
 static struct wl_list clients; /* tiling order */
 static struct wl_list fstack;  /* focus order */
 static struct wl_list stack;   /* stacking z-order */
 
 static struct wlr_cursor *cursor;
 static struct wlr_xcursor_manager *cursor_mgr;
-static struct wl_listener cursor_motion;
-static struct wl_listener cursor_motion_absolute;
-static struct wl_listener cursor_button;
-static struct wl_listener cursor_axis;
-static struct wl_listener cursor_frame;
 
 static struct wlr_seat *seat;
-static struct wl_listener new_input;
-static struct wl_listener request_cursor;
 static struct wl_list keyboards;
 static unsigned int cursor_mode;
 static Client *grabc;
@@ -216,8 +208,18 @@ static int grabcx, grabcy; /* client-relative */
 static struct wlr_output_layout *output_layout;
 static struct wlr_box sgeom;
 static struct wl_list mons;
-static struct wl_listener new_output;
 static Monitor *selmon;
+
+/* global event handlers */
+static struct wl_listener cursor_axis = {.notify = axisnotify};
+static struct wl_listener cursor_button = {.notify = buttonpress};
+static struct wl_listener cursor_frame = {.notify = cursorframe};
+static struct wl_listener cursor_motion = {.notify = motionrelative};
+static struct wl_listener cursor_motion_absolute = {.notify = motionabsolute};
+static struct wl_listener new_input = {.notify = inputdevice};
+static struct wl_listener new_output = {.notify = createmon};
+static struct wl_listener new_xdg_surface = {.notify = createnotify};
+static struct wl_listener request_cursor = {.notify = setcursor};
 
 /* configuration, allows nested code to access above variables */
 #include "config.h"
@@ -1200,7 +1202,6 @@ setup(void)
 	/* Configure a listener to be notified when new outputs are available on the
 	 * backend. */
 	wl_list_init(&mons);
-	new_output.notify = createmon;
 	wl_signal_add(&backend->events.new_output, &new_output);
 
 	/* Set up our client lists and the xdg-shell. The xdg-shell is a
@@ -1213,9 +1214,7 @@ setup(void)
 	wl_list_init(&fstack);
 	wl_list_init(&stack);
 	xdg_shell = wlr_xdg_shell_create(dpy);
-	new_xdg_surface.notify = createnotify;
-	wl_signal_add(&xdg_shell->events.new_surface,
-			&new_xdg_surface);
+	wl_signal_add(&xdg_shell->events.new_surface, &new_xdg_surface);
 
 	/*
 	 * Creates a cursor, which is a wlroots utility for tracking the cursor
@@ -1242,16 +1241,11 @@ setup(void)
 	 *
 	 * And more comments are sprinkled throughout the notify functions above.
 	 */
-	cursor_motion.notify = motionrelative;
 	wl_signal_add(&cursor->events.motion, &cursor_motion);
-	cursor_motion_absolute.notify = motionabsolute;
 	wl_signal_add(&cursor->events.motion_absolute,
 			&cursor_motion_absolute);
-	cursor_button.notify = buttonpress;
 	wl_signal_add(&cursor->events.button, &cursor_button);
-	cursor_axis.notify = axisnotify;
 	wl_signal_add(&cursor->events.axis, &cursor_axis);
-	cursor_frame.notify = cursorframe;
 	wl_signal_add(&cursor->events.frame, &cursor_frame);
 
 	/*
@@ -1261,10 +1255,8 @@ setup(void)
 	 * let us know when new input devices are available on the backend.
 	 */
 	wl_list_init(&keyboards);
-	new_input.notify = inputdevice;
 	wl_signal_add(&backend->events.new_input, &new_input);
 	seat = wlr_seat_create(dpy, "seat0");
-	request_cursor.notify = setcursor;
 	wl_signal_add(&seat->events.request_set_cursor,
 			&request_cursor);
 }
