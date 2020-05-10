@@ -87,6 +87,7 @@ number of ways:
 - Normal/selected/urgent border colors
 - Statusbar support (built-in or external)
 - layer-shell
+- export-dmabuf
 - Damage tracking
 - Fullscreen/fixed windows (or whatever the Wayland analogues are)
 - XWayland
