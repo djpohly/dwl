@@ -501,6 +501,9 @@ destroynotify(struct wl_listener *listener, void *data)
 {
 	/* Called when the surface is destroyed and should never be shown again. */
 	Client *c = wl_container_of(listener, c, destroy);
+	wl_list_remove(&c->map.link);
+	wl_list_remove(&c->unmap.link);
+	wl_list_remove(&c->destroy.link);
 	free(c);
 }
 
