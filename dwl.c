@@ -168,6 +168,7 @@ static void run(char *startup_cmd);
 static void scalebox(struct wlr_box *box, float scale);
 static Client *selclient(void);
 static void setcursor(struct wl_listener *listener, void *data);
+static void setsel(struct wl_listener *listener, void *data);
 static void setfloating(Client *c, int floating);
 static void setlayout(const Arg *arg);
 static void setmfact(const Arg *arg);
@@ -220,6 +221,7 @@ static struct wl_listener new_input = {.notify = inputdevice};
 static struct wl_listener new_output = {.notify = createmon};
 static struct wl_listener new_xdg_surface = {.notify = createnotify};
 static struct wl_listener request_cursor = {.notify = setcursor};
+static struct wl_listener request_set_sel = {.notify = setsel};
 
 /* configuration, allows nested code to access above variables */
 #include "config.h"
@@ -1110,6 +1112,17 @@ setcursor(struct wl_listener *listener, void *data)
 }
 
 void
+setsel(struct wl_listener *listener, void *data)
+{
+	/* This event is raised by the seat when a client wants to set the selection,
+	 * usually when the user copies something. wlroots allows compositors to
+	 * ignore such requests if they so choose, but in dwl we always honor
+	 */
+	struct wlr_seat_request_set_selection_event *event = data;
+	wlr_seat_set_selection(seat, event->source, event->serial);
+}
+
+void
 setfloating(Client *c, int floating)
 {
 	if (c->isfloating == floating)
@@ -1192,7 +1205,9 @@ setup(void)
 	/* This creates some hands-off wlroots interfaces. The compositor is
 	 * necessary for clients to allocate surfaces and the data device manager
 	 * handles the clipboard. Each of these wlroots interfaces has room for you
-	 * to dig your fingers in and play with their behavior if you want. */
+	 * to dig your fingers in and play with their behavior if you want. Note that
+	 * the clients cannot set the selection directly without compositor approval,
+	 * see the setsel() function. */
 	wlr_compositor_create(dpy, drw);
 	wlr_data_device_manager_create(dpy);
 
@@ -1260,6 +1275,8 @@ setup(void)
 	seat = wlr_seat_create(dpy, "seat0");
 	wl_signal_add(&seat->events.request_set_cursor,
 			&request_cursor);
+	wl_signal_add(&seat->events.request_set_selection,
+			&request_set_sel);
 }
 
 void
