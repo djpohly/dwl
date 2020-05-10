@@ -24,6 +24,7 @@
 #include <wlr/types/wlr_pointer.h>
 #include <wlr/types/wlr_primary_selection.h>
 #include <wlr/types/wlr_primary_selection_v1.h>
+#include <wlr/types/wlr_screencopy_v1.h>
 #include <wlr/types/wlr_seat.h>
 #include <wlr/types/wlr_xcursor_manager.h>
 #include <wlr/types/wlr_xdg_shell.h>
@@ -1224,6 +1225,7 @@ setup(void)
 	 * the clients cannot set the selection directly without compositor approval,
 	 * see the setsel() function. */
 	wlr_compositor_create(dpy, drw);
+	wlr_screencopy_manager_v1_create(dpy);
 	wlr_data_device_manager_create(dpy);
 	wlr_primary_selection_v1_device_manager_create(dpy);
 
