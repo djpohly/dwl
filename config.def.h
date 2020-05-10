@@ -46,7 +46,7 @@ static const struct xkb_rule_names xkb_rules = {
 	{ MODKEY|WLR_MODIFIER_CTRL|WLR_MODIFIER_SHIFT,SKEY,toggletag, {.ui = 1 << TAG} }
 
 /* commands */
-static const char *termcmd[]  = { "kitty", "-o", "linux_display_server=wayland", NULL };
+static const char *termcmd[]  = { "alacritty", NULL };
 
 static const Key keys[] = {
 	/* modifier                  key                 function        argument */
