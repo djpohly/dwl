@@ -1470,14 +1470,11 @@ main(int argc, char *argv[])
 			startup_cmd = optarg;
 			break;
 		default:
-			printf("Usage: %s [-s startup command]\n", argv[0]);
-			return EXIT_FAILURE;
+			goto usage;
 		}
 	}
-	if (optind < argc) {
-		printf("Usage: %s [-s startup command]\n", argv[0]);
-		return EXIT_FAILURE;
-	}
+	if (optind < argc)
+		goto usage;
 	wlr_log_init(loglevel, NULL);
 
 	/* The Wayland display is managed by libwayland. It handles accepting
@@ -1491,4 +1488,8 @@ main(int argc, char *argv[])
 	wl_display_destroy_clients(dpy);
 	wl_display_destroy(dpy);
 	return EXIT_SUCCESS;
+
+usage:
+	printf("Usage: %s [-qvd] [-s startup command]\n", argv[0]);
+	return EXIT_FAILURE;
 }

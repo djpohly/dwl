@@ -74,6 +74,12 @@ this process a SIGTERM and wait for it to terminate (if it hasn't already).
 This makes it ideal not only for initialization but also for execing into a
 user-level service manager like s6 or `systemd --user`.
 
+More/less verbose output can be requested with flags as well:
+
+* `-q`: quiet (log level WLR_SILENT)
+* `-v`: verbose (log level WLR_INFO)
+* `-d`: debug (log level WLR_DEBUG)
+
 
 ## Known limitations and issues
 
