@@ -526,56 +526,55 @@ dirtomon(int dir)
 void
 focusclient(Client *c, struct wlr_surface *surface, int lift)
 {
-	struct wlr_surface *prev_surface;
-	struct wlr_xdg_surface *previous;
+	Client *sel = selclient();
 	struct wlr_keyboard *kb;
+	/* Previous and new xdg toplevel surfaces */
+	struct wlr_xdg_surface *ptl = sel ? sel->xdg_surface : NULL;
+	struct wlr_xdg_surface *tl = c ? c->xdg_surface : NULL;
+	/* Previously focused surface */
+	struct wlr_surface *psurface = seat->keyboard_state.focused_surface;
 
 	if (c) {
 		/* assert(VISIBLEON(c, c->mon)); ? */
-		/* Use top level surface if nothing more specific given */
+		/* Use top-level wlr_surface if nothing more specific given */
 		if (!surface)
 			surface = c->xdg_surface->surface;
-		/* Focus the correct monitor as well */
-		selmon = c->mon;
-	}
 
-	/* XXX Need to understand xdg toplevel/popups to know if there's more
-	 * simplification that can be done in this function */
-	prev_surface = seat->keyboard_state.focused_surface;
-	/* Don't re-focus an already focused surface. */
-	/* XXX need to move raiseclient before this */
-	if (prev_surface == surface)
-		return;
-	if (prev_surface) {
-		/*
-		 * Deactivate the previously focused surface. This lets the
-		 * client know it no longer has focus and the client will
-		 * repaint accordingly, e.g. stop displaying a caret.
-		 */
-		previous = wlr_xdg_surface_from_wlr_surface(
-					seat->keyboard_state.focused_surface);
-		wlr_xdg_toplevel_set_activated(previous, 0);
-	}
-	/*
-	 * Tell the seat to have the keyboard enter this surface.
-	 * wlroots will keep track of this and automatically send key
-	 * events to the appropriate clients without additional work on
-	 * your part.  If surface == NULL, this will clear focus.
-	 */
-	kb = wlr_seat_get_keyboard(seat);
-	wlr_seat_keyboard_notify_enter(seat, surface,
-			kb->keycodes, kb->num_keycodes, &kb->modifiers);
-	if (c) {
+		/* Focus the correct monitor (must come after selclient!) */
+		selmon = c->mon;
+
 		/* Move the client to the front of the focus stack */
 		wl_list_remove(&c->flink);
 		wl_list_insert(&fstack, &c->flink);
+
+		/* Also raise client in stacking order if requested */
 		if (lift) {
 			wl_list_remove(&c->slink);
 			wl_list_insert(&stack, &c->slink);
 		}
-		/* Activate the new surface */
-		wlr_xdg_toplevel_set_activated(c->xdg_surface, 1);
 	}
+
+	/*
+	 * If the focused surface has changed, tell the seat to have the
+	 * keyboard enter the new surface.  wlroots will keep track of this and
+	 * automatically send key events to the appropriate clients.  If surface
+	 * is NULL, this will clear focus.
+	 */
+	if (surface != psurface) {
+		kb = wlr_seat_get_keyboard(seat);
+		wlr_seat_keyboard_notify_enter(seat, surface,
+				kb->keycodes, kb->num_keycodes, &kb->modifiers);
+	}
+
+	/*
+	 * If the focused toplevel has changed, deactivate the old one and
+	 * activate the new one.  This lets the clients know to repaint
+	 * accordingly, e.g. show/hide a caret.
+	 */
+	if (tl != ptl && ptl)
+		wlr_xdg_toplevel_set_activated(ptl, 0);
+	if (tl != ptl && tl)
+		wlr_xdg_toplevel_set_activated(tl, 1);
 }
 
 void
