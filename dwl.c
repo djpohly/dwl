@@ -1527,6 +1527,13 @@ main(int argc, char *argv[])
 		goto usage;
 	wlr_log_init(loglevel, NULL);
 
+	// Wayland requires XDG_RUNTIME_DIR for creating its communications
+	// socket
+	if (!getenv("XDG_RUNTIME_DIR")) {
+		fprintf(stderr, "XDG_RUNTIME_DIR must be set\n");
+		exit(EXIT_FAILURE);
+	}
+
 	/* The Wayland display is managed by libwayland. It handles accepting
 	 * clients from the Unix socket, manging Wayland globals, and so on. */
 	dpy = wl_display_create();
