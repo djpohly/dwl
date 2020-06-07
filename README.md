@@ -85,7 +85,7 @@ session manager such as `elogind` or `systemd-logind`.  If your system doesn't
 do this automatically, you will need to configure it prior to launching `dwl`,
 e.g.:
 
-    export XDG_RUNTIME_DIR=/run/user/$(id -u)
+    export XDG_RUNTIME_DIR=/tmp/xdg-runtime-$(id -u)
     mkdir -p $XDG_RUNTIME_DIR
 
 
