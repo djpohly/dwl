@@ -74,6 +74,10 @@ this process a SIGTERM and wait for it to terminate (if it hasn't already).
 This makes it ideal not only for initialization but also for execing into a
 user-level service manager like s6 or `systemd --user`.
 
+You'll have to explicitly set `XDG_RUNTIME_DIR` if your system doesn't do it for
+you, e.g. `export XDG_RUNTIME_DIR=/tmp/xdg-runtime-$USER && mkdir -p
+$XDG_RUNTIME_DIR`.
+
 More/less verbose output can be requested with flags as well:
 
 * `-q`: quiet (log level WLR_SILENT)

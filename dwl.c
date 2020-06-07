@@ -1074,6 +1074,7 @@ run(char *startup_cmd)
 	const char *socket = wl_display_add_socket_auto(dpy);
 	if (!socket) {
 		wlr_backend_destroy(backend);
+		perror("startup: socket");
 		exit(EXIT_FAILURE);
 	}
 
@@ -1082,6 +1083,7 @@ run(char *startup_cmd)
 	if (!wlr_backend_start(backend)) {
 		wlr_backend_destroy(backend);
 		wl_display_destroy(dpy);
+		perror("startup: backend_start");
 		exit(EXIT_FAILURE);
 	}
 
