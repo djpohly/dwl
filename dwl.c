@@ -1073,17 +1073,17 @@ run(char *startup_cmd)
 	/* Add a Unix socket to the Wayland display. */
 	const char *socket = wl_display_add_socket_auto(dpy);
 	if (!socket) {
+		perror("startup: display_add_socket_auto");
 		wlr_backend_destroy(backend);
-		perror("startup: socket");
 		exit(EXIT_FAILURE);
 	}
 
 	/* Start the backend. This will enumerate outputs and inputs, become the DRM
 	 * master, etc */
 	if (!wlr_backend_start(backend)) {
+		perror("startup: backend_start");
 		wlr_backend_destroy(backend);
 		wl_display_destroy(dpy);
-		perror("startup: backend_start");
 		exit(EXIT_FAILURE);
 	}
 
