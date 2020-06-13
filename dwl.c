@@ -597,7 +597,7 @@ focusclient(Client *c, struct wlr_surface *surface, int lift)
 	 * automatically send key events to the appropriate clients.  If surface
 	 * is NULL, this will clear focus.
 	 */
-	if (surface != psurface) {
+	if (surface && (surface != psurface)) {
 		kb = wlr_seat_get_keyboard(seat);
 		wlr_seat_keyboard_notify_enter(seat, surface,
 				kb->keycodes, kb->num_keycodes, &kb->modifiers);
@@ -897,8 +897,14 @@ pointerfocus(Client *c, struct wlr_surface *surface, double sx, double sy,
 		wlr_seat_pointer_notify_motion(seat, time, sx, sy);
 		return;
 	}
+
 	/* If surface is NULL, clear pointer focus, otherwise let the client
 	 * know that the mouse cursor has entered one of its surfaces. */
+	if (!surface) {
+		wlr_seat_pointer_notify_clear_focus(seat);
+		return;
+	}
+
 	wlr_seat_pointer_notify_enter(seat, surface, sx, sy);
 	/* If keyboard focus follows mouse, enforce that */
 	if (sloppyfocus && surface)
