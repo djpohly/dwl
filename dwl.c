@@ -595,9 +595,11 @@ focusclient(Client *c, struct wlr_surface *surface, int lift)
 	 * If the focused surface has changed, tell the seat to have the
 	 * keyboard enter the new surface.  wlroots will keep track of this and
 	 * automatically send key events to the appropriate clients.  If surface
-	 * is NULL, this will clear focus.
+	 * is NULL, we clear the focus instead.
 	 */
-	if (surface && (surface != psurface)) {
+	if (!surface) {
+		wlr_seat_pointer_notify_clear_focus(seat);
+	} else if (surface != psurface) {
 		kb = wlr_seat_get_keyboard(seat);
 		wlr_seat_keyboard_notify_enter(seat, surface,
 				kb->keycodes, kb->num_keycodes, &kb->modifiers);
