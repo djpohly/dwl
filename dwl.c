@@ -907,7 +907,7 @@ pointerfocus(Client *c, struct wlr_surface *surface, double sx, double sy,
 
 	wlr_seat_pointer_notify_enter(seat, surface, sx, sy);
 	/* If keyboard focus follows mouse, enforce that */
-	if (sloppyfocus && surface)
+	if (sloppyfocus)
 		focusclient(c, surface, 0);
 }
 
