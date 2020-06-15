@@ -45,8 +45,7 @@ Other features under consideration are:
 
 ## Building dwl
 
-dwl has only two dependencies: wlroots and wayland-protocols.  Simply install
-these and run `make`.
+dwl has only two dependencies: wlroots (git version currently required) and wayland-protocols.  Simply install these and run `make`.
 
 
 ## Configuration
