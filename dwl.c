@@ -598,7 +598,7 @@ focusclient(Client *c, struct wlr_surface *surface, int lift)
 	 * is NULL, we clear the focus instead.
 	 */
 	if (!surface) {
-		wlr_seat_pointer_notify_clear_focus(seat);
+		wlr_seat_keyboard_notify_clear_focus(seat);
 	} else if (surface != psurface) {
 		kb = wlr_seat_get_keyboard(seat);
 		wlr_seat_keyboard_notify_enter(seat, surface,
