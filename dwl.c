@@ -2,6 +2,7 @@
  * See LICENSE file for copyright and license details.
  */
 #define _POSIX_C_SOURCE 200809L
+#include <assert.h>
 #include <getopt.h>
 #include <linux/input-event-codes.h>
 #include <signal.h>
@@ -20,8 +21,9 @@
 #include <wlr/types/wlr_data_device.h>
 #include <wlr/types/wlr_export_dmabuf_v1.h>
 #include <wlr/types/wlr_gamma_control_v1.h>
-#include <wlr/types/wlr_input_device.h>
 #include <wlr/types/wlr_idle.h>
+#include <wlr/types/wlr_input_device.h>
+#include <wlr/types/wlr_input_method_v2.h>
 #include <wlr/types/wlr_layer_shell_v1.h>
 #include <wlr/types/wlr_keyboard.h>
 #include <wlr/types/wlr_matrix.h>
@@ -34,6 +36,7 @@
 #include <wlr/types/wlr_screencopy_v1.h>
 #include <wlr/types/wlr_server_decoration.h>
 #include <wlr/types/wlr_seat.h>
+#include <wlr/types/wlr_text_input_v3.h>
 #include <wlr/types/wlr_viewporter.h>
 #include <wlr/types/wlr_virtual_keyboard_v1.h>
 #include <wlr/types/wlr_xcursor_manager.h>
@@ -199,6 +202,48 @@ typedef struct {
 	int monitor;
 } Rule;
 
+/**
+ * The relay structure manages the relationship between text-input and
+ * input_method interfaces on a given seat. Multiple text-input interfaces may
+ * be bound to a relay, but at most one will be focused (receiving events) at
+ * a time. At most one input-method interface may be bound to the seat. The
+ * relay manages life cycle of both sides. When both sides are present and
+ * focused, the relay passes messages between them.
+ *
+ * Text input focus is a subset of keyboard focus - if the text-input is
+ * in the focused state, wl_keyboard sent an enter as well. However, having
+ * wl_keyboard focused doesn't mean that text-input will be focused.
+ */
+struct dwl_input_method_relay {
+	struct wl_list text_inputs; // dwl_text_input::link
+	struct wlr_input_method_v2 *input_method; // doesn't have to be present
+
+	struct wl_listener text_input_new;
+
+	struct wl_listener input_method_new;
+	struct wl_listener input_method_commit;
+	struct wl_listener input_method_destroy;
+};
+
+struct dwl_text_input {
+	struct dwl_input_method_relay *relay;
+
+	struct wlr_text_input_v3 *input;
+	// The surface getting seat's focus. Stored for when text-input cannot
+	// be sent an enter event immediately after getting focus, e.g. when
+	// there's no input method available. Cleared once text-input is entered.
+	struct wlr_surface *pending_focused_surface;
+
+	struct wl_list link;
+
+	struct wl_listener pending_focused_surface_destroy;
+
+	struct wl_listener text_input_enable;
+	struct wl_listener text_input_commit;
+	struct wl_listener text_input_disable;
+	struct wl_listener text_input_destroy;
+};
+
 /* Used to move all of the data necessary to render a surface from the top-level
  * frame handler to the per-surface render function. */
 struct render_data {
@@ -299,6 +344,14 @@ static Client *xytoclient(double x, double y);
 static struct wlr_surface *xytolayersurface(struct wl_list *layer_surfaces,
 		double x, double y, double *sx, double *sy);
 static Monitor *xytomon(double x, double y);
+void dwl_input_method_relay_init(struct dwl_input_method_relay *relay);
+// Updates currently focused surface. Surface must belong to the same
+// seat.
+void dwl_input_method_relay_set_focus(struct dwl_input_method_relay *relay,
+	struct wlr_surface *surface);
+struct dwl_text_input *dwl_text_input_create(
+	struct dwl_input_method_relay *relay,
+	struct wlr_text_input_v3 *text_input);
 static void zoom(const Arg *arg);
 
 /* variables */
@@ -327,6 +380,9 @@ static struct wlr_xcursor_manager *xcursor_mgr;
 #endif
 
 static struct wlr_seat *seat;
+struct wlr_input_method_manager_v2 *input_method_manager;
+struct wlr_text_input_manager_v3 *text_input_manager;
+struct dwl_input_method_relay *input_relay;
 static struct wl_list keyboards;
 static unsigned int cursor_mode;
 static Client *grabc;
@@ -1116,6 +1172,7 @@ focusclient(Client *c, int lift)
 	kb = wlr_seat_get_keyboard(seat);
 	wlr_seat_keyboard_notify_enter(seat, client_surface(c),
 			kb->keycodes, kb->num_keycodes, &kb->modifiers);
+	dwl_input_method_relay_set_focus(input_relay, client_surface(c));
 
 	/* Activate the new client */
 	client_activate_surface(client_surface(c), 1);
@@ -1978,6 +2035,305 @@ setsel(struct wl_listener *listener, void *data)
 	wlr_seat_set_selection(seat, event->source, event->serial);
 }
 
+// text-input-, and input_method-relevant functions
+static struct dwl_text_input *relay_get_focusable_text_input(
+		struct dwl_input_method_relay *relay) {
+	struct dwl_text_input *text_input = NULL;
+	wl_list_for_each(text_input, &relay->text_inputs, link) {
+		if (text_input->pending_focused_surface) {
+			return text_input;
+		}
+	}
+	return NULL;
+}
+
+static struct dwl_text_input *relay_get_focused_text_input(
+		struct dwl_input_method_relay *relay) {
+	struct dwl_text_input *text_input = NULL;
+	wl_list_for_each(text_input, &relay->text_inputs, link) {
+		if (text_input->input->focused_surface) {
+			return text_input;
+		}
+	}
+	return NULL;
+}
+
+static void handle_im_commit(struct wl_listener *listener, void *data) {
+	struct wlr_input_method_v2 *context;
+
+	struct dwl_input_method_relay *relay = wl_container_of(listener, relay,
+		input_method_commit);
+
+	struct dwl_text_input *text_input = relay_get_focused_text_input(relay);
+	if (!text_input) {
+		return;
+	}
+
+	context = data;
+	assert(context == relay->input_method);
+	if (context->current.preedit.text) {
+		wlr_text_input_v3_send_preedit_string(text_input->input,
+			context->current.preedit.text,
+			context->current.preedit.cursor_begin,
+			context->current.preedit.cursor_end);
+	}
+	if (context->current.commit_text) {
+		wlr_text_input_v3_send_commit_string(text_input->input,
+			context->current.commit_text);
+	}
+	if (context->current.delete.before_length
+			|| context->current.delete.after_length) {
+		wlr_text_input_v3_send_delete_surrounding_text(text_input->input,
+			context->current.delete.before_length,
+			context->current.delete.after_length);
+	}
+	wlr_text_input_v3_send_done(text_input->input);
+}
+
+static void text_input_set_pending_focused_surface(
+		struct dwl_text_input *text_input, struct wlr_surface *surface) {
+	wl_list_remove(&text_input->pending_focused_surface_destroy.link);
+	text_input->pending_focused_surface = surface;
+
+	if (surface) {
+		wl_signal_add(&surface->events.destroy,
+			&text_input->pending_focused_surface_destroy);
+	} else {
+		wl_list_init(&text_input->pending_focused_surface_destroy.link);
+	}
+}
+
+static void handle_im_destroy(struct wl_listener *listener, void *data) {
+	struct dwl_text_input *text_input;
+
+	struct dwl_input_method_relay *relay = wl_container_of(listener, relay,
+		input_method_destroy);
+	struct wlr_input_method_v2 *context = data;
+	assert(context == relay->input_method);
+	relay->input_method = NULL;
+
+	text_input = relay_get_focused_text_input(relay);
+	if (text_input) {
+		// keyboard focus is still there, so keep the surface at hand in case
+		// the input method returns
+		text_input_set_pending_focused_surface(text_input,
+			text_input->input->focused_surface);
+		wlr_text_input_v3_send_leave(text_input->input);
+	}
+}
+
+static void relay_send_im_state(struct dwl_input_method_relay *relay,
+		struct wlr_text_input_v3 *input) {
+	struct wlr_input_method_v2 *input_method = relay->input_method;
+	if (!input_method) {
+		wlr_log(WLR_INFO, "Sending IM_DONE but im is gone");
+		return;
+	}
+	// TODO: only send each of those if they were modified
+	wlr_input_method_v2_send_surrounding_text(input_method,
+		input->current.surrounding.text, input->current.surrounding.cursor,
+		input->current.surrounding.anchor);
+	wlr_input_method_v2_send_text_change_cause(input_method,
+		input->current.text_change_cause);
+	wlr_input_method_v2_send_content_type(input_method,
+		input->current.content_type.hint, input->current.content_type.purpose);
+	wlr_input_method_v2_send_done(input_method);
+	// TODO: pass intent, display popup size
+}
+
+static void handle_text_input_enable(struct wl_listener *listener, void *data) {
+	struct dwl_text_input *text_input = wl_container_of(listener, text_input,
+		text_input_enable);
+	if (text_input->relay->input_method == NULL) {
+		wlr_log(WLR_INFO, "Enabling text input when input method is gone");
+		return;
+	}
+	wlr_input_method_v2_send_activate(text_input->relay->input_method);
+	relay_send_im_state(text_input->relay, text_input->input);
+}
+
+static void handle_text_input_commit(struct wl_listener *listener,
+		void *data) {
+	struct dwl_text_input *text_input = wl_container_of(listener, text_input,
+		text_input_commit);
+	if (!text_input->input->current_enabled) {
+		wlr_log(WLR_INFO, "Inactive text input tried to commit an update");
+		return;
+	}
+	wlr_log(WLR_DEBUG, "Text input committed update");
+	if (text_input->relay->input_method == NULL) {
+		wlr_log(WLR_INFO, "Text input committed, but input method is gone");
+		return;
+	}
+	relay_send_im_state(text_input->relay, text_input->input);
+}
+
+static void relay_disable_text_input(struct dwl_input_method_relay *relay,
+		struct dwl_text_input *text_input) {
+	if (relay->input_method == NULL) {
+		wlr_log(WLR_DEBUG, "Disabling text input, but input method is gone");
+		return;
+	}
+	wlr_input_method_v2_send_deactivate(relay->input_method);
+	relay_send_im_state(relay, text_input->input);
+}
+
+static void handle_text_input_disable(struct wl_listener *listener,
+		void *data) {
+	struct dwl_text_input *text_input = wl_container_of(listener, text_input,
+		text_input_disable);
+	relay_disable_text_input(text_input->relay, text_input);
+}
+
+static void handle_text_input_destroy(struct wl_listener *listener,
+		void *data) {
+	struct dwl_text_input *text_input = wl_container_of(listener, text_input,
+		text_input_destroy);
+
+	if (text_input->input->current_enabled) {
+		relay_disable_text_input(text_input->relay, text_input);
+	}
+	text_input_set_pending_focused_surface(text_input, NULL);
+	wl_list_remove(&text_input->text_input_commit.link);
+	wl_list_remove(&text_input->text_input_destroy.link);
+	wl_list_remove(&text_input->text_input_disable.link);
+	wl_list_remove(&text_input->text_input_enable.link);
+	wl_list_remove(&text_input->link);
+	free(text_input);
+}
+
+static void handle_pending_focused_surface_destroy(struct wl_listener *listener,
+		void *data) {
+	struct dwl_text_input *text_input = wl_container_of(listener, text_input,
+		pending_focused_surface_destroy);
+	struct wlr_surface *surface = data;
+	assert(text_input->pending_focused_surface == surface);
+	text_input->pending_focused_surface = NULL;
+	wl_list_remove(&text_input->pending_focused_surface_destroy.link);
+	wl_list_init(&text_input->pending_focused_surface_destroy.link);
+}
+
+struct dwl_text_input *dwl_text_input_create(
+		struct dwl_input_method_relay *relay,
+		struct wlr_text_input_v3 *text_input) {
+	struct dwl_text_input *input;
+	input = calloc(1, sizeof(*input));
+	if (!input) {
+		return NULL;
+	}
+	input->input = text_input;
+	input->relay = relay;
+
+	wl_list_insert(&relay->text_inputs, &input->link);
+
+	input->text_input_enable.notify = handle_text_input_enable;
+	wl_signal_add(&text_input->events.enable, &input->text_input_enable);
+
+	input->text_input_commit.notify = handle_text_input_commit;
+	wl_signal_add(&text_input->events.commit, &input->text_input_commit);
+
+	input->text_input_disable.notify = handle_text_input_disable;
+	wl_signal_add(&text_input->events.disable, &input->text_input_disable);
+
+	input->text_input_destroy.notify = handle_text_input_destroy;
+	wl_signal_add(&text_input->events.destroy, &input->text_input_destroy);
+
+	input->pending_focused_surface_destroy.notify =
+		handle_pending_focused_surface_destroy;
+	wl_list_init(&input->pending_focused_surface_destroy.link);
+	return input;
+}
+
+static void relay_handle_text_input(struct wl_listener *listener,
+		void *data) {
+	struct dwl_input_method_relay *relay = wl_container_of(listener, relay,
+		text_input_new);
+	struct wlr_text_input_v3 *wlr_text_input = data;
+	if (seat != wlr_text_input->seat) {
+		return;
+	}
+
+	dwl_text_input_create(relay, wlr_text_input);
+}
+
+static void relay_handle_input_method(struct wl_listener *listener,
+		void *data) {
+	struct dwl_text_input *text_input;
+
+	struct dwl_input_method_relay *relay = wl_container_of(listener, relay,
+		input_method_new);
+
+	struct wlr_input_method_v2 *input_method = data;
+	if (seat != input_method->seat) {
+		return;
+	}
+
+	if (relay->input_method != NULL) {
+		wlr_log(WLR_INFO, "Attempted to connect second input method to a seat");
+		wlr_input_method_v2_send_unavailable(input_method);
+		return;
+	}
+
+	relay->input_method = input_method;
+	wl_signal_add(&relay->input_method->events.commit,
+		&relay->input_method_commit);
+	relay->input_method_commit.notify = handle_im_commit;
+	wl_signal_add(&relay->input_method->events.destroy,
+		&relay->input_method_destroy);
+	relay->input_method_destroy.notify = handle_im_destroy;
+
+	text_input = relay_get_focusable_text_input(relay);
+	if (text_input) {
+		wlr_text_input_v3_send_enter(text_input->input,
+			text_input->pending_focused_surface);
+		text_input_set_pending_focused_surface(text_input, NULL);
+	}
+}
+
+void dwl_input_method_relay_init(struct dwl_input_method_relay *relay) {
+	wl_list_init(&relay->text_inputs);
+
+	relay->text_input_new.notify = relay_handle_text_input;
+	wl_signal_add(&text_input_manager->events.text_input,
+		&relay->text_input_new);
+
+	relay->input_method_new.notify = relay_handle_input_method;
+	wl_signal_add(&input_method_manager->events.input_method,
+		&relay->input_method_new);
+}
+
+void dwl_input_method_relay_set_focus(struct dwl_input_method_relay *relay,
+		struct wlr_surface *surface) {
+	struct dwl_text_input *text_input;
+	wl_list_for_each(text_input, &relay->text_inputs, link) {
+		if (text_input->pending_focused_surface) {
+			assert(text_input->input->focused_surface == NULL);
+			if (surface != text_input->pending_focused_surface) {
+				text_input_set_pending_focused_surface(text_input, NULL);
+			}
+		} else if (text_input->input->focused_surface) {
+			assert(text_input->pending_focused_surface == NULL);
+			if (surface != text_input->input->focused_surface) {
+				relay_disable_text_input(relay, text_input);
+				wlr_text_input_v3_send_leave(text_input->input);
+			} else {
+				wlr_log(WLR_DEBUG, "IM relay set_focus already focused");
+				continue;
+			}
+		}
+
+		if (surface
+				&& wl_resource_get_client(text_input->input->resource)
+				== wl_resource_get_client(surface->resource)) {
+			if (relay->input_method) {
+				wlr_text_input_v3_send_enter(text_input->input, surface);
+			} else {
+				text_input_set_pending_focused_surface(text_input, surface);
+			}
+		}
+	}
+}
+
 void
 setup(void)
 {
@@ -2115,6 +2471,13 @@ setup(void)
 	output_mgr = wlr_output_manager_v1_create(dpy);
 	wl_signal_add(&output_mgr->events.apply, &output_mgr_apply);
 	wl_signal_add(&output_mgr->events.test, &output_mgr_test);
+
+	/* create text_input-, and input_method-protocol relevant globals */
+	input_method_manager = wlr_input_method_manager_v2_create(dpy);
+	text_input_manager = wlr_text_input_manager_v3_create(dpy);
+
+	input_relay = calloc(1, sizeof(*input_relay));
+	dwl_input_method_relay_init(input_relay);
 
 #ifdef XWAYLAND
 	/*
