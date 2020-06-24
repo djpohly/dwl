@@ -956,9 +956,9 @@ pointerfocus(Client *c, struct wlr_surface *surface, double sx, double sy,
 		uint32_t time)
 {
 	/* Use top level surface if nothing more specific given */
-	if (c && !surface) {
+	if (c && !surface)
 		surface = WLR_SURFACE(c);
-	}
+
 	/* If surface is already focused, only notify of motion */
 	if (surface && surface == seat->pointer_state.focused_surface) {
 		wlr_seat_pointer_notify_motion(seat, time, sx, sy);
