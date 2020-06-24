@@ -616,9 +616,8 @@ focusclient(Client *c, struct wlr_surface *surface, int lift)
 	if (c) {
 		/* assert(VISIBLEON(c, c->mon)); ? */
 		/* Use top-level wlr_surface if nothing more specific given */
-		if (!surface) {
+		if (!surface)
 			surface = WLR_SURFACE(c);
-		}
 
 		/* Focus the correct monitor (must come after selclient!) */
 		selmon = c->mon;
