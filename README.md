@@ -26,6 +26,7 @@ just as simple.*  Intended default features are:
 - Wayland protocols needed for daily life in the tiling world: at a minimum,
   xdg-shell and layer-shell (for bars/menus).  Protocols trivially provided by
   wlroots may also be added.
+- XWayland support as provided by wlroots
 - Basic yes/no damage tracking to avoid needless redraws (if it can be done
   simply and has an impact on power consumption)
 
@@ -33,8 +34,8 @@ just as simple.*  Intended default features are:
 Other features under consideration are:
 
 - Additional Wayland compositor protocols which are trivially provided by
-  wlroots or can be conditionally included via `config.h` settings: xwayland,
-  screen capture, etc.
+  wlroots or can be conditionally included via `config.h` settings (e.g. screen
+  capture)
 - External bar support instead of a built-in status bar, to avoid taking a
   dependency on FreeType or Pango
 - Buffering of input when spawning a client so you don't have to wait for the
@@ -95,6 +96,7 @@ number of ways:
 
 - A window's texture is scaled for its "home" monitor only (noticeable when
   window sits across a monitor boundary)
+- XWayland support is new and could use testing
 - Urgent/attention/focus-request ([not yet supported](https://gitlab.freedesktop.org/wayland/wayland-protocols/-/merge_requests/9)
   by xdg-shell protocol)
 - Normal/selected/urgent border colors
@@ -103,7 +105,6 @@ number of ways:
 - export-dmabuf
 - Damage tracking
 - Fullscreen/fixed windows (or whatever the Wayland analogues are)
-- XWayland
 
 
 ## Acknowledgements
