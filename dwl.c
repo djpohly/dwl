@@ -287,6 +287,8 @@ applyrules(Client *c)
 		if (!(title = c->xdg_surface->toplevel->title))
 			title = broken;
 	} else {
+		if (!(appid = c->xwayland_surface->class))
+			appid = broken;
 		if (!(title = c->xwayland_surface->title))
 			title = broken;
 	}
