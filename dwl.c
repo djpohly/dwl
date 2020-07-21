@@ -281,17 +281,14 @@ applyrules(Client *c)
 
 	/* rule matching */
 	c->isfloating = 0;
-	if (c->isxdg) {
-		if (!(appid = c->xdg_surface->toplevel->app_id))
-			appid = broken;
-		if (!(title = c->xdg_surface->toplevel->title))
-			title = broken;
-	} else {
-		if (!(appid = c->xwayland_surface->class))
-			appid = broken;
-		if (!(title = c->xwayland_surface->title))
-			title = broken;
-	}
+	appid = c->isxdg ? c->xdg_surface->toplevel->app_id :
+		c->xwayland_surface->class;
+	title = c->isxdg ? c->xdg_surface->toplevel->title :
+		c->xwayland_surface->title;
+	if (!appid)
+		appid = broken;
+	if (!title)
+		title = broken;
 
 	for (r = rules; r < END(rules); r++) {
 		if ((!r->title || strstr(title, r->title))
