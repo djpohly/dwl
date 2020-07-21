@@ -31,6 +31,7 @@
 #include <wlr/types/wlr_xdg_output_v1.h>
 #include <wlr/types/wlr_xdg_shell.h>
 #include <wlr/util/log.h>
+#include <wlr/xwayland.h>
 #include <xkbcommon/xkbcommon.h>
 
 /* macros */
@@ -41,6 +42,7 @@
 #define LENGTH(X)               (sizeof X / sizeof X[0])
 #define END(A)                  ((A) + LENGTH(A))
 #define TAGMASK                 ((1 << LENGTH(tags)) - 1)
+#define WLR_SURFACE(C)          (c->isxdg ? c->xdg_surface->surface : c->xwayland_surface->surface)
 
 /* enums */
 enum { CurNormal, CurMove, CurResize }; /* cursor */
@@ -64,11 +66,15 @@ typedef struct {
 	struct wl_list link;
 	struct wl_list flink;
 	struct wl_list slink;
-	struct wlr_xdg_surface *xdg_surface;
+	union {
+		struct wlr_xdg_surface *xdg_surface;
+		struct wlr_xwayland_surface *xwayland_surface;
+	};
 	struct wl_listener map;
 	struct wl_listener unmap;
 	struct wl_listener destroy;
 	struct wlr_box geom;  /* layout-relative, includes border */
+	int isxdg;
 	Monitor *mon;
 	int bw;
 	unsigned int tags;
@@ -148,7 +154,8 @@ static void buttonpress(struct wl_listener *listener, void *data);
 static void chvt(const Arg *arg);
 static void createkeyboard(struct wlr_input_device *device);
 static void createmon(struct wl_listener *listener, void *data);
-static void createnotify(struct wl_listener *listener, void *data);
+static void createnotifyxdg(struct wl_listener *listener, void *data);
+static void createnotifyxwayland(struct wl_listener *listener, void *data);
 static void createpointer(struct wlr_input_device *device);
 static void createxdeco(struct wl_listener *listener, void *data);
 static void cursorframe(struct wl_listener *listener, void *data);
@@ -205,6 +212,8 @@ static const char broken[] = "broken";
 static struct wl_display *dpy;
 static struct wlr_backend *backend;
 static struct wlr_renderer *drw;
+static struct wlr_compositor *compositor;
+static struct wlr_xwayland *xwayland;
 
 static struct wlr_xdg_shell *xdg_shell;
 static struct wl_list clients; /* tiling order */
@@ -235,7 +244,8 @@ static struct wl_listener cursor_motion_absolute = {.notify = motionabsolute};
 static struct wl_listener new_input = {.notify = inputdevice};
 static struct wl_listener new_output = {.notify = createmon};
 static struct wl_listener new_xdeco = {.notify = createxdeco};
-static struct wl_listener new_xdg_surface = {.notify = createnotify};
+static struct wl_listener new_xdg_surface = {.notify = createnotifyxdg};
+static struct wl_listener new_xwayland_surface = {.notify = createnotifyxwayland};
 static struct wl_listener request_cursor = {.notify = setcursor};
 static struct wl_listener request_set_psel = {.notify = setpsel};
 static struct wl_listener request_set_sel = {.notify = setsel};
@@ -271,10 +281,15 @@ applyrules(Client *c)
 
 	/* rule matching */
 	c->isfloating = 0;
-	if (!(appid = c->xdg_surface->toplevel->app_id))
-		appid = broken;
-	if (!(title = c->xdg_surface->toplevel->title))
-		title = broken;
+	if (c->isxdg) {
+		if (!(appid = c->xdg_surface->toplevel->app_id))
+			appid = broken;
+		if (!(title = c->xdg_surface->toplevel->title))
+			title = broken;
+	} else {
+		if (!(title = c->xwayland_surface->title))
+			title = broken;
+	}
 
 	for (r = rules; r < END(rules); r++) {
 		if ((!r->title || strstr(title, r->title))
@@ -328,9 +343,14 @@ buttonpress(struct wl_listener *listener, void *data)
 	case WLR_BUTTON_PRESSED:;
 		/* Change focus if the button was _pressed_ over a client */
 		if ((c = xytoclient(cursor->x, cursor->y))) {
-			surface = wlr_xdg_surface_surface_at(c->xdg_surface,
-					cursor->x - c->geom.x - c->bw,
-					cursor->y - c->geom.y - c->bw, NULL, NULL);
+			if (c->isxdg)
+				surface = wlr_xdg_surface_surface_at(c->xdg_surface,
+						cursor->x - c->geom.x - c->bw,
+						cursor->y - c->geom.y - c->bw, NULL, NULL);
+			else
+				surface = wlr_surface_surface_at(c->xwayland_surface->surface,
+						cursor->x - c->geom.x - c->bw,
+						cursor->y - c->geom.y - c->bw, NULL, NULL);
 			focusclient(c, surface, 1);
 		}
 
@@ -458,7 +478,7 @@ createmon(struct wl_listener *listener, void *data)
 }
 
 void
-createnotify(struct wl_listener *listener, void *data)
+createnotifyxdg(struct wl_listener *listener, void *data)
 {
 	/* This event is raised when wlr_xdg_shell receives a new xdg surface from a
 	 * client, either a toplevel (application window) or popup. */
@@ -471,6 +491,7 @@ createnotify(struct wl_listener *listener, void *data)
 	/* Allocate a Client for this surface */
 	c = xdg_surface->data = calloc(1, sizeof(*c));
 	c->xdg_surface = xdg_surface;
+	c->isxdg = 1;
 	c->bw = borderpx;
 
 	/* Tell the client not to try anything fancy */
@@ -484,6 +505,27 @@ createnotify(struct wl_listener *listener, void *data)
 	wl_signal_add(&xdg_surface->events.unmap, &c->unmap);
 	c->destroy.notify = destroynotify;
 	wl_signal_add(&xdg_surface->events.destroy, &c->destroy);
+}
+
+void
+createnotifyxwayland(struct wl_listener *listener, void *data)
+{
+	struct wlr_xwayland_surface *xwayland_surface = data;
+	Client *c;
+
+	/* Allocate a Client for this surface */
+	c = xwayland_surface->data = calloc(1, sizeof(*c));
+	c->xwayland_surface = xwayland_surface;
+	c->isxdg = 0;
+	c->bw = borderpx;
+
+	/* Listen to the various events it can emit */
+	c->map.notify = maprequest;
+	wl_signal_add(&xwayland_surface->events.map, &c->map);
+	c->unmap.notify = unmapnotify;
+	wl_signal_add(&xwayland_surface->events.unmap, &c->unmap);
+	c->destroy.notify = destroynotify;
+	wl_signal_add(&xwayland_surface->events.destroy, &c->destroy);
 }
 
 void
@@ -566,8 +608,8 @@ focusclient(Client *c, struct wlr_surface *surface, int lift)
 	Client *sel = selclient();
 	struct wlr_keyboard *kb;
 	/* Previous and new xdg toplevel surfaces */
-	struct wlr_xdg_surface *ptl = sel ? sel->xdg_surface : NULL;
-	struct wlr_xdg_surface *tl = c ? c->xdg_surface : NULL;
+	Client *ptl = sel;
+	Client *tl = c;
 	/* Previously focused surface */
 	struct wlr_surface *psurface = seat->keyboard_state.focused_surface;
 
@@ -575,7 +617,7 @@ focusclient(Client *c, struct wlr_surface *surface, int lift)
 		/* assert(VISIBLEON(c, c->mon)); ? */
 		/* Use top-level wlr_surface if nothing more specific given */
 		if (!surface)
-			surface = c->xdg_surface->surface;
+			surface = WLR_SURFACE(c);
 
 		/* Focus the correct monitor (must come after selclient!) */
 		selmon = c->mon;
@@ -610,10 +652,18 @@ focusclient(Client *c, struct wlr_surface *surface, int lift)
 	 * activate the new one.  This lets the clients know to repaint
 	 * accordingly, e.g. show/hide a caret.
 	 */
-	if (tl != ptl && ptl)
-		wlr_xdg_toplevel_set_activated(ptl, 0);
-	if (tl != ptl && tl)
-		wlr_xdg_toplevel_set_activated(tl, 1);
+	if (tl != ptl && ptl) {
+		if (ptl->isxdg)
+			wlr_xdg_toplevel_set_activated(ptl->xdg_surface, 0);
+		else
+			wlr_xwayland_surface_activate(ptl->xwayland_surface, 0);
+	}
+	if (tl != ptl && tl) {
+		if (tl->isxdg)
+			wlr_xdg_toplevel_set_activated(tl->xdg_surface, 1);
+		else
+			wlr_xwayland_surface_activate(tl->xwayland_surface, 1);
+	}
 }
 
 void
@@ -783,9 +833,17 @@ maprequest(struct wl_listener *listener, void *data)
 	wl_list_insert(&clients, &c->link);
 	wl_list_insert(&fstack, &c->flink);
 	wl_list_insert(&stack, &c->slink);
-	wlr_xdg_surface_get_geometry(c->xdg_surface, &c->geom);
-	c->geom.width += 2 * c->bw;
-	c->geom.height += 2 * c->bw;
+
+	if (c->isxdg) {
+		wlr_xdg_surface_get_geometry(c->xdg_surface, &c->geom);
+		c->geom.width += 2 * c->bw;
+		c->geom.height += 2 * c->bw;
+	} else {
+		c->geom.x = c->xwayland_surface->x;
+		c->geom.y = c->xwayland_surface->y;
+		c->geom.width = c->xwayland_surface->width + 2 * c->bw;
+		c->geom.height = c->xwayland_surface->height + 2 * c->bw;
+	}
 
 	/* Set initial monitor, tags, floating status, and focus */
 	applyrules(c);
@@ -830,10 +888,16 @@ motionnotify(uint32_t time)
 	}
 
 	/* Otherwise, find the client under the pointer and send the event along. */
-	if ((c = xytoclient(cursor->x, cursor->y)))
-		surface = wlr_xdg_surface_surface_at(c->xdg_surface,
-				cursor->x - c->geom.x - c->bw,
-				cursor->y - c->geom.y - c->bw, &sx, &sy);
+	if ((c = xytoclient(cursor->x, cursor->y))) {
+		if (c->isxdg)
+			surface = wlr_xdg_surface_surface_at(c->xdg_surface,
+					cursor->x - c->geom.x - c->bw,
+					cursor->y - c->geom.y - c->bw, &sx, &sy);
+		else
+			surface = wlr_surface_surface_at(c->xwayland_surface->surface,
+					cursor->x - c->geom.x - c->bw,
+					cursor->y - c->geom.y - c->bw, &sx, &sy);
+	}
 	/* If there's no client surface under the cursor, set the cursor image to a
 	 * default. This is what makes the cursor image appear when you move it
 	 * off of a client or over its border. */
@@ -893,7 +957,8 @@ pointerfocus(Client *c, struct wlr_surface *surface, double sx, double sy,
 {
 	/* Use top level surface if nothing more specific given */
 	if (c && !surface)
-		surface = c->xdg_surface->surface;
+		surface = WLR_SURFACE(c);
+
 	/* If surface is already focused, only notify of motion */
 	if (surface && surface == seat->pointer_state.focused_surface) {
 		wlr_seat_pointer_notify_motion(seat, time, sx, sy);
@@ -985,6 +1050,7 @@ renderclients(Monitor *m, struct timespec *now)
 	int i, w, h;
 	struct render_data rdata;
 	struct wlr_box *borders;
+	struct wlr_surface *surface;
 	/* Each subsequent window we render is rendered on top of the last. Because
 	 * our stacking list is ordered front-to-back, we iterate over it backwards. */
 	wl_list_for_each_reverse(c, &stack, slink) {
@@ -993,11 +1059,12 @@ renderclients(Monitor *m, struct timespec *now)
 					output_layout, m->wlr_output, &c->geom))
 			continue;
 
+		surface = WLR_SURFACE(c);
 		ox = c->geom.x, oy = c->geom.y;
 		wlr_output_layout_output_coords(output_layout, m->wlr_output,
 				&ox, &oy);
-		w = c->xdg_surface->surface->current.width;
-		h = c->xdg_surface->surface->current.height;
+		w = surface->current.width;
+		h = surface->current.height;
 		borders = (struct wlr_box[4]) {
 			{ox, oy, w + 2 * c->bw, c->bw},             /* top */
 			{ox, oy + c->bw, c->bw, h},                 /* left */
@@ -1015,8 +1082,11 @@ renderclients(Monitor *m, struct timespec *now)
 		rdata.output = m->wlr_output,
 		rdata.when = now,
 		rdata.x = c->geom.x + c->bw,
-		rdata.y = c->geom.y + c->bw,
-		wlr_xdg_surface_for_each_surface(c->xdg_surface, render, &rdata);
+		rdata.y = c->geom.y + c->bw;
+		if (c->isxdg)
+			wlr_xdg_surface_for_each_surface(c->xdg_surface, render, &rdata);
+		else
+			wlr_surface_for_each_surface(c->xwayland_surface->surface, render, &rdata);
 	}
 }
 
@@ -1069,8 +1139,13 @@ resize(Client *c, int x, int y, int w, int h, int interact)
 	c->geom.height = h;
 	applybounds(c, bbox);
 	/* wlroots makes this a no-op if size hasn't changed */
-	wlr_xdg_toplevel_set_size(c->xdg_surface,
-			c->geom.width - 2 * c->bw, c->geom.height - 2 * c->bw);
+	if (c->isxdg)
+		wlr_xdg_toplevel_set_size(c->xdg_surface,
+				c->geom.width - 2 * c->bw, c->geom.height - 2 * c->bw);
+	else
+		wlr_xwayland_surface_configure(c->xwayland_surface,
+				c->geom.x, c->geom.y,
+				c->geom.width - 2 * c->bw, c->geom.height - 2 * c->bw);
 }
 
 void
@@ -1214,19 +1289,20 @@ setmon(Client *c, Monitor *m, unsigned int newtags)
 {
 	int hadfocus;
 	Monitor *oldmon = c->mon;
+	struct wlr_surface *surface = WLR_SURFACE(c);
 	if (oldmon == m)
 		return;
 	hadfocus = (c == selclient());
 	c->mon = m;
 	/* XXX leave/enter is not optimal but works */
 	if (oldmon) {
-		wlr_surface_send_leave(c->xdg_surface->surface, oldmon->wlr_output);
+		wlr_surface_send_leave(surface, oldmon->wlr_output);
 		arrange(oldmon);
 	}
 	if (m) {
 		/* Make sure window actually overlaps with the monitor */
 		applybounds(c, &m->m);
-		wlr_surface_send_enter(c->xdg_surface->surface, m->wlr_output);
+		wlr_surface_send_enter(surface, m->wlr_output);
 		c->tags = newtags ? newtags : m->tagset[m->seltags]; /* assign tags of target monitor */
 		arrange(m);
 	}
@@ -1282,7 +1358,7 @@ setup(void)
 	 * to dig your fingers in and play with their behavior if you want. Note that
 	 * the clients cannot set the selection directly without compositor approval,
 	 * see the setsel() function. */
-	wlr_compositor_create(dpy, drw);
+	compositor = wlr_compositor_create(dpy, drw);
 	wlr_screencopy_manager_v1_create(dpy);
 	wlr_data_device_manager_create(dpy);
 	wlr_primary_selection_v1_device_manager_create(dpy);
@@ -1360,6 +1436,19 @@ setup(void)
 			&request_set_sel);
 	wl_signal_add(&seat->events.request_set_primary_selection,
 			&request_set_psel);
+
+	/*
+	 * Initialise the XWayland X server.
+	 * It will be started when the first X client is started.
+	 */
+	xwayland = wlr_xwayland_create(dpy, compositor, true);
+	if (xwayland) {
+		wl_signal_add(&xwayland->events.new_surface, &new_xwayland_surface);
+
+		setenv("DISPLAY", xwayland->display_name, true);
+	} else {
+		fprintf(stderr, "failed to setup XWayland X server, continuing without it\n");
+	}
 }
 
 void
@@ -1550,6 +1639,7 @@ main(int argc, char *argv[])
 	run(startup_cmd);
 
 	/* Once wl_display_run returns, we shut down the server. */
+	wlr_xwayland_destroy(xwayland);
 	wl_display_destroy_clients(dpy);
 	wl_display_destroy(dpy);
 	return EXIT_SUCCESS;
