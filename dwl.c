@@ -42,7 +42,7 @@
 #define LENGTH(X)               (sizeof X / sizeof X[0])
 #define END(A)                  ((A) + LENGTH(A))
 #define TAGMASK                 ((1 << LENGTH(tags)) - 1)
-#define WLR_SURFACE(C)          (c->isxdg ? c->xdg_surface->surface : c->xwayland_surface->surface)
+#define WLR_SURFACE(C)          (c->isx11 ? c->xwayland_surface->surface : c->xdg_surface->surface)
 
 /* enums */
 enum { CurNormal, CurMove, CurResize }; /* cursor */
@@ -74,7 +74,7 @@ typedef struct {
 	struct wl_listener unmap;
 	struct wl_listener destroy;
 	struct wlr_box geom;  /* layout-relative, includes border */
-	int isxdg;
+	int isx11;
 	Monitor *mon;
 	int bw;
 	unsigned int tags;
@@ -281,10 +281,10 @@ applyrules(Client *c)
 
 	/* rule matching */
 	c->isfloating = 0;
-	appid = c->isxdg ? c->xdg_surface->toplevel->app_id :
-		c->xwayland_surface->class;
-	title = c->isxdg ? c->xdg_surface->toplevel->title :
-		c->xwayland_surface->title;
+	appid = c->isx11 ? c->xwayland_surface->class :
+		c->xdg_surface->toplevel->app_id;
+	title = c->isx11 ? c->xwayland_surface->title :
+		c->xdg_surface->toplevel->title;
 	if (!appid)
 		appid = broken;
 	if (!title)
@@ -342,12 +342,12 @@ buttonpress(struct wl_listener *listener, void *data)
 	case WLR_BUTTON_PRESSED:;
 		/* Change focus if the button was _pressed_ over a client */
 		if ((c = xytoclient(cursor->x, cursor->y))) {
-			if (c->isxdg)
-				surface = wlr_xdg_surface_surface_at(c->xdg_surface,
+			if (c->isx11)
+				surface = wlr_surface_surface_at(c->xwayland_surface->surface,
 						cursor->x - c->geom.x - c->bw,
 						cursor->y - c->geom.y - c->bw, NULL, NULL);
 			else
-				surface = wlr_surface_surface_at(c->xwayland_surface->surface,
+				surface = wlr_xdg_surface_surface_at(c->xdg_surface,
 						cursor->x - c->geom.x - c->bw,
 						cursor->y - c->geom.y - c->bw, NULL, NULL);
 			focusclient(c, surface, 1);
@@ -490,7 +490,6 @@ createnotifyxdg(struct wl_listener *listener, void *data)
 	/* Allocate a Client for this surface */
 	c = xdg_surface->data = calloc(1, sizeof(*c));
 	c->xdg_surface = xdg_surface;
-	c->isxdg = 1;
 	c->bw = borderpx;
 
 	/* Tell the client not to try anything fancy */
@@ -515,7 +514,7 @@ createnotifyxwayland(struct wl_listener *listener, void *data)
 	/* Allocate a Client for this surface */
 	c = xwayland_surface->data = calloc(1, sizeof(*c));
 	c->xwayland_surface = xwayland_surface;
-	c->isxdg = 0;
+	c->isx11 = 1;
 	c->bw = borderpx;
 
 	/* Listen to the various events it can emit */
@@ -652,16 +651,16 @@ focusclient(Client *c, struct wlr_surface *surface, int lift)
 	 * accordingly, e.g. show/hide a caret.
 	 */
 	if (tl != ptl && ptl) {
-		if (ptl->isxdg)
-			wlr_xdg_toplevel_set_activated(ptl->xdg_surface, 0);
-		else
+		if (ptl->isx11)
 			wlr_xwayland_surface_activate(ptl->xwayland_surface, 0);
+		else
+			wlr_xdg_toplevel_set_activated(ptl->xdg_surface, 0);
 	}
 	if (tl != ptl && tl) {
-		if (tl->isxdg)
-			wlr_xdg_toplevel_set_activated(tl->xdg_surface, 1);
-		else
+		if (tl->isx11)
 			wlr_xwayland_surface_activate(tl->xwayland_surface, 1);
+		else
+			wlr_xdg_toplevel_set_activated(tl->xdg_surface, 1);
 	}
 }
 
@@ -833,15 +832,15 @@ maprequest(struct wl_listener *listener, void *data)
 	wl_list_insert(&fstack, &c->flink);
 	wl_list_insert(&stack, &c->slink);
 
-	if (c->isxdg) {
-		wlr_xdg_surface_get_geometry(c->xdg_surface, &c->geom);
-		c->geom.width += 2 * c->bw;
-		c->geom.height += 2 * c->bw;
-	} else {
+	if (c->isx11) {
 		c->geom.x = c->xwayland_surface->x;
 		c->geom.y = c->xwayland_surface->y;
 		c->geom.width = c->xwayland_surface->width + 2 * c->bw;
 		c->geom.height = c->xwayland_surface->height + 2 * c->bw;
+	} else {
+		wlr_xdg_surface_get_geometry(c->xdg_surface, &c->geom);
+		c->geom.width += 2 * c->bw;
+		c->geom.height += 2 * c->bw;
 	}
 
 	/* Set initial monitor, tags, floating status, and focus */
@@ -888,12 +887,12 @@ motionnotify(uint32_t time)
 
 	/* Otherwise, find the client under the pointer and send the event along. */
 	if ((c = xytoclient(cursor->x, cursor->y))) {
-		if (c->isxdg)
-			surface = wlr_xdg_surface_surface_at(c->xdg_surface,
+		if (c->isx11)
+			surface = wlr_surface_surface_at(c->xwayland_surface->surface,
 					cursor->x - c->geom.x - c->bw,
 					cursor->y - c->geom.y - c->bw, &sx, &sy);
 		else
-			surface = wlr_surface_surface_at(c->xwayland_surface->surface,
+			surface = wlr_xdg_surface_surface_at(c->xdg_surface,
 					cursor->x - c->geom.x - c->bw,
 					cursor->y - c->geom.y - c->bw, &sx, &sy);
 	}
@@ -1082,10 +1081,10 @@ renderclients(Monitor *m, struct timespec *now)
 		rdata.when = now,
 		rdata.x = c->geom.x + c->bw,
 		rdata.y = c->geom.y + c->bw;
-		if (c->isxdg)
-			wlr_xdg_surface_for_each_surface(c->xdg_surface, render, &rdata);
-		else
+		if (c->isx11)
 			wlr_surface_for_each_surface(c->xwayland_surface->surface, render, &rdata);
+		else
+			wlr_xdg_surface_for_each_surface(c->xdg_surface, render, &rdata);
 	}
 }
 
@@ -1138,12 +1137,12 @@ resize(Client *c, int x, int y, int w, int h, int interact)
 	c->geom.height = h;
 	applybounds(c, bbox);
 	/* wlroots makes this a no-op if size hasn't changed */
-	if (c->isxdg)
-		wlr_xdg_toplevel_set_size(c->xdg_surface,
-				c->geom.width - 2 * c->bw, c->geom.height - 2 * c->bw);
-	else
+	if (c->isx11)
 		wlr_xwayland_surface_configure(c->xwayland_surface,
 				c->geom.x, c->geom.y,
+				c->geom.width - 2 * c->bw, c->geom.height - 2 * c->bw);
+	else
+		wlr_xdg_toplevel_set_size(c->xdg_surface,
 				c->geom.width - 2 * c->bw, c->geom.height - 2 * c->bw);
 }
 
