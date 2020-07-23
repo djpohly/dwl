@@ -42,7 +42,7 @@
 #define LENGTH(X)               (sizeof X / sizeof X[0])
 #define END(A)                  ((A) + LENGTH(A))
 #define TAGMASK                 ((1 << LENGTH(tags)) - 1)
-#define WLR_SURFACE(C)          (c->isx11 ? c->xwayland_surface->surface : c->xdg_surface->surface)
+#define WLR_SURFACE(C)          ((C)->isx11 ? (C)->xwayland_surface->surface : (C)->xdg_surface->surface)
 
 /* enums */
 enum { CurNormal, CurMove, CurResize }; /* cursor */
