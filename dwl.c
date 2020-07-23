@@ -99,6 +99,7 @@ typedef struct {
 
 	struct wl_listener modifiers;
 	struct wl_listener key;
+	struct wl_listener destroy;
 } Keyboard;
 
 typedef struct {
@@ -153,6 +154,7 @@ static void arrange(Monitor *m);
 static void axisnotify(struct wl_listener *listener, void *data);
 static void buttonpress(struct wl_listener *listener, void *data);
 static void chvt(const Arg *arg);
+static void cleanupkeyboard(struct wl_listener *listener, void *data);
 static void cleanupmon(struct wl_listener *listener, void *data);
 static void createkeyboard(struct wlr_input_device *device);
 static void createmon(struct wl_listener *listener, void *data);
@@ -396,6 +398,16 @@ chvt(const Arg *arg)
 }
 
 void
+cleanupkeyboard(struct wl_listener *listener, void *data)
+{
+	struct wlr_input_device *device = data;
+	Keyboard *kb = device->data;
+
+	wl_list_remove(&kb->destroy.link);
+	free(kb);
+}
+
+void
 cleanupmon(struct wl_listener *listener, void *data)
 {
 	struct wlr_output *wlr_output = data;
@@ -430,6 +442,8 @@ createkeyboard(struct wlr_input_device *device)
 	wl_signal_add(&device->keyboard->events.modifiers, &kb->modifiers);
 	kb->key.notify = keypress;
 	wl_signal_add(&device->keyboard->events.key, &kb->key);
+	kb->destroy.notify = cleanupkeyboard;
+	wl_signal_add(&device->events.destroy, &kb->destroy);
 
 	wlr_seat_set_keyboard(seat, device);
 
