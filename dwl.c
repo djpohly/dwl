@@ -1653,6 +1653,7 @@ main(int argc, char *argv[])
 	/* Once wl_display_run returns, we shut down the server. */
 	wlr_xwayland_destroy(xwayland);
 	wl_display_destroy_clients(dpy);
+	wlr_xcursor_manager_destroy(cursor_mgr);
 	wl_display_destroy(dpy);
 	return EXIT_SUCCESS;
 
