@@ -44,6 +44,12 @@ Other features under consideration are:
 - More in-depth damage region tracking
 
 
+Feature *non-goals* include:
+
+- Client-side decoration (any more than is necessary to tell the clients not to)
+- Client-initiated window management, such as move, resize, and close, which can be done through the compositor
+
+
 ## Building dwl
 
 dwl has only two dependencies: wlroots (git version currently required) and wayland-protocols.  Simply install these and run `make`.
