@@ -110,6 +110,7 @@ struct Monitor {
 	struct wl_list link;
 	struct wlr_output *wlr_output;
 	struct wl_listener frame;
+	struct wl_listener destroy;
 	struct wlr_box m;      /* monitor area, layout-relative */
 	struct wlr_box w;      /* window area, layout-relative */
 	const Layout *lt[2];
@@ -152,6 +153,7 @@ static void arrange(Monitor *m);
 static void axisnotify(struct wl_listener *listener, void *data);
 static void buttonpress(struct wl_listener *listener, void *data);
 static void chvt(const Arg *arg);
+static void cleanupmon(struct wl_listener *listener, void *data);
 static void createkeyboard(struct wlr_input_device *device);
 static void createmon(struct wl_listener *listener, void *data);
 static void createnotify(struct wl_listener *listener, void *data);
@@ -394,6 +396,16 @@ chvt(const Arg *arg)
 }
 
 void
+cleanupmon(struct wl_listener *listener, void *data)
+{
+	struct wlr_output *wlr_output = data;
+	Monitor *m = wlr_output->data;
+
+	wl_list_remove(&m->destroy.link);
+	free(m);
+}
+
+void
 createkeyboard(struct wlr_input_device *device)
 {
 	struct xkb_context *context;
@@ -455,9 +467,13 @@ createmon(struct wl_listener *listener, void *data)
 			break;
 		}
 	}
-	/* Sets up a listener for the frame notify event. */
+	/* Set up event listeners */
 	m->frame.notify = rendermon;
 	wl_signal_add(&wlr_output->events.frame, &m->frame);
+	wl_list_insert(&mons, &m->link);
+
+	m->destroy.notify = cleanupmon;
+	wl_signal_add(&wlr_output->events.destroy, &m->destroy);
 	wl_list_insert(&mons, &m->link);
 
 	wlr_output_enable(wlr_output, 1);
