@@ -171,6 +171,7 @@ static void inputdevice(struct wl_listener *listener, void *data);
 static int keybinding(uint32_t mods, xkb_keysym_t sym);
 static void keypress(struct wl_listener *listener, void *data);
 static void keypressmod(struct wl_listener *listener, void *data);
+static void killclient(const Arg *arg);
 static Client *lastfocused(void);
 static void maprequest(struct wl_listener *listener, void *data);
 static void motionabsolute(struct wl_listener *listener, void *data);
@@ -810,6 +811,19 @@ keypressmod(struct wl_listener *listener, void *data)
 	/* Send modifiers to the client. */
 	wlr_seat_keyboard_notify_modifiers(seat,
 		&kb->device->keyboard->modifiers);
+}
+
+void
+killclient(const Arg *arg)
+{
+	Client *sel = selclient();
+	if (!sel)
+		return;
+
+	if (sel->isx11)
+		wlr_xwayland_surface_close(sel->xwayland_surface);
+	else
+		wlr_xdg_toplevel_send_close(sel->xdg_surface);
 }
 
 Client *
