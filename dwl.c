@@ -154,8 +154,8 @@ static void buttonpress(struct wl_listener *listener, void *data);
 static void chvt(const Arg *arg);
 static void createkeyboard(struct wlr_input_device *device);
 static void createmon(struct wl_listener *listener, void *data);
-static void createnotifyxdg(struct wl_listener *listener, void *data);
-static void createnotifyxwayland(struct wl_listener *listener, void *data);
+static void createnotify(struct wl_listener *listener, void *data);
+static void createnotifyx11(struct wl_listener *listener, void *data);
 static void createpointer(struct wlr_input_device *device);
 static void createxdeco(struct wl_listener *listener, void *data);
 static void cursorframe(struct wl_listener *listener, void *data);
@@ -244,8 +244,8 @@ static struct wl_listener cursor_motion_absolute = {.notify = motionabsolute};
 static struct wl_listener new_input = {.notify = inputdevice};
 static struct wl_listener new_output = {.notify = createmon};
 static struct wl_listener new_xdeco = {.notify = createxdeco};
-static struct wl_listener new_xdg_surface = {.notify = createnotifyxdg};
-static struct wl_listener new_xwayland_surface = {.notify = createnotifyxwayland};
+static struct wl_listener new_xdg_surface = {.notify = createnotify};
+static struct wl_listener new_xwayland_surface = {.notify = createnotifyx11};
 static struct wl_listener request_cursor = {.notify = setcursor};
 static struct wl_listener request_set_psel = {.notify = setpsel};
 static struct wl_listener request_set_sel = {.notify = setsel};
@@ -477,7 +477,7 @@ createmon(struct wl_listener *listener, void *data)
 }
 
 void
-createnotifyxdg(struct wl_listener *listener, void *data)
+createnotify(struct wl_listener *listener, void *data)
 {
 	/* This event is raised when wlr_xdg_shell receives a new xdg surface from a
 	 * client, either a toplevel (application window) or popup. */
@@ -506,7 +506,7 @@ createnotifyxdg(struct wl_listener *listener, void *data)
 }
 
 void
-createnotifyxwayland(struct wl_listener *listener, void *data)
+createnotifyx11(struct wl_listener *listener, void *data)
 {
 	struct wlr_xwayland_surface *xwayland_surface = data;
 	Client *c;
