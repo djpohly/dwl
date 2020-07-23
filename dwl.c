@@ -1655,6 +1655,7 @@ main(int argc, char *argv[])
 	wl_display_destroy_clients(dpy);
 	wlr_xcursor_manager_destroy(cursor_mgr);
 	wl_display_destroy(dpy);
+	wlr_output_layout_destroy(output_layout);
 	return EXIT_SUCCESS;
 
 usage:
