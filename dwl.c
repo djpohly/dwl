@@ -484,10 +484,9 @@ createmon(struct wl_listener *listener, void *data)
 	/* Set up event listeners */
 	m->frame.notify = rendermon;
 	wl_signal_add(&wlr_output->events.frame, &m->frame);
-	wl_list_insert(&mons, &m->link);
-
 	m->destroy.notify = cleanupmon;
 	wl_signal_add(&wlr_output->events.destroy, &m->destroy);
+
 	wl_list_insert(&mons, &m->link);
 
 	wlr_output_enable(wlr_output, 1);
