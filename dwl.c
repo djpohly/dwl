@@ -1640,28 +1640,31 @@ xytomon(double x, double y)
 void
 zoom(const Arg *arg)
 {
-	unsigned int n = 0;
 	Client *c, *sel = selclient();
 
 	if (!sel || !selmon->lt[selmon->sellt]->arrange || sel->isfloating)
 		return;
 
+	/* Search for the first tiled window that is not sel, marking sel as
+	 * NULL if we pass it along the way */
 	wl_list_for_each(c, &clients, link)
 		if (VISIBLEON(c, selmon) && !c->isfloating) {
-			if (++n == 1 && c == sel)
-				sel = NULL;
-			else if (n == 2) {
-				if (!sel)
-					sel = c;
+			if (c != sel)
 				break;
-			}
+			sel = NULL;
 		}
 
-	if (n == 1)
+	/* Return if no other tiled window was found */
+	if (&c->link == &clients)
 		return;
 
+	/* If we passed sel, move c to the front; otherwise, move sel to the
+	 * front */
+	if (!sel)
+		sel = c;
 	wl_list_remove(&sel->link);
 	wl_list_insert(&clients, &sel->link);
+
 	focusclient(sel, NULL, 1);
 	arrange(selmon);
 }
