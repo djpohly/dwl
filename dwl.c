@@ -211,6 +211,7 @@ static void unmapnotify(struct wl_listener *listener, void *data);
 static void view(const Arg *arg);
 static Client *xytoclient(double x, double y);
 static Monitor *xytomon(double x, double y);
+static void zoom(const Arg *arg);
 
 /* variables */
 static const char broken[] = "broken";
@@ -1634,6 +1635,35 @@ xytomon(double x, double y)
 {
 	struct wlr_output *o = wlr_output_layout_output_at(output_layout, x, y);
 	return o ? o->data : NULL;
+}
+
+void
+zoom(const Arg *arg)
+{
+	unsigned int n = 0;
+	Client *c, *sel = selclient();
+
+	if (!sel || !selmon->lt[selmon->sellt]->arrange || sel->isfloating)
+		return;
+
+	wl_list_for_each(c, &clients, link)
+		if (VISIBLEON(c, selmon) && !c->isfloating) {
+			if (++n == 1 && c == sel)
+				sel = NULL;
+			else if (n == 2) {
+				if (!sel)
+					sel = c;
+				break;
+			}
+		}
+
+	if (n == 1)
+		return;
+
+	wl_list_remove(&sel->link);
+	wl_list_insert(&clients, &sel->link);
+	focusclient(sel, NULL, 1);
+	arrange(selmon);
 }
 
 int
