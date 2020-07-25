@@ -565,37 +565,23 @@ createnotifyx11(struct wl_listener *listener, void *data)
 	struct wlr_xwayland_surface *xwayland_surface = data;
 	Client *c;
 
-	if (xwayland_surface->override_redirect) {
+	/* Allocate a Client for this surface */
+	c = xwayland_surface->data = calloc(1, sizeof(*c));
+	c->xwayland_surface = xwayland_surface;
+	c->isx11 = 1;
+	c->bw = borderpx;
 
-		/* Allocate an independent for this surface */
-		c = xwayland_surface->data = calloc(1, sizeof(*c));
-		c->xwayland_surface = xwayland_surface;
-
-		/* Listen to the various events it can emit */
-		c->map.notify = maprequestindependent;
-		wl_signal_add(&xwayland_surface->events.map, &c->map);
-		c->unmap.notify = unmapnotifyindependent;
-		wl_signal_add(&xwayland_surface->events.unmap, &c->unmap);
-		c->destroy.notify = destroynotify;
-		wl_signal_add(&xwayland_surface->events.destroy, &c->destroy);
-	} else {
-
-		/* Allocate a Client for this surface */
-		c = xwayland_surface->data = calloc(1, sizeof(*c));
-		c->xwayland_surface = xwayland_surface;
-		c->isx11 = 1;
-		c->bw = borderpx;
-
-		/* Listen to the various events it can emit */
+	/* Listen to the various events it can emit */
+	if (!xwayland_surface->override_redirect) {
 		c->activate.notify = activate;
 		wl_signal_add(&xwayland_surface->events.request_activate, &c->activate);
-		c->map.notify = maprequest;
-		wl_signal_add(&xwayland_surface->events.map, &c->map);
-		c->unmap.notify = unmapnotify;
-		wl_signal_add(&xwayland_surface->events.unmap, &c->unmap);
-		c->destroy.notify = destroynotify;
-		wl_signal_add(&xwayland_surface->events.destroy, &c->destroy);
 	}
+	c->map.notify = xwayland_surface->override_redirect ? maprequestindependent : maprequest;
+	wl_signal_add(&xwayland_surface->events.map, &c->map);
+	c->unmap.notify = xwayland_surface->override_redirect ? unmapnotifyindependent : unmapnotify;
+	wl_signal_add(&xwayland_surface->events.unmap, &c->unmap);
+	c->destroy.notify = destroynotify;
+	wl_signal_add(&xwayland_surface->events.destroy, &c->destroy);
 }
 
 void
