@@ -281,7 +281,7 @@ activatex11(struct wl_listener *listener, void *data)
 {
        Client *c = wl_container_of(listener, c, activate);
 
-       if (c && c->isx11)
+       if (c->type == X11Managed)
                wlr_xwayland_surface_activate(c->xwayland_surface, 1);
 }
 
@@ -580,16 +580,16 @@ createnotifyx11(struct wl_listener *listener, void *data)
 		c->map.notify = maprequest;
 		c->unmap.notify = unmapnotify;
 		/* Only "managed" windows can be activated */
-		c->activate.notify = activatex11;
-		wl_signal_add(&xwayland_surface->events.request_activate, &c->activate);
 	} else {
 		c->type = X11Unmanaged;
 		c->map.notify = maprequestindependent;
 		c->unmap.notify = unmapnotifyindependent;
 	}
-	c->destroy.notify = destroynotify;
 	wl_signal_add(&xwayland_surface->events.map, &c->map);
 	wl_signal_add(&xwayland_surface->events.unmap, &c->unmap);
+	c->activate.notify = activatex11;
+	wl_signal_add(&xwayland_surface->events.request_activate, &c->activate);
+	c->destroy.notify = destroynotify;
 	wl_signal_add(&xwayland_surface->events.destroy, &c->destroy);
 }
 
