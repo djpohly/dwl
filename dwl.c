@@ -49,7 +49,7 @@
 enum { CurNormal, CurMove, CurResize }; /* cursor */
 enum { NetWMWindowTypeDialog, NetWMWindowTypeSplash, NetWMWindowTypeToolbar,
 	NetWMWindowTypeUtility, NetLast }; /* EWMH atoms */
-enum { XDGShell = 0, X11Managed, X11Unmanaged }; /* client types */
+enum { XDGShell, X11Managed, X11Unmanaged }; /* client types */
 
 typedef union {
 	int i;
@@ -546,6 +546,7 @@ createnotify(struct wl_listener *listener, void *data)
 	/* Allocate a Client for this surface */
 	c = xdg_surface->data = calloc(1, sizeof(*c));
 	c->xdg_surface = xdg_surface;
+	c->type = XDGShell;
 	c->bw = borderpx;
 
 	/* Tell the client not to try anything fancy */
