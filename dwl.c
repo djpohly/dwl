@@ -32,6 +32,7 @@
 #include <wlr/types/wlr_xdg_shell.h>
 #include <wlr/util/log.h>
 #include <wlr/xwayland.h>
+#include <X11/Xlib.h>
 #include <xkbcommon/xkbcommon.h>
 
 /* macros */
@@ -46,6 +47,8 @@
 
 /* enums */
 enum { CurNormal, CurMove, CurResize }; /* cursor */
+enum { NetWMWindowTypeDialog, NetWMWindowTypeSplash, NetWMWindowTypeToolbar,
+	NetWMWindowTypeUtility, NetLast }; /* EWMH atoms */
 
 typedef union {
 	int i;
@@ -70,6 +73,7 @@ typedef struct {
 		struct wlr_xdg_surface *xdg_surface;
 		struct wlr_xwayland_surface *xwayland_surface;
 	};
+	struct wl_listener activate;
 	struct wl_listener map;
 	struct wl_listener unmap;
 	struct wl_listener destroy;
@@ -148,6 +152,7 @@ struct render_data {
 };
 
 /* function declarations */
+static void activate(struct wl_listener *listener, void *data);
 static void applybounds(Client *c, struct wlr_box *bbox);
 static void applyrules(Client *c);
 static void arrange(Monitor *m);
@@ -169,6 +174,7 @@ static Monitor *dirtomon(int dir);
 static void focusclient(Client *c, struct wlr_surface *surface, int lift);
 static void focusmon(const Arg *arg);
 static void focusstack(const Arg *arg);
+static Atom getatom(xcb_connection_t *xc, const char *name);
 static void getxdecomode(struct wl_listener *listener, void *data);
 static void incnmaster(const Arg *arg);
 static void inputdevice(struct wl_listener *listener, void *data);
@@ -178,6 +184,7 @@ static void keypressmod(struct wl_listener *listener, void *data);
 static void killclient(const Arg *arg);
 static Client *lastfocused(void);
 static void maprequest(struct wl_listener *listener, void *data);
+static void maprequestindependent(struct wl_listener *listener, void *data);
 static void motionabsolute(struct wl_listener *listener, void *data);
 static void motionnotify(uint32_t time);
 static void motionrelative(struct wl_listener *listener, void *data);
@@ -207,7 +214,10 @@ static void tile(Monitor *m);
 static void togglefloating(const Arg *arg);
 static void toggletag(const Arg *arg);
 static void toggleview(const Arg *arg);
+static void updatewindowtype(Client *c);
 static void unmapnotify(struct wl_listener *listener, void *data);
+static void unmapnotifyindependent(struct wl_listener *listener, void *data);
+static void xwaylandready(struct wl_listener *listener, void *data);
 static void view(const Arg *arg);
 static Client *xytoclient(double x, double y);
 static Monitor *xytomon(double x, double y);
@@ -225,6 +235,7 @@ static struct wlr_xdg_shell *xdg_shell;
 static struct wl_list clients; /* tiling order */
 static struct wl_list fstack;  /* focus order */
 static struct wl_list stack;   /* stacking z-order */
+static struct wl_list independents;
 static struct wlr_xdg_decoration_manager_v1 *xdeco_mgr;
 
 static struct wlr_cursor *cursor;
@@ -241,6 +252,8 @@ static struct wlr_box sgeom;
 static struct wl_list mons;
 static Monitor *selmon;
 
+static Atom netatom[NetLast];
+
 /* global event handlers */
 static struct wl_listener cursor_axis = {.notify = axisnotify};
 static struct wl_listener cursor_button = {.notify = buttonpress};
@@ -255,11 +268,21 @@ static struct wl_listener new_xwayland_surface = {.notify = createnotifyx11};
 static struct wl_listener request_cursor = {.notify = setcursor};
 static struct wl_listener request_set_psel = {.notify = setpsel};
 static struct wl_listener request_set_sel = {.notify = setsel};
+static struct wl_listener xwayland_ready = {.notify = xwaylandready};
 
 /* configuration, allows nested code to access above variables */
 #include "config.h"
 
 /* function implementations */
+void
+activate(struct wl_listener *listener, void *data)
+{
+       Client *c = wl_container_of(listener, c, activate);
+
+       if (c && c->isx11)
+               wlr_xwayland_surface_activate(c->xwayland_surface, 1);
+}
+
 void
 applybounds(Client *c, struct wlr_box *bbox)
 {
@@ -308,6 +331,7 @@ applyrules(Client *c)
 					mon = m;
 		}
 	}
+	updatewindowtype(c);
 	setmon(c, mon, newtags);
 }
 
@@ -549,9 +573,13 @@ createnotifyx11(struct wl_listener *listener, void *data)
 	c->bw = borderpx;
 
 	/* Listen to the various events it can emit */
-	c->map.notify = maprequest;
+	if (!xwayland_surface->override_redirect) {
+		c->activate.notify = activate;
+		wl_signal_add(&xwayland_surface->events.request_activate, &c->activate);
+	}
+	c->map.notify = xwayland_surface->override_redirect ? maprequestindependent : maprequest;
 	wl_signal_add(&xwayland_surface->events.map, &c->map);
-	c->unmap.notify = unmapnotify;
+	c->unmap.notify = xwayland_surface->override_redirect ? unmapnotifyindependent : unmapnotify;
 	wl_signal_add(&xwayland_surface->events.unmap, &c->unmap);
 	c->destroy.notify = destroynotify;
 	wl_signal_add(&xwayland_surface->events.destroy, &c->destroy);
@@ -677,8 +705,8 @@ focusclient(Client *c, struct wlr_surface *surface, int lift)
 	}
 
 	/*
-	 * If the focused toplevel has changed, deactivate the old one and
-	 * activate the new one.  This lets the clients know to repaint
+	 * If the focused toplevel has changed, deactivate the old one. Always
+	 * activate the current one.  This lets the clients know to repaint
 	 * accordingly, e.g. show/hide a caret.
 	 */
 	if (tl != ptl && ptl) {
@@ -687,7 +715,7 @@ focusclient(Client *c, struct wlr_surface *surface, int lift)
 		else
 			wlr_xdg_toplevel_set_activated(ptl->xdg_surface, 0);
 	}
-	if (tl != ptl && tl) {
+	if (tl) {
 		if (tl->isx11)
 			wlr_xwayland_surface_activate(tl->xwayland_surface, 1);
 		else
@@ -730,6 +758,23 @@ focusstack(const Arg *arg)
 	}
 	/* If only one client is visible on selmon, then c == sel */
 	focusclient(c, NULL, 1);
+}
+
+Atom
+getatom(xcb_connection_t *xc, const char *name)
+{
+	Atom atom;
+	xcb_generic_error_t *error;
+	xcb_intern_atom_cookie_t cookie;
+	xcb_intern_atom_reply_t *reply;
+
+	cookie = xcb_intern_atom(xc, 0, strlen(name), name);
+	reply = xcb_intern_atom_reply(xc, cookie, &error);
+	if (reply != NULL && error == NULL)
+		atom = reply->atom;
+	free(reply);
+
+	return atom;
 }
 
 void
@@ -889,6 +934,15 @@ maprequest(struct wl_listener *listener, void *data)
 
 	/* Set initial monitor, tags, floating status, and focus */
 	applyrules(c);
+}
+
+void
+maprequestindependent(struct wl_listener *listener, void *data)
+{
+	/* Called when the surface is mapped, or ready to display on-screen. */
+	Client *c = wl_container_of(listener, c, map);
+	/* Insert this independent into independents lists. */
+	wl_list_insert(&independents, &c->link);
 }
 
 void
@@ -1133,8 +1187,37 @@ renderclients(Monitor *m, struct timespec *now)
 }
 
 void
+renderindependents(struct wlr_output *output, struct timespec *now)
+{
+	Client *c;
+	struct render_data rdata;
+	struct wlr_box geom;
+
+	wl_list_for_each_reverse(c, &independents, link)
+	{
+		geom.x = c->xwayland_surface->x;
+		geom.y = c->xwayland_surface->y;
+		geom.width = c->xwayland_surface->width;
+		geom.height = c->xwayland_surface->height;
+
+		/* Only render visible clients which show on this output */
+		if (!wlr_output_layout_intersects(output_layout, output, &geom))
+			continue;
+
+		rdata.output = output,
+		rdata.when = now,
+		rdata.x = c->xwayland_surface->x;
+		rdata.y = c->xwayland_surface->y;
+
+		wlr_surface_for_each_surface(c->xwayland_surface->surface, render, &rdata);
+	}
+}
+
+void
 rendermon(struct wl_listener *listener, void *data)
 {
+	struct wlr_output *output = data;
+
 	/* This function is called every time an output is ready to display a frame,
 	 * generally at the output's refresh rate (e.g. 60Hz). */
 	Monitor *m = wl_container_of(listener, m, frame);
@@ -1151,6 +1234,7 @@ rendermon(struct wl_listener *listener, void *data)
 	wlr_renderer_clear(drw, rootcolor);
 
 	renderclients(m, &now);
+	renderindependents(output, &now);
 
 	/* Hardware cursors are rendered by the GPU on a separate plane, and can be
 	 * moved around without re-rendering what's beneath them - which is more
@@ -1424,6 +1508,7 @@ setup(void)
 	wl_list_init(&clients);
 	wl_list_init(&fstack);
 	wl_list_init(&stack);
+	wl_list_init(&independents);
 	xdg_shell = wlr_xdg_shell_create(dpy);
 	wl_signal_add(&xdg_shell->events.new_surface, &new_xdg_surface);
 
@@ -1485,6 +1570,7 @@ setup(void)
 	 */
 	xwayland = wlr_xwayland_create(dpy, compositor, true);
 	if (xwayland) {
+		wl_signal_add(&xwayland->events.ready, &xwayland_ready);
 		wl_signal_add(&xwayland->events.new_surface, &new_xwayland_surface);
 
 		setenv("DISPLAY", xwayland->display_name, true);
@@ -1604,6 +1690,49 @@ unmapnotify(struct wl_listener *listener, void *data)
 	wl_list_remove(&c->link);
 	wl_list_remove(&c->flink);
 	wl_list_remove(&c->slink);
+}
+
+void
+unmapnotifyindependent(struct wl_listener *listener, void *data)
+{
+	/* Called when the surface is unmapped, and should no longer be shown. */
+	Client *c = wl_container_of(listener, c, unmap);
+	wl_list_remove(&c->link);
+}
+
+void
+updatewindowtype(Client *c)
+{
+	size_t i;
+
+	if (c->isx11)
+		for (i = 0; i < c->xwayland_surface->window_type_len; i++)
+			if (c->xwayland_surface->window_type[i] == netatom[NetWMWindowTypeDialog] ||
+					c->xwayland_surface->window_type[i] == netatom[NetWMWindowTypeSplash] ||
+					c->xwayland_surface->window_type[i] == netatom[NetWMWindowTypeToolbar] ||
+					c->xwayland_surface->window_type[i] == netatom[NetWMWindowTypeUtility])
+				c->isfloating = 1;
+}
+
+void
+xwaylandready(struct wl_listener *listener, void *data) {
+	xcb_connection_t *xc = xcb_connect(xwayland->display_name, NULL);
+	int err = xcb_connection_has_error(xc);
+	if (err) {
+		fprintf(stderr, "xcb_connect to X server failed with code %d\n. Continuing with degraded functionality.\n", err);
+		return;
+	}
+
+	/* collect atoms we are interested in */
+	netatom[NetWMWindowTypeDialog] = getatom(xc, "_NET_WM_WINDOW_TYPE_DIALOG");
+	netatom[NetWMWindowTypeSplash] = getatom(xc, "_NET_WM_WINDOW_TYPE_SPLASH");
+	netatom[NetWMWindowTypeUtility] = getatom(xc, "_NET_WM_WINDOW_TYPE_TOOLBAR");
+	netatom[NetWMWindowTypeToolbar] = getatom(xc, "_NET_WM_WINDOW_TYPE_UTILITY");
+
+	/* assign the one and only seat */
+	wlr_xwayland_set_seat(xwayland, seat);
+
+	xcb_disconnect(xc);
 }
 
 void
