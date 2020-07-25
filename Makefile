@@ -32,11 +32,5 @@ dwl: xdg-shell-protocol.o
 clean:
 	rm -f dwl *.o xdg-shell-protocol.h xdg-shell-protocol.c
 
-ctags:
-	ctags-c $(CFLAGS) --project-src xdg-shell-protocol.c xdg-shell-protocol.h dwl.c
-
-amc: dwl ctags
-	ssh duke rm -f ${HOME}/src/dwl/dwl ; scp * duke:${HOME}/src/dwl
-
-.DEFAULT_GOAL=amc
+.DEFAULT_GOAL=dwl
 .PHONY: clean
