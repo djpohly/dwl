@@ -49,6 +49,7 @@
 enum { CurNormal, CurMove, CurResize }; /* cursor */
 enum { NetWMWindowTypeDialog, NetWMWindowTypeSplash, NetWMWindowTypeToolbar,
 	NetWMWindowTypeUtility, NetLast }; /* EWMH atoms */
+enum { XDGShell = 0, X11Managed, X11Unmanaged }; /* client types */
 
 typedef union {
 	int i;
@@ -78,8 +79,9 @@ typedef struct {
 	struct wl_listener unmap;
 	struct wl_listener destroy;
 	struct wlr_box geom;  /* layout-relative, includes border */
-	int isx11;
 	Monitor *mon;
+	unsigned int type;
+	int isx11;
 	int bw;
 	unsigned int tags;
 	int isfloating;
@@ -574,12 +576,14 @@ createnotifyx11(struct wl_listener *listener, void *data)
 
 	/* Listen to the various events it can emit */
 	if (!xwayland_surface->override_redirect) {
+		c->type = X11Managed;
 		c->map.notify = maprequest;
 		c->unmap.notify = unmapnotify;
 		/* Only "managed" windows can be activated */
 		c->activate.notify = activatex11;
 		wl_signal_add(&xwayland_surface->events.request_activate, &c->activate);
 	} else {
+		c->type = X11Unmanaged;
 		c->map.notify = maprequestindependent;
 		c->unmap.notify = unmapnotifyindependent;
 	}
