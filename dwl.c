@@ -43,7 +43,7 @@
 #define LENGTH(X)               (sizeof X / sizeof X[0])
 #define END(A)                  ((A) + LENGTH(A))
 #define TAGMASK                 ((1 << LENGTH(tags)) - 1)
-#define WLR_SURFACE(C)          ((C)->isx11 ? (C)->xwayland_surface->surface : (C)->xdg_surface->surface)
+#define WLR_SURFACE(C)          ((C)->type != XDGShell ? (C)->xwayland_surface->surface : (C)->xdg_surface->surface)
 
 /* enums */
 enum { CurNormal, CurMove, CurResize }; /* cursor */
@@ -81,7 +81,6 @@ typedef struct {
 	struct wlr_box geom;  /* layout-relative, includes border */
 	Monitor *mon;
 	unsigned int type;
-	int isx11;
 	int bw;
 	unsigned int tags;
 	int isfloating;
@@ -311,9 +310,9 @@ applyrules(Client *c)
 
 	/* rule matching */
 	c->isfloating = 0;
-	appid = c->isx11 ? c->xwayland_surface->class :
+	appid = c->type != XDGShell ? c->xwayland_surface->class :
 		c->xdg_surface->toplevel->app_id;
-	title = c->isx11 ? c->xwayland_surface->title :
+	title = c->type != XDGShell ? c->xwayland_surface->title :
 		c->xdg_surface->toplevel->title;
 	if (!appid)
 		appid = broken;
@@ -373,7 +372,7 @@ buttonpress(struct wl_listener *listener, void *data)
 	case WLR_BUTTON_PRESSED:;
 		/* Change focus if the button was _pressed_ over a client */
 		if ((c = xytoclient(cursor->x, cursor->y))) {
-			if (c->isx11)
+			if (c->type != XDGShell)
 				surface = wlr_surface_surface_at(c->xwayland_surface->surface,
 						cursor->x - c->geom.x - c->bw,
 						cursor->y - c->geom.y - c->bw, NULL, NULL);
@@ -571,7 +570,6 @@ createnotifyx11(struct wl_listener *listener, void *data)
 	/* Allocate a Client for this surface */
 	c = xwayland_surface->data = calloc(1, sizeof(*c));
 	c->xwayland_surface = xwayland_surface;
-	c->isx11 = 1;
 	c->type = xwayland_surface->override_redirect ? X11Unmanaged : X11Managed;
 	c->bw = borderpx;
 
@@ -711,13 +709,13 @@ focusclient(Client *c, struct wlr_surface *surface, int lift)
 	 * accordingly, e.g. show/hide a caret.
 	 */
 	if (tl != ptl && ptl) {
-		if (ptl->isx11)
+		if (ptl->type != XDGShell)
 			wlr_xwayland_surface_activate(ptl->xwayland_surface, 0);
 		else
 			wlr_xdg_toplevel_set_activated(ptl->xdg_surface, 0);
 	}
 	if (tl) {
-		if (tl->isx11)
+		if (tl->type != XDGShell)
 			wlr_xwayland_surface_activate(tl->xwayland_surface, 1);
 		else
 			wlr_xdg_toplevel_set_activated(tl->xdg_surface, 1);
@@ -896,7 +894,7 @@ killclient(const Arg *arg)
 	if (!sel)
 		return;
 
-	if (sel->isx11)
+	if (sel->type != XDGShell)
 		wlr_xwayland_surface_close(sel->xwayland_surface);
 	else
 		wlr_xdg_toplevel_send_close(sel->xdg_surface);
@@ -929,7 +927,7 @@ maprequest(struct wl_listener *listener, void *data)
 	wl_list_insert(&fstack, &c->flink);
 	wl_list_insert(&stack, &c->slink);
 
-	if (c->isx11) {
+	if (c->type != XDGShell) {
 		c->geom.x = c->xwayland_surface->x;
 		c->geom.y = c->xwayland_surface->y;
 		c->geom.width = c->xwayland_surface->width + 2 * c->bw;
@@ -984,7 +982,7 @@ motionnotify(uint32_t time)
 
 	/* Otherwise, find the client under the pointer and send the event along. */
 	if ((c = xytoclient(cursor->x, cursor->y))) {
-		if (c->isx11)
+		if (c->type != XDGShell)
 			surface = wlr_surface_surface_at(c->xwayland_surface->surface,
 					cursor->x - c->geom.x - c->bw,
 					cursor->y - c->geom.y - c->bw, &sx, &sy);
@@ -1178,7 +1176,7 @@ renderclients(Monitor *m, struct timespec *now)
 		rdata.when = now,
 		rdata.x = c->geom.x + c->bw,
 		rdata.y = c->geom.y + c->bw;
-		if (c->isx11)
+		if (c->type != XDGShell)
 			wlr_surface_for_each_surface(c->xwayland_surface->surface, render, &rdata);
 		else
 			wlr_xdg_surface_for_each_surface(c->xdg_surface, render, &rdata);
@@ -1264,7 +1262,7 @@ resize(Client *c, int x, int y, int w, int h, int interact)
 	c->geom.height = h;
 	applybounds(c, bbox);
 	/* wlroots makes this a no-op if size hasn't changed */
-	if (c->isx11)
+	if (c->type != XDGShell)
 		wlr_xwayland_surface_configure(c->xwayland_surface,
 				c->geom.x, c->geom.y,
 				c->geom.width - 2 * c->bw, c->geom.height - 2 * c->bw);
@@ -1698,7 +1696,7 @@ updatewindowtype(Client *c)
 {
 	size_t i;
 
-	if (c->isx11)
+	if (c->type != XDGShell)
 		for (i = 0; i < c->xwayland_surface->window_type_len; i++)
 			if (c->xwayland_surface->window_type[i] == netatom[NetWMWindowTypeDialog] ||
 					c->xwayland_surface->window_type[i] == netatom[NetWMWindowTypeSplash] ||
