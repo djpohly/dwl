@@ -574,14 +574,18 @@ createnotifyx11(struct wl_listener *listener, void *data)
 
 	/* Listen to the various events it can emit */
 	if (!xwayland_surface->override_redirect) {
+		c->map.notify = maprequest;
+		c->unmap.notify = unmapnotify;
+		/* Only "managed" windows can be activated */
 		c->activate.notify = activate;
 		wl_signal_add(&xwayland_surface->events.request_activate, &c->activate);
+	} else {
+		c->map.notify = maprequestindependent;
+		c->unmap.notify = unmapnotifyindependent;
 	}
-	c->map.notify = xwayland_surface->override_redirect ? maprequestindependent : maprequest;
-	wl_signal_add(&xwayland_surface->events.map, &c->map);
-	c->unmap.notify = xwayland_surface->override_redirect ? unmapnotifyindependent : unmapnotify;
-	wl_signal_add(&xwayland_surface->events.unmap, &c->unmap);
 	c->destroy.notify = destroynotify;
+	wl_signal_add(&xwayland_surface->events.map, &c->map);
+	wl_signal_add(&xwayland_surface->events.unmap, &c->unmap);
 	wl_signal_add(&xwayland_surface->events.destroy, &c->destroy);
 }
 
