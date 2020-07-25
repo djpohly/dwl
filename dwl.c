@@ -186,7 +186,6 @@ static void keypressmod(struct wl_listener *listener, void *data);
 static void killclient(const Arg *arg);
 static Client *lastfocused(void);
 static void maprequest(struct wl_listener *listener, void *data);
-static void maprequestindependent(struct wl_listener *listener, void *data);
 static void motionabsolute(struct wl_listener *listener, void *data);
 static void motionnotify(uint32_t time);
 static void motionrelative(struct wl_listener *listener, void *data);
@@ -218,7 +217,6 @@ static void toggletag(const Arg *arg);
 static void toggleview(const Arg *arg);
 static void updatewindowtype(Client *c);
 static void unmapnotify(struct wl_listener *listener, void *data);
-static void unmapnotifyindependent(struct wl_listener *listener, void *data);
 static void xwaylandready(struct wl_listener *listener, void *data);
 static void view(const Arg *arg);
 static Client *xytoclient(double x, double y);
@@ -281,6 +279,7 @@ activatex11(struct wl_listener *listener, void *data)
 {
        Client *c = wl_container_of(listener, c, activate);
 
+       /* Only "managed" windows can be activated */
        if (c->type == X11Managed)
                wlr_xwayland_surface_activate(c->xwayland_surface, 1);
 }
@@ -572,20 +571,13 @@ createnotifyx11(struct wl_listener *listener, void *data)
 	c = xwayland_surface->data = calloc(1, sizeof(*c));
 	c->xwayland_surface = xwayland_surface;
 	c->isx11 = 1;
+	c->type = xwayland_surface->override_redirect ? X11Unmanaged : X11Managed;
 	c->bw = borderpx;
 
 	/* Listen to the various events it can emit */
-	if (!xwayland_surface->override_redirect) {
-		c->type = X11Managed;
-		c->map.notify = maprequest;
-		c->unmap.notify = unmapnotify;
-		/* Only "managed" windows can be activated */
-	} else {
-		c->type = X11Unmanaged;
-		c->map.notify = maprequestindependent;
-		c->unmap.notify = unmapnotifyindependent;
-	}
+	c->map.notify = maprequest;
 	wl_signal_add(&xwayland_surface->events.map, &c->map);
+	c->unmap.notify = unmapnotify;
 	wl_signal_add(&xwayland_surface->events.unmap, &c->unmap);
 	c->activate.notify = activatex11;
 	wl_signal_add(&xwayland_surface->events.request_activate, &c->activate);
@@ -924,6 +916,13 @@ maprequest(struct wl_listener *listener, void *data)
 {
 	/* Called when the surface is mapped, or ready to display on-screen. */
 	Client *c = wl_container_of(listener, c, map);
+
+	if (c->type == X11Unmanaged) {
+		/* Insert this independent into independents lists. */
+		wl_list_insert(&independents, &c->link);
+		return;
+	}
+
 	/* Insert this client into client lists. */
 	wl_list_insert(&clients, &c->link);
 	wl_list_insert(&fstack, &c->flink);
@@ -942,15 +941,6 @@ maprequest(struct wl_listener *listener, void *data)
 
 	/* Set initial monitor, tags, floating status, and focus */
 	applyrules(c);
-}
-
-void
-maprequestindependent(struct wl_listener *listener, void *data)
-{
-	/* Called when the surface is mapped, or ready to display on-screen. */
-	Client *c = wl_container_of(listener, c, map);
-	/* Insert this independent into independents lists. */
-	wl_list_insert(&independents, &c->link);
 }
 
 void
@@ -1694,18 +1684,12 @@ unmapnotify(struct wl_listener *listener, void *data)
 {
 	/* Called when the surface is unmapped, and should no longer be shown. */
 	Client *c = wl_container_of(listener, c, unmap);
-	setmon(c, NULL, 0);
 	wl_list_remove(&c->link);
+	if (c->type == X11Unmanaged)
+		return;
+	setmon(c, NULL, 0);
 	wl_list_remove(&c->flink);
 	wl_list_remove(&c->slink);
-}
-
-void
-unmapnotifyindependent(struct wl_listener *listener, void *data)
-{
-	/* Called when the surface is unmapped, and should no longer be shown. */
-	Client *c = wl_container_of(listener, c, unmap);
-	wl_list_remove(&c->link);
 }
 
 void
