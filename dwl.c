@@ -169,7 +169,6 @@ static void createpointer(struct wlr_input_device *device);
 static void createxdeco(struct wl_listener *listener, void *data);
 static void cursorframe(struct wl_listener *listener, void *data);
 static void destroynotify(struct wl_listener *listener, void *data);
-static void destroynotifyindependent(struct wl_listener *listener, void *data);
 static void destroyxdeco(struct wl_listener *listener, void *data);
 static Monitor *dirtomon(int dir);
 static void focusclient(Client *c, struct wlr_surface *surface, int lift);
@@ -577,7 +576,7 @@ createnotifyx11(struct wl_listener *listener, void *data)
 		wl_signal_add(&xwayland_surface->events.map, &c->map);
 		c->unmap.notify = unmapnotifyindependent;
 		wl_signal_add(&xwayland_surface->events.unmap, &c->unmap);
-		c->destroy.notify = destroynotifyindependent;
+		c->destroy.notify = destroynotify;
 		wl_signal_add(&xwayland_surface->events.destroy, &c->destroy);
 	} else {
 
@@ -637,17 +636,6 @@ cursorframe(struct wl_listener *listener, void *data)
 
 void
 destroynotify(struct wl_listener *listener, void *data)
-{
-	/* Called when the surface is destroyed and should never be shown again. */
-	Client *c = wl_container_of(listener, c, destroy);
-	wl_list_remove(&c->map.link);
-	wl_list_remove(&c->unmap.link);
-	wl_list_remove(&c->destroy.link);
-	free(c);
-}
-
-void
-destroynotifyindependent(struct wl_listener *listener, void *data)
 {
 	/* Called when the surface is destroyed and should never be shown again. */
 	Client *c = wl_container_of(listener, c, destroy);
