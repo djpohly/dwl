@@ -152,7 +152,7 @@ struct render_data {
 };
 
 /* function declarations */
-static void activate(struct wl_listener *listener, void *data);
+static void activatex11(struct wl_listener *listener, void *data);
 static void applybounds(Client *c, struct wlr_box *bbox);
 static void applyrules(Client *c);
 static void arrange(Monitor *m);
@@ -275,7 +275,7 @@ static struct wl_listener xwayland_ready = {.notify = xwaylandready};
 
 /* function implementations */
 void
-activate(struct wl_listener *listener, void *data)
+activatex11(struct wl_listener *listener, void *data)
 {
        Client *c = wl_container_of(listener, c, activate);
 
@@ -577,7 +577,7 @@ createnotifyx11(struct wl_listener *listener, void *data)
 		c->map.notify = maprequest;
 		c->unmap.notify = unmapnotify;
 		/* Only "managed" windows can be activated */
-		c->activate.notify = activate;
+		c->activate.notify = activatex11;
 		wl_signal_add(&xwayland_surface->events.request_activate, &c->activate);
 	} else {
 		c->map.notify = maprequestindependent;
