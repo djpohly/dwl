@@ -1138,7 +1138,8 @@ render(struct wlr_surface *surface, int sx, int sy, void *data)
 void
 renderclients(Monitor *m, struct timespec *now)
 {
-	Client *c;
+	Client *c, *sel = selclient();
+	const float *color;
 	double ox, oy;
 	int i, w, h;
 	struct render_data rdata;
@@ -1164,9 +1165,15 @@ renderclients(Monitor *m, struct timespec *now)
 			{ox + c->bw + w, oy + c->bw, c->bw, h},     /* right */
 			{ox, oy + c->bw + h, w + 2 * c->bw, c->bw}, /* bottom */
 		};
+
+		if (c == sel)
+			color = focuscolor;
+		else
+			color = bordercolor;
+
 		for (i = 0; i < 4; i++) {
 			scalebox(&borders[i], m->wlr_output->scale);
-			wlr_render_rect(drw, &borders[i], bordercolor,
+			wlr_render_rect(drw, &borders[i], color,
 					m->wlr_output->transform_matrix);
 		}
 
