@@ -1166,11 +1166,8 @@ renderclients(Monitor *m, struct timespec *now)
 			{ox, oy + c->bw + h, w + 2 * c->bw, c->bw}, /* bottom */
 		};
 
-		if (c == sel)
-			color = focuscolor;
-		else
-			color = bordercolor;
-
+		/* Draw window borders */
+		color = (c == sel) ? focuscolor : bordercolor;
 		for (i = 0; i < 4; i++) {
 			scalebox(&borders[i], m->wlr_output->scale);
 			wlr_render_rect(drw, &borders[i], color,
