@@ -1214,6 +1214,8 @@ void
 rendermon(struct wl_listener *listener, void *data)
 {
 	struct wlr_output *output = data;
+	Client *c;
+	int defer = 0;
 
 	/* This function is called every time an output is ready to display a frame,
 	 * generally at the output's refresh rate (e.g. 60Hz). */
@@ -1221,6 +1223,21 @@ rendermon(struct wl_listener *listener, void *data)
 
 	struct timespec now;
 	clock_gettime(CLOCK_MONOTONIC, &now);
+
+	wl_list_for_each(c, &stack, slink) {
+		if (c->xdg_surface->role != WLR_XDG_SURFACE_ROLE_TOPLEVEL)
+			continue;
+		if (c->xdg_surface->toplevel->server_pending.width !=
+				c->xdg_surface->surface->current.width ||
+				c->xdg_surface->toplevel->server_pending.height !=
+				c->xdg_surface->surface->current.height) {
+			defer = 1;
+			/* Lie */
+			wlr_surface_send_frame_done(c->xdg_surface->surface, &now);
+		}
+	}
+	if (defer)
+		return;
 
 	/* wlr_output_attach_render makes the OpenGL context current. */
 	if (!wlr_output_attach_render(m->wlr_output, NULL))
