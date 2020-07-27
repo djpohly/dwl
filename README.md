@@ -105,7 +105,6 @@ number of ways:
 - XWayland support is new and could use testing
 - Urgent/attention/focus-request ([not yet supported](https://gitlab.freedesktop.org/wayland/wayland-protocols/-/merge_requests/9)
   by xdg-shell protocol)
-- Normal/selected/urgent border colors
 - Statusbar support (built-in or external)
 - layer-shell
 - export-dmabuf
