@@ -762,7 +762,7 @@ focusstack(const Arg *arg)
 Atom
 getatom(xcb_connection_t *xc, const char *name)
 {
-	Atom atom;
+	Atom atom = 0;
 	xcb_generic_error_t *error;
 	xcb_intern_atom_cookie_t cookie;
 	xcb_intern_atom_reply_t *reply;
