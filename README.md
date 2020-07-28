@@ -27,6 +27,7 @@ just as simple.*  Intended default features are:
   xdg-shell and layer-shell (for bars/menus).  Protocols trivially provided by
   wlroots may also be added.
 - XWayland support as provided by wlroots
+- Zero flickering - Wayland users naturally expect that "every frame is perfect"
 - Basic yes/no damage tracking to avoid needless redraws (if it can be done
   simply and has an impact on power consumption)
 
