@@ -1244,9 +1244,9 @@ rendermon(struct wl_listener *listener, void *data)
 
 	/* Do not render if clients have uncommitted changes. */
 	wl_list_for_each(c, &stack, slink)
-       	{
+	{
 		if (c->dirty)
-	       	{
+		{
 			wlr_surface_send_frame_done(c->xdg_surface->surface, &now);
 			render = 0;
 		}
@@ -1259,7 +1259,8 @@ rendermon(struct wl_listener *listener, void *data)
 	/* Begin the renderer (calls glViewport and some other GL sanity checks) */
 	wlr_renderer_begin(drw, m->wlr_output->width, m->wlr_output->height);
 
-	if (render) {
+	if (render)
+	{
 		wlr_renderer_clear(drw, rootcolor);
 
 		renderclients(m, &now);
