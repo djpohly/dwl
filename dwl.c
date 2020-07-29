@@ -1243,10 +1243,10 @@ rendermon(struct wl_listener *listener, void *data)
 	struct timespec now;
 	clock_gettime(CLOCK_MONOTONIC, &now);
 
-	/* Do not render if clients have uncommitted changes. */
+	/* Do not render if XDG clients have uncommitted changes. */
 	wl_list_for_each(c, &stack, slink)
 	{
-		if (c->dirty)
+		if (c->type == XDGShell && c->dirty)
 		{
 			wlr_surface_send_frame_done(WLR_SURFACE(c), &now);
 			render = 0;
@@ -1295,6 +1295,7 @@ resize(Client *c, int x, int y, int w, int h, int interact)
 	c->geom.y = y;
 	c->geom.width = w;
 	c->geom.height = h;
+	c->dirty = 1;
 	applybounds(c, bbox);
 	/* wlroots makes this a no-op if size hasn't changed */
 	if (c->type != XDGShell)
