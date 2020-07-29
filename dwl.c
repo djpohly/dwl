@@ -638,10 +638,11 @@ destroynotify(struct wl_listener *listener, void *data)
 {
 	/* Called when the surface is destroyed and should never be shown again. */
 	Client *c = wl_container_of(listener, c, destroy);
-	wl_list_remove(&c->commit.link);
 	wl_list_remove(&c->map.link);
 	wl_list_remove(&c->unmap.link);
 	wl_list_remove(&c->destroy.link);
+	if (c->type == XDGShell)
+		wl_list_remove(&c->commit.link);
 	free(c);
 }
 
@@ -1247,7 +1248,7 @@ rendermon(struct wl_listener *listener, void *data)
 	{
 		if (c->dirty)
 		{
-			wlr_surface_send_frame_done(c->xdg_surface->surface, &now);
+			wlr_surface_send_frame_done(WLR_SURFACE(c), &now);
 			render = 0;
 		}
 	}
