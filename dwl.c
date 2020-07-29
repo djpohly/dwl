@@ -75,6 +75,7 @@ typedef struct {
 		struct wlr_xwayland_surface *xwayland_surface;
 	};
 	struct wl_listener activate;
+	struct wl_listener commit;
 	struct wl_listener map;
 	struct wl_listener unmap;
 	struct wl_listener destroy;
@@ -84,6 +85,7 @@ typedef struct {
 	int bw;
 	unsigned int tags;
 	int isfloating;
+	int dirty;
 } Client;
 
 typedef struct {
@@ -443,6 +445,15 @@ cleanupmon(struct wl_listener *listener, void *data)
 }
 
 void
+commitnotify(struct wl_listener *listener, void *data)
+{
+	Client *c = wl_container_of(listener, c, commit);
+
+	/* client is dirty if there are any changes that have not been committed */
+	c->dirty = c->xdg_surface->configure_serial != c->xdg_surface->configure_next_serial;
+}
+
+void
 createkeyboard(struct wlr_input_device *device)
 {
 	struct xkb_context *context;
@@ -553,6 +564,8 @@ createnotify(struct wl_listener *listener, void *data)
 			WLR_EDGE_BOTTOM | WLR_EDGE_LEFT | WLR_EDGE_RIGHT);
 
 	/* Listen to the various events it can emit */
+	c->commit.notify = commitnotify;
+	wl_signal_add(&xdg_surface->surface->events.commit, &c->commit);
 	c->map.notify = maprequest;
 	wl_signal_add(&xdg_surface->events.map, &c->map);
 	c->unmap.notify = unmapnotify;
@@ -625,6 +638,7 @@ destroynotify(struct wl_listener *listener, void *data)
 {
 	/* Called when the surface is destroyed and should never be shown again. */
 	Client *c = wl_container_of(listener, c, destroy);
+	wl_list_remove(&c->commit.link);
 	wl_list_remove(&c->map.link);
 	wl_list_remove(&c->unmap.link);
 	wl_list_remove(&c->destroy.link);
@@ -1218,6 +1232,8 @@ void
 rendermon(struct wl_listener *listener, void *data)
 {
 	struct wlr_output *output = data;
+	Client *c;
+	int render = 1;
 
 	/* This function is called every time an output is ready to display a frame,
 	 * generally at the output's refresh rate (e.g. 60Hz). */
@@ -1226,16 +1242,29 @@ rendermon(struct wl_listener *listener, void *data)
 	struct timespec now;
 	clock_gettime(CLOCK_MONOTONIC, &now);
 
+	/* Do not render if clients have uncommitted changes. */
+	wl_list_for_each(c, &stack, slink)
+       	{
+		if (c->dirty)
+	       	{
+			wlr_surface_send_frame_done(c->xdg_surface->surface, &now);
+			render = 0;
+		}
+	}
+
 	/* wlr_output_attach_render makes the OpenGL context current. */
 	if (!wlr_output_attach_render(m->wlr_output, NULL))
 		return;
 
 	/* Begin the renderer (calls glViewport and some other GL sanity checks) */
 	wlr_renderer_begin(drw, m->wlr_output->width, m->wlr_output->height);
-	wlr_renderer_clear(drw, rootcolor);
 
-	renderclients(m, &now);
-	renderindependents(output, &now);
+	if (render) {
+		wlr_renderer_clear(drw, rootcolor);
+
+		renderclients(m, &now);
+		renderindependents(output, &now);
+	}
 
 	/* Hardware cursors are rendered by the GPU on a separate plane, and can be
 	 * moved around without re-rendering what's beneath them - which is more
