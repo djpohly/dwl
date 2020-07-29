@@ -628,6 +628,8 @@ destroynotify(struct wl_listener *listener, void *data)
 	wl_list_remove(&c->map.link);
 	wl_list_remove(&c->unmap.link);
 	wl_list_remove(&c->destroy.link);
+	if (c->type == X11Managed)
+		wl_list_remove(&c->activate.link);
 	free(c);
 }
 
