@@ -85,7 +85,7 @@ typedef struct {
 	int bw;
 	unsigned int tags;
 	int isfloating;
-	int dirty;
+	uint32_t resize; /* configure serial of a pending resize */
 } Client;
 
 typedef struct {
@@ -449,8 +449,9 @@ commitnotify(struct wl_listener *listener, void *data)
 {
 	Client *c = wl_container_of(listener, c, commit);
 
-	/* client is dirty if there are any changes that have not been committed */
-	c->dirty = c->xdg_surface->configure_serial != c->xdg_surface->configure_next_serial;
+	/* mark a pending resize as completed */
+	if (c->resize && c->resize <= c->xdg_surface->configure_serial)
+		c->resize = 0;
 }
 
 void
@@ -1243,10 +1244,10 @@ rendermon(struct wl_listener *listener, void *data)
 	struct timespec now;
 	clock_gettime(CLOCK_MONOTONIC, &now);
 
-	/* Do not render if XDG clients have uncommitted changes. */
+	/* Do not render if any XDG clients have an outstanding resize. */
 	wl_list_for_each(c, &stack, slink)
 	{
-		if (c->type == XDGShell && c->dirty)
+		if (c->resize)
 		{
 			wlr_surface_send_frame_done(WLR_SURFACE(c), &now);
 			render = 0;
@@ -1295,7 +1296,6 @@ resize(Client *c, int x, int y, int w, int h, int interact)
 	c->geom.y = y;
 	c->geom.width = w;
 	c->geom.height = h;
-	c->dirty = 1;
 	applybounds(c, bbox);
 	/* wlroots makes this a no-op if size hasn't changed */
 	if (c->type != XDGShell)
@@ -1303,7 +1303,7 @@ resize(Client *c, int x, int y, int w, int h, int interact)
 				c->geom.x, c->geom.y,
 				c->geom.width - 2 * c->bw, c->geom.height - 2 * c->bw);
 	else
-		wlr_xdg_toplevel_set_size(c->xdg_surface,
+		c->resize = wlr_xdg_toplevel_set_size(c->xdg_surface,
 				c->geom.width - 2 * c->bw, c->geom.height - 2 * c->bw);
 }
 
