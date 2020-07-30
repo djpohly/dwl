@@ -75,6 +75,7 @@ typedef struct {
 		struct wlr_xwayland_surface *xwayland_surface;
 	};
 	struct wl_listener activate;
+	struct wl_listener commit;
 	struct wl_listener map;
 	struct wl_listener unmap;
 	struct wl_listener destroy;
@@ -84,6 +85,7 @@ typedef struct {
 	int bw;
 	unsigned int tags;
 	int isfloating;
+	uint32_t resize; /* configure serial of a pending resize */
 } Client;
 
 typedef struct {
@@ -443,6 +445,16 @@ cleanupmon(struct wl_listener *listener, void *data)
 }
 
 void
+commitnotify(struct wl_listener *listener, void *data)
+{
+	Client *c = wl_container_of(listener, c, commit);
+
+	/* mark a pending resize as completed */
+	if (c->resize && c->resize <= c->xdg_surface->configure_serial)
+		c->resize = 0;
+}
+
+void
 createkeyboard(struct wlr_input_device *device)
 {
 	struct xkb_context *context;
@@ -553,6 +565,8 @@ createnotify(struct wl_listener *listener, void *data)
 			WLR_EDGE_BOTTOM | WLR_EDGE_LEFT | WLR_EDGE_RIGHT);
 
 	/* Listen to the various events it can emit */
+	c->commit.notify = commitnotify;
+	wl_signal_add(&xdg_surface->surface->events.commit, &c->commit);
 	c->map.notify = maprequest;
 	wl_signal_add(&xdg_surface->events.map, &c->map);
 	c->unmap.notify = unmapnotify;
@@ -628,6 +642,8 @@ destroynotify(struct wl_listener *listener, void *data)
 	wl_list_remove(&c->map.link);
 	wl_list_remove(&c->unmap.link);
 	wl_list_remove(&c->destroy.link);
+	if (c->type == XDGShell)
+		wl_list_remove(&c->commit.link);
 	if (c->type == X11Managed)
 		wl_list_remove(&c->activate.link);
 	free(c);
@@ -1220,6 +1236,8 @@ void
 rendermon(struct wl_listener *listener, void *data)
 {
 	struct wlr_output *output = data;
+	Client *c;
+	int render = 1;
 
 	/* This function is called every time an output is ready to display a frame,
 	 * generally at the output's refresh rate (e.g. 60Hz). */
@@ -1228,16 +1246,30 @@ rendermon(struct wl_listener *listener, void *data)
 	struct timespec now;
 	clock_gettime(CLOCK_MONOTONIC, &now);
 
+	/* Do not render if any XDG clients have an outstanding resize. */
+	wl_list_for_each(c, &stack, slink)
+	{
+		if (c->resize)
+		{
+			wlr_surface_send_frame_done(WLR_SURFACE(c), &now);
+			render = 0;
+		}
+	}
+
 	/* wlr_output_attach_render makes the OpenGL context current. */
 	if (!wlr_output_attach_render(m->wlr_output, NULL))
 		return;
 
 	/* Begin the renderer (calls glViewport and some other GL sanity checks) */
 	wlr_renderer_begin(drw, m->wlr_output->width, m->wlr_output->height);
-	wlr_renderer_clear(drw, rootcolor);
 
-	renderclients(m, &now);
-	renderindependents(output, &now);
+	if (render)
+	{
+		wlr_renderer_clear(drw, rootcolor);
+
+		renderclients(m, &now);
+		renderindependents(output, &now);
+	}
 
 	/* Hardware cursors are rendered by the GPU on a separate plane, and can be
 	 * moved around without re-rendering what's beneath them - which is more
@@ -1273,7 +1305,7 @@ resize(Client *c, int x, int y, int w, int h, int interact)
 				c->geom.x, c->geom.y,
 				c->geom.width - 2 * c->bw, c->geom.height - 2 * c->bw);
 	else
-		wlr_xdg_toplevel_set_size(c->xdg_surface,
+		c->resize = wlr_xdg_toplevel_set_size(c->xdg_surface,
 				c->geom.width - 2 * c->bw, c->geom.height - 2 * c->bw);
 }
 
