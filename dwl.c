@@ -681,62 +681,47 @@ dirtomon(int dir)
 void
 focusclient(Client *c, struct wlr_surface *surface, int lift)
 {
-	Client *sel = selclient();
-	struct wlr_keyboard *kb;
-	/* Previously focused surface */
-	struct wlr_surface *psurface = seat->keyboard_state.focused_surface;
+	Client *old = selclient();
+	struct wlr_keyboard *kb = wlr_seat_get_keyboard(seat);
 
-	if (c) {
-		/* assert(VISIBLEON(c, c->mon)); ? */
-		/* Use top-level wlr_surface if nothing more specific given */
-		if (!surface)
-			surface = WLR_SURFACE(c);
+	/* Use top-level wlr_surface if nothing more specific is given */
+	if (c && !surface)
+		surface = WLR_SURFACE(c);
 
-		/* Focus the correct monitor (must come after selclient!) */
-		selmon = c->mon;
-
-		/* Move the client to the front of the focus stack */
-		wl_list_remove(&c->flink);
-		wl_list_insert(&fstack, &c->flink);
-
-		/* Also raise client in stacking order if requested */
-		if (lift) {
-			wl_list_remove(&c->slink);
-			wl_list_insert(&stack, &c->slink);
-		}
+	/* Deactivate old client if focus is changing */
+	if (c != old && old) {
+		if (old->type != XDGShell)
+			wlr_xwayland_surface_activate(old->xwayland_surface, 0);
+		else
+			wlr_xdg_toplevel_set_activated(old->xdg_surface, 0);
 	}
 
-	/*
-	 * If the focused surface has changed, tell the seat to have the
-	 * keyboard enter the new surface.  wlroots will keep track of this and
-	 * automatically send key events to the appropriate clients.  If surface
-	 * is NULL, we clear the focus instead.
-	 */
-	if (!surface) {
+	/* Update wlroots' keyboard focus */
+	if (!c) {
+		/* With no client, all we have left is to clear focus */
 		wlr_seat_keyboard_notify_clear_focus(seat);
-	} else if (surface != psurface) {
-		kb = wlr_seat_get_keyboard(seat);
+		return;
+	}
+	/* Otherwise, update the focus if it has changed */
+	if (surface != seat->keyboard_state.focused_surface)
 		wlr_seat_keyboard_notify_enter(seat, surface,
 				kb->keycodes, kb->num_keycodes, &kb->modifiers);
+
+	/* Select client's monitor, move it to the top of the focus stack, and
+	 * raise it in the stacking order if requested. */
+	selmon = c->mon;
+	wl_list_remove(&c->flink);
+	wl_list_insert(&fstack, &c->flink);
+	if (lift) {
+		wl_list_remove(&c->slink);
+		wl_list_insert(&stack, &c->slink);
 	}
 
-	/*
-	 * If the focused toplevel has changed, deactivate the old one. Always
-	 * activate the current one.  This lets the clients know to repaint
-	 * accordingly, e.g. show/hide a caret.
-	 */
-	if (c != sel && sel) {
-		if (sel->type != XDGShell)
-			wlr_xwayland_surface_activate(sel->xwayland_surface, 0);
-		else
-			wlr_xdg_toplevel_set_activated(sel->xdg_surface, 0);
-	}
-	if (c) {
-		if (c->type != XDGShell)
-			wlr_xwayland_surface_activate(c->xwayland_surface, 1);
-		else
-			wlr_xdg_toplevel_set_activated(c->xdg_surface, 1);
-	}
+	/* Activate the new client */
+	if (c->type != XDGShell)
+		wlr_xwayland_surface_activate(c->xwayland_surface, 1);
+	else
+		wlr_xdg_toplevel_set_activated(c->xdg_surface, 1);
 }
 
 void
