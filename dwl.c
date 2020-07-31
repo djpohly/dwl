@@ -1054,21 +1054,21 @@ pointerfocus(Client *c, struct wlr_surface *surface, double sx, double sy,
 	if (c && !surface)
 		surface = WLR_SURFACE(c);
 
-	/* If surface is already focused, only notify of motion */
-	if (surface && surface == seat->pointer_state.focused_surface) {
-		wlr_seat_pointer_notify_motion(seat, time, sx, sy);
-		return;
-	}
-
-	/* If surface is NULL, clear pointer focus, otherwise let the client
-	 * know that the mouse cursor has entered one of its surfaces. */
+	/* If surface is NULL, clear pointer focus */
 	if (!surface) {
 		wlr_seat_pointer_notify_clear_focus(seat);
 		return;
 	}
 
+	/* If surface is already focused, only notify of motion */
+	if (surface == seat->pointer_state.focused_surface) {
+		wlr_seat_pointer_notify_motion(seat, time, sx, sy);
+		return;
+	}
+
+	/* Otherwise, let the client know that the mouse cursor has entered one
+	 * of its surfaces, and make keyboard focus follow if desired. */
 	wlr_seat_pointer_notify_enter(seat, surface, sx, sy);
-	/* If keyboard focus follows mouse, enforce that */
 	if (sloppyfocus)
 		focusclient(c, surface, 0);
 }
