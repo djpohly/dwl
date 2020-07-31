@@ -323,8 +323,7 @@ applyrules(Client *c)
 
 	for (r = rules; r < END(rules); r++) {
 		if ((!r->title || strstr(title, r->title))
-				&& (!r->id || strstr(appid, r->id)))
-		{
+				&& (!r->id || strstr(appid, r->id))) {
 			c->isfloating = r->isfloating;
 			newtags |= r->tags;
 			i = 0;
@@ -1212,8 +1211,7 @@ renderindependents(struct wlr_output *output, struct timespec *now)
 	struct render_data rdata;
 	struct wlr_box geom;
 
-	wl_list_for_each_reverse(c, &independents, link)
-	{
+	wl_list_for_each_reverse(c, &independents, link) {
 		geom.x = c->xwayland_surface->x;
 		geom.y = c->xwayland_surface->y;
 		geom.width = c->xwayland_surface->width;
@@ -1247,10 +1245,8 @@ rendermon(struct wl_listener *listener, void *data)
 	clock_gettime(CLOCK_MONOTONIC, &now);
 
 	/* Do not render if any XDG clients have an outstanding resize. */
-	wl_list_for_each(c, &stack, slink)
-	{
-		if (c->resize)
-		{
+	wl_list_for_each(c, &stack, slink) {
+		if (c->resize) {
 			wlr_surface_send_frame_done(WLR_SURFACE(c), &now);
 			render = 0;
 		}
@@ -1263,8 +1259,7 @@ rendermon(struct wl_listener *listener, void *data)
 	/* Begin the renderer (calls glViewport and some other GL sanity checks) */
 	wlr_renderer_begin(drw, m->wlr_output->width, m->wlr_output->height);
 
-	if (render)
-	{
+	if (render) {
 		wlr_renderer_clear(drw, rootcolor);
 
 		renderclients(m, &now);
