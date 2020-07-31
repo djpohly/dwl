@@ -1256,27 +1256,27 @@ rendermon(struct wl_listener *listener, void *data)
 	if (!wlr_output_attach_render(m->wlr_output, NULL))
 		return;
 
-	/* Begin the renderer (calls glViewport and some other GL sanity checks) */
-	wlr_renderer_begin(drw, m->wlr_output->width, m->wlr_output->height);
-
 	if (render) {
+		/* Begin the renderer (calls glViewport and some other GL sanity checks) */
+		wlr_renderer_begin(drw, m->wlr_output->width, m->wlr_output->height);
 		wlr_renderer_clear(drw, rootcolor);
 
 		renderclients(m, &now);
 		renderindependents(output, &now);
+
+		/* Hardware cursors are rendered by the GPU on a separate plane, and can be
+		 * moved around without re-rendering what's beneath them - which is more
+		 * efficient. However, not all hardware supports hardware cursors. For this
+		 * reason, wlroots provides a software fallback, which we ask it to render
+		 * here. wlr_cursor handles configuring hardware vs software cursors for you,
+		 * and this function is a no-op when hardware cursors are in use. */
+		wlr_output_render_software_cursors(m->wlr_output, NULL);
+
+		/* Conclude rendering and swap the buffers, showing the final frame
+		 * on-screen. */
+		wlr_renderer_end(drw);
 	}
 
-	/* Hardware cursors are rendered by the GPU on a separate plane, and can be
-	 * moved around without re-rendering what's beneath them - which is more
-	 * efficient. However, not all hardware supports hardware cursors. For this
-	 * reason, wlroots provides a software fallback, which we ask it to render
-	 * here. wlr_cursor handles configuring hardware vs software cursors for you,
-	 * and this function is a no-op when hardware cursors are in use. */
-	wlr_output_render_software_cursors(m->wlr_output, NULL);
-
-	/* Conclude rendering and swap the buffers, showing the final frame
-	 * on-screen. */
-	wlr_renderer_end(drw);
 	wlr_output_commit(m->wlr_output);
 }
 
