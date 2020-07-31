@@ -683,9 +683,6 @@ focusclient(Client *c, struct wlr_surface *surface, int lift)
 {
 	Client *sel = selclient();
 	struct wlr_keyboard *kb;
-	/* Previous and new xdg toplevel surfaces */
-	Client *ptl = sel;
-	Client *tl = c;
 	/* Previously focused surface */
 	struct wlr_surface *psurface = seat->keyboard_state.focused_surface;
 
@@ -728,17 +725,17 @@ focusclient(Client *c, struct wlr_surface *surface, int lift)
 	 * activate the current one.  This lets the clients know to repaint
 	 * accordingly, e.g. show/hide a caret.
 	 */
-	if (tl != ptl && ptl) {
-		if (ptl->type != XDGShell)
-			wlr_xwayland_surface_activate(ptl->xwayland_surface, 0);
+	if (c != sel && sel) {
+		if (sel->type != XDGShell)
+			wlr_xwayland_surface_activate(sel->xwayland_surface, 0);
 		else
-			wlr_xdg_toplevel_set_activated(ptl->xdg_surface, 0);
+			wlr_xdg_toplevel_set_activated(sel->xdg_surface, 0);
 	}
-	if (tl) {
-		if (tl->type != XDGShell)
-			wlr_xwayland_surface_activate(tl->xwayland_surface, 1);
+	if (c) {
+		if (c->type != XDGShell)
+			wlr_xwayland_surface_activate(c->xwayland_surface, 1);
 		else
-			wlr_xdg_toplevel_set_activated(tl->xdg_surface, 1);
+			wlr_xdg_toplevel_set_activated(c->xdg_surface, 1);
 	}
 }
 
