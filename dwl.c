@@ -274,6 +274,9 @@ static struct wl_listener xwayland_ready = {.notify = xwaylandready};
 /* configuration, allows nested code to access above variables */
 #include "config.h"
 
+/* compile-time check if all tags fit into an unsigned int bit array. */
+struct NumTags { char limitexceeded[LENGTH(tags) > 31 ? -1 : 1]; };
+
 /* function implementations */
 void
 activatex11(struct wl_listener *listener, void *data)
