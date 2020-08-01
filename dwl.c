@@ -1218,7 +1218,6 @@ renderindependents(struct wlr_output *output, struct timespec *now)
 void
 rendermon(struct wl_listener *listener, void *data)
 {
-	struct wlr_output *output = data;
 	Client *c;
 	int render = 1;
 
@@ -1247,7 +1246,7 @@ rendermon(struct wl_listener *listener, void *data)
 		wlr_renderer_clear(drw, rootcolor);
 
 		renderclients(m, &now);
-		renderindependents(output, &now);
+		renderindependents(m->wlr_output, &now);
 
 		/* Hardware cursors are rendered by the GPU on a separate plane, and can be
 		 * moved around without re-rendering what's beneath them - which is more
