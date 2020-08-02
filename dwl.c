@@ -718,11 +718,8 @@ void
 focusmon(const Arg *arg)
 {
 	Client *sel = selclient();
-	Monitor *m = dirtomon(arg->i);
 
-	if (m == selmon)
-		return;
-	selmon = m;
+	selmon = dirtomon(arg->i);
 	focusclient(sel, focustop(selmon), 1);
 }
 
@@ -1437,9 +1434,7 @@ setmon(Client *c, Monitor *m, unsigned int newtags)
 		c->tags = newtags ? newtags : m->tagset[m->seltags]; /* assign tags of target monitor */
 		arrange(m);
 	}
-	/* Focus can change if c is the top of selmon before or after */
-	if (c == oldsel || c == selclient())
-		focusclient(oldsel, focustop(selmon), 1);
+	focusclient(oldsel, focustop(selmon), 1);
 }
 
 void
