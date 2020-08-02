@@ -673,6 +673,16 @@ focusclient(Client *old, Client *c, int lift)
 {
 	struct wlr_keyboard *kb = wlr_seat_get_keyboard(seat);
 
+	/* Raise client in stacking order if requested */
+	if (c && lift) {
+		wl_list_remove(&c->slink);
+		wl_list_insert(&stack, &c->slink);
+	}
+
+	/* Nothing else to do? */
+	if (c == old)
+		return;
+
 	/* Deactivate old client if focus is changing */
 	if (c != old && old) {
 		if (old->type != XDGShell)
@@ -692,15 +702,10 @@ focusclient(Client *old, Client *c, int lift)
 	wlr_seat_keyboard_notify_enter(seat, WLR_SURFACE(c),
 			kb->keycodes, kb->num_keycodes, &kb->modifiers);
 
-	/* Select client's monitor, move it to the top of the focus stack, and
-	 * raise it in the stacking order if requested. */
-	selmon = c->mon;
+	/* Put the new client atop the focus stack and select its monitor */
 	wl_list_remove(&c->flink);
 	wl_list_insert(&fstack, &c->flink);
-	if (lift) {
-		wl_list_remove(&c->slink);
-		wl_list_insert(&stack, &c->slink);
-	}
+	selmon = c->mon;
 
 	/* Activate the new client */
 	if (c->type != XDGShell)
