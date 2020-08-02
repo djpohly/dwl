@@ -185,7 +185,7 @@ static int keybinding(uint32_t mods, xkb_keysym_t sym);
 static void keypress(struct wl_listener *listener, void *data);
 static void keypressmod(struct wl_listener *listener, void *data);
 static void killclient(const Arg *arg);
-static Client *lastfocused(void);
+static Client *focustop(Monitor *m);
 static void maprequest(struct wl_listener *listener, void *data);
 static void motionabsolute(struct wl_listener *listener, void *data);
 static void motionnotify(uint32_t time);
@@ -718,7 +718,7 @@ focusmon(const Arg *arg)
 	if (m == selmon)
 		return;
 	selmon = m;
-	focusclient(sel, lastfocused(), 1);
+	focusclient(sel, focustop(selmon), 1);
 }
 
 void
@@ -889,11 +889,11 @@ killclient(const Arg *arg)
 }
 
 Client *
-lastfocused(void)
+focustop(Monitor *m)
 {
 	Client *c;
 	wl_list_for_each(c, &fstack, flink)
-		if (VISIBLEON(c, selmon))
+		if (VISIBLEON(c, m))
 			return c;
 	return NULL;
 }
@@ -1434,7 +1434,7 @@ setmon(Client *c, Monitor *m, unsigned int newtags)
 	}
 	/* Focus can change if c is the top of selmon before or after */
 	if (c == oldsel || c == selclient())
-		focusclient(oldsel, lastfocused(), 1);
+		focusclient(oldsel, focustop(selmon), 1);
 }
 
 void
@@ -1597,7 +1597,7 @@ tag(const Arg *arg)
 	Client *sel = selclient();
 	if (sel && arg->ui & TAGMASK) {
 		sel->tags = arg->ui & TAGMASK;
-		focusclient(sel, lastfocused(), 1);
+		focusclient(sel, focustop(selmon), 1);
 		arrange(selmon);
 	}
 }
@@ -1664,7 +1664,7 @@ toggletag(const Arg *arg)
 	newtags = sel->tags ^ (arg->ui & TAGMASK);
 	if (newtags) {
 		sel->tags = newtags;
-		focusclient(sel, lastfocused(), 1);
+		focusclient(sel, focustop(selmon), 1);
 		arrange(selmon);
 	}
 }
@@ -1677,7 +1677,7 @@ toggleview(const Arg *arg)
 
 	if (newtagset) {
 		selmon->tagset[selmon->seltags] = newtagset;
-		focusclient(sel, lastfocused(), 1);
+		focusclient(sel, focustop(selmon), 1);
 		arrange(selmon);
 	}
 }
@@ -1739,7 +1739,7 @@ view(const Arg *arg)
 	selmon->seltags ^= 1; /* toggle sel tagset */
 	if (arg->ui & TAGMASK)
 		selmon->tagset[selmon->seltags] = arg->ui & TAGMASK;
-	focusclient(sel, lastfocused(), 1);
+	focusclient(sel, focustop(selmon), 1);
 	arrange(selmon);
 }
 
