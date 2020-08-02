@@ -43,7 +43,7 @@
 #define LENGTH(X)               (sizeof X / sizeof X[0])
 #define END(A)                  ((A) + LENGTH(A))
 #define TAGMASK                 ((1 << LENGTH(tags)) - 1)
-#define WLR_SURFACE(C)          ((C)->type != XDGShell ? (C)->xwayland_surface->surface : (C)->xdg_surface->surface)
+#define WLR_SURFACE(C)          ((C)->type != XDGShell ? (C)->surface.xwayland->surface : (C)->surface.xdg->surface)
 
 /* enums */
 enum { CurNormal, CurMove, CurResize }; /* cursor */
@@ -71,9 +71,9 @@ typedef struct {
 	struct wl_list flink;
 	struct wl_list slink;
 	union {
-		struct wlr_xdg_surface *xdg_surface;
-		struct wlr_xwayland_surface *xwayland_surface;
-	};
+		struct wlr_xdg_surface *xdg;
+		struct wlr_xwayland_surface *xwayland;
+	} surface;
 	struct wl_listener activate;
 	struct wl_listener commit;
 	struct wl_listener map;
@@ -285,7 +285,7 @@ activatex11(struct wl_listener *listener, void *data)
 
        /* Only "managed" windows can be activated */
        if (c->type == X11Managed)
-               wlr_xwayland_surface_activate(c->xwayland_surface, 1);
+               wlr_xwayland_surface_activate(c->surface.xwayland, 1);
 }
 
 void
@@ -315,10 +315,10 @@ applyrules(Client *c)
 
 	/* rule matching */
 	c->isfloating = 0;
-	appid = c->type != XDGShell ? c->xwayland_surface->class :
-		c->xdg_surface->toplevel->app_id;
-	title = c->type != XDGShell ? c->xwayland_surface->title :
-		c->xdg_surface->toplevel->title;
+	appid = c->type != XDGShell ? c->surface.xwayland->class :
+		c->surface.xdg->toplevel->app_id;
+	title = c->type != XDGShell ? c->surface.xwayland->title :
+		c->surface.xdg->toplevel->title;
 	if (!appid)
 		appid = broken;
 	if (!title)
@@ -377,11 +377,11 @@ buttonpress(struct wl_listener *listener, void *data)
 		/* Change focus if the button was _pressed_ over a client */
 		if ((c = xytoclient(cursor->x, cursor->y))) {
 			if (c->type != XDGShell)
-				surface = wlr_surface_surface_at(c->xwayland_surface->surface,
+				surface = wlr_surface_surface_at(c->surface.xwayland->surface,
 						cursor->x - c->geom.x - c->bw,
 						cursor->y - c->geom.y - c->bw, NULL, NULL);
 			else
-				surface = wlr_xdg_surface_surface_at(c->xdg_surface,
+				surface = wlr_xdg_surface_surface_at(c->surface.xdg,
 						cursor->x - c->geom.x - c->bw,
 						cursor->y - c->geom.y - c->bw, NULL, NULL);
 			focusclient(c, surface, 1);
@@ -452,7 +452,7 @@ commitnotify(struct wl_listener *listener, void *data)
 	Client *c = wl_container_of(listener, c, commit);
 
 	/* mark a pending resize as completed */
-	if (c->resize && c->resize <= c->xdg_surface->configure_serial)
+	if (c->resize && c->resize <= c->surface.xdg->configure_serial)
 		c->resize = 0;
 }
 
@@ -558,12 +558,12 @@ createnotify(struct wl_listener *listener, void *data)
 
 	/* Allocate a Client for this surface */
 	c = xdg_surface->data = calloc(1, sizeof(*c));
-	c->xdg_surface = xdg_surface;
+	c->surface.xdg = xdg_surface;
 	c->type = XDGShell;
 	c->bw = borderpx;
 
 	/* Tell the client not to try anything fancy */
-	wlr_xdg_toplevel_set_tiled(c->xdg_surface, WLR_EDGE_TOP |
+	wlr_xdg_toplevel_set_tiled(c->surface.xdg, WLR_EDGE_TOP |
 			WLR_EDGE_BOTTOM | WLR_EDGE_LEFT | WLR_EDGE_RIGHT);
 
 	/* Listen to the various events it can emit */
@@ -585,7 +585,7 @@ createnotifyx11(struct wl_listener *listener, void *data)
 
 	/* Allocate a Client for this surface */
 	c = xwayland_surface->data = calloc(1, sizeof(*c));
-	c->xwayland_surface = xwayland_surface;
+	c->surface.xwayland = xwayland_surface;
 	c->type = xwayland_surface->override_redirect ? X11Unmanaged : X11Managed;
 	c->bw = borderpx;
 
@@ -691,9 +691,9 @@ focusclient(Client *c, struct wlr_surface *surface, int lift)
 	/* Deactivate old client if focus is changing */
 	if (c != old && old) {
 		if (old->type != XDGShell)
-			wlr_xwayland_surface_activate(old->xwayland_surface, 0);
+			wlr_xwayland_surface_activate(old->surface.xwayland, 0);
 		else
-			wlr_xdg_toplevel_set_activated(old->xdg_surface, 0);
+			wlr_xdg_toplevel_set_activated(old->surface.xdg, 0);
 	}
 
 	/* Update wlroots' keyboard focus */
@@ -719,9 +719,9 @@ focusclient(Client *c, struct wlr_surface *surface, int lift)
 
 	/* Activate the new client */
 	if (c->type != XDGShell)
-		wlr_xwayland_surface_activate(c->xwayland_surface, 1);
+		wlr_xwayland_surface_activate(c->surface.xwayland, 1);
 	else
-		wlr_xdg_toplevel_set_activated(c->xdg_surface, 1);
+		wlr_xdg_toplevel_set_activated(c->surface.xdg, 1);
 }
 
 void
@@ -897,9 +897,9 @@ killclient(const Arg *arg)
 		return;
 
 	if (sel->type != XDGShell)
-		wlr_xwayland_surface_close(sel->xwayland_surface);
+		wlr_xwayland_surface_close(sel->surface.xwayland);
 	else
-		wlr_xdg_toplevel_send_close(sel->xdg_surface);
+		wlr_xdg_toplevel_send_close(sel->surface.xdg);
 }
 
 Client *
@@ -930,12 +930,12 @@ maprequest(struct wl_listener *listener, void *data)
 	wl_list_insert(&stack, &c->slink);
 
 	if (c->type != XDGShell) {
-		c->geom.x = c->xwayland_surface->x;
-		c->geom.y = c->xwayland_surface->y;
-		c->geom.width = c->xwayland_surface->width + 2 * c->bw;
-		c->geom.height = c->xwayland_surface->height + 2 * c->bw;
+		c->geom.x = c->surface.xwayland->x;
+		c->geom.y = c->surface.xwayland->y;
+		c->geom.width = c->surface.xwayland->width + 2 * c->bw;
+		c->geom.height = c->surface.xwayland->height + 2 * c->bw;
 	} else {
-		wlr_xdg_surface_get_geometry(c->xdg_surface, &c->geom);
+		wlr_xdg_surface_get_geometry(c->surface.xdg, &c->geom);
 		c->geom.width += 2 * c->bw;
 		c->geom.height += 2 * c->bw;
 	}
@@ -985,11 +985,11 @@ motionnotify(uint32_t time)
 	/* Otherwise, find the client under the pointer and send the event along. */
 	if ((c = xytoclient(cursor->x, cursor->y))) {
 		if (c->type != XDGShell)
-			surface = wlr_surface_surface_at(c->xwayland_surface->surface,
+			surface = wlr_surface_surface_at(c->surface.xwayland->surface,
 					cursor->x - c->geom.x - c->bw,
 					cursor->y - c->geom.y - c->bw, &sx, &sy);
 		else
-			surface = wlr_xdg_surface_surface_at(c->xdg_surface,
+			surface = wlr_xdg_surface_surface_at(c->surface.xdg,
 					cursor->x - c->geom.x - c->bw,
 					cursor->y - c->geom.y - c->bw, &sx, &sy);
 	}
@@ -1183,9 +1183,9 @@ renderclients(Monitor *m, struct timespec *now)
 		rdata.x = c->geom.x + c->bw,
 		rdata.y = c->geom.y + c->bw;
 		if (c->type != XDGShell)
-			wlr_surface_for_each_surface(c->xwayland_surface->surface, render, &rdata);
+			wlr_surface_for_each_surface(c->surface.xwayland->surface, render, &rdata);
 		else
-			wlr_xdg_surface_for_each_surface(c->xdg_surface, render, &rdata);
+			wlr_xdg_surface_for_each_surface(c->surface.xdg, render, &rdata);
 	}
 }
 
@@ -1197,10 +1197,10 @@ renderindependents(struct wlr_output *output, struct timespec *now)
 	struct wlr_box geom;
 
 	wl_list_for_each_reverse(c, &independents, link) {
-		geom.x = c->xwayland_surface->x;
-		geom.y = c->xwayland_surface->y;
-		geom.width = c->xwayland_surface->width;
-		geom.height = c->xwayland_surface->height;
+		geom.x = c->surface.xwayland->x;
+		geom.y = c->surface.xwayland->y;
+		geom.width = c->surface.xwayland->width;
+		geom.height = c->surface.xwayland->height;
 
 		/* Only render visible clients which show on this output */
 		if (!wlr_output_layout_intersects(output_layout, output, &geom))
@@ -1208,10 +1208,10 @@ renderindependents(struct wlr_output *output, struct timespec *now)
 
 		rdata.output = output,
 		rdata.when = now,
-		rdata.x = c->xwayland_surface->x;
-		rdata.y = c->xwayland_surface->y;
+		rdata.x = c->surface.xwayland->x;
+		rdata.y = c->surface.xwayland->y;
 
-		wlr_surface_for_each_surface(c->xwayland_surface->surface, render, &rdata);
+		wlr_surface_for_each_surface(c->surface.xwayland->surface, render, &rdata);
 	}
 }
 
@@ -1280,11 +1280,11 @@ resize(Client *c, int x, int y, int w, int h, int interact)
 	applybounds(c, bbox);
 	/* wlroots makes this a no-op if size hasn't changed */
 	if (c->type != XDGShell)
-		wlr_xwayland_surface_configure(c->xwayland_surface,
+		wlr_xwayland_surface_configure(c->surface.xwayland,
 				c->geom.x, c->geom.y,
 				c->geom.width - 2 * c->bw, c->geom.height - 2 * c->bw);
 	else
-		c->resize = wlr_xdg_toplevel_set_size(c->xdg_surface,
+		c->resize = wlr_xdg_toplevel_set_size(c->surface.xdg,
 				c->geom.width - 2 * c->bw, c->geom.height - 2 * c->bw);
 }
 
@@ -1714,11 +1714,11 @@ updatewindowtype(Client *c)
 	size_t i;
 
 	if (c->type != XDGShell)
-		for (i = 0; i < c->xwayland_surface->window_type_len; i++)
-			if (c->xwayland_surface->window_type[i] == netatom[NetWMWindowTypeDialog] ||
-					c->xwayland_surface->window_type[i] == netatom[NetWMWindowTypeSplash] ||
-					c->xwayland_surface->window_type[i] == netatom[NetWMWindowTypeToolbar] ||
-					c->xwayland_surface->window_type[i] == netatom[NetWMWindowTypeUtility])
+		for (i = 0; i < c->surface.xwayland->window_type_len; i++)
+			if (c->surface.xwayland->window_type[i] == netatom[NetWMWindowTypeDialog] ||
+					c->surface.xwayland->window_type[i] == netatom[NetWMWindowTypeSplash] ||
+					c->surface.xwayland->window_type[i] == netatom[NetWMWindowTypeToolbar] ||
+					c->surface.xwayland->window_type[i] == netatom[NetWMWindowTypeUtility])
 				c->isfloating = 1;
 }
 
