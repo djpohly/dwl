@@ -177,6 +177,7 @@ static Monitor *dirtomon(int dir);
 static void focusclient(Client *old, Client *c, int lift);
 static void focusmon(const Arg *arg);
 static void focusstack(const Arg *arg);
+static Client *focustop(Monitor *m);
 static Atom getatom(xcb_connection_t *xc, const char *name);
 static void getxdecomode(struct wl_listener *listener, void *data);
 static void incnmaster(const Arg *arg);
@@ -185,7 +186,6 @@ static int keybinding(uint32_t mods, xkb_keysym_t sym);
 static void keypress(struct wl_listener *listener, void *data);
 static void keypressmod(struct wl_listener *listener, void *data);
 static void killclient(const Arg *arg);
-static Client *focustop(Monitor *m);
 static void maprequest(struct wl_listener *listener, void *data);
 static void motionabsolute(struct wl_listener *listener, void *data);
 static void motionnotify(uint32_t time);
@@ -747,6 +747,16 @@ focusstack(const Arg *arg)
 	focusclient(sel, c, 1);
 }
 
+Client *
+focustop(Monitor *m)
+{
+	Client *c;
+	wl_list_for_each(c, &fstack, flink)
+		if (VISIBLEON(c, m))
+			return c;
+	return NULL;
+}
+
 Atom
 getatom(xcb_connection_t *xc, const char *name)
 {
@@ -886,16 +896,6 @@ killclient(const Arg *arg)
 		wlr_xwayland_surface_close(sel->surface.xwayland);
 	else
 		wlr_xdg_toplevel_send_close(sel->surface.xdg);
-}
-
-Client *
-focustop(Monitor *m)
-{
-	Client *c;
-	wl_list_for_each(c, &fstack, flink)
-		if (VISIBLEON(c, m))
-			return c;
-	return NULL;
 }
 
 void
