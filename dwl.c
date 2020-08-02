@@ -1427,27 +1427,27 @@ setmfact(const Arg *arg)
 void
 setmon(Client *c, Monitor *m, unsigned int newtags)
 {
-	int hadfocus;
 	Monitor *oldmon = c->mon;
-	struct wlr_surface *surface = WLR_SURFACE(c);
+	Client *oldsel = selclient();
+
 	if (oldmon == m)
 		return;
-	hadfocus = (c == selclient());
 	c->mon = m;
+
 	/* XXX leave/enter is not optimal but works */
 	if (oldmon) {
-		wlr_surface_send_leave(surface, oldmon->wlr_output);
+		wlr_surface_send_leave(WLR_SURFACE(c), oldmon->wlr_output);
 		arrange(oldmon);
 	}
 	if (m) {
 		/* Make sure window actually overlaps with the monitor */
 		applybounds(c, &m->m);
-		wlr_surface_send_enter(surface, m->wlr_output);
+		wlr_surface_send_enter(WLR_SURFACE(c), m->wlr_output);
 		c->tags = newtags ? newtags : m->tagset[m->seltags]; /* assign tags of target monitor */
 		arrange(m);
 	}
 	/* Focus can change if c is the top of selmon before or after */
-	if (hadfocus || c == selclient())
+	if (c == oldsel || c == selclient())
 		focusclient(lastfocused(), NULL, 1);
 }
 
