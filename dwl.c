@@ -1166,9 +1166,9 @@ renderclients(Monitor *m, struct timespec *now)
 
 		/* This calls our render function for each surface among the
 		 * xdg_surface's toplevel and popups. */
-		rdata.output = m->wlr_output,
-		rdata.when = now,
-		rdata.x = c->geom.x + c->bw,
+		rdata.output = m->wlr_output;
+		rdata.when = now;
+		rdata.x = c->geom.x + c->bw;
 		rdata.y = c->geom.y + c->bw;
 		if (c->type != XDGShell)
 			wlr_surface_for_each_surface(c->surface.xwayland->surface, render, &rdata);
@@ -1194,8 +1194,8 @@ renderindependents(struct wlr_output *output, struct timespec *now)
 		if (!wlr_output_layout_intersects(output_layout, output, &geom))
 			continue;
 
-		rdata.output = output,
-		rdata.when = now,
+		rdata.output = output;
+		rdata.when = now;
 		rdata.x = c->surface.xwayland->x;
 		rdata.y = c->surface.xwayland->y;
 
