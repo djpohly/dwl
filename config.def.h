@@ -53,6 +53,7 @@ static const int repeat_delay = 600;
 static const char *termcmd[]  = { "alacritty", NULL };
 
 static const Key keys[] = {
+	/* Note that Shift changes certain key codes: c -> C, 2 -> at, etc. */
 	/* modifier                  key                 function        argument */
 	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_Return,     spawn,          {.v = termcmd} },
 	{ MODKEY,                    XKB_KEY_j,          focusstack,     {.i = +1} },
@@ -63,7 +64,7 @@ static const Key keys[] = {
 	{ MODKEY,                    XKB_KEY_l,          setmfact,       {.f = +0.05} },
 	{ MODKEY,                    XKB_KEY_Return,     zoom,           {0} },
 	{ MODKEY,                    XKB_KEY_Tab,        view,           {0} },
-	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_c,          killclient,     {0} },
+	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_C,          killclient,     {0} },
 	{ MODKEY,                    XKB_KEY_t,          setlayout,      {.v = &layouts[0]} },
 	{ MODKEY,                    XKB_KEY_f,          setlayout,      {.v = &layouts[1]} },
 	{ MODKEY,                    XKB_KEY_m,          setlayout,      {.v = &layouts[2]} },
