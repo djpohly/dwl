@@ -765,13 +765,11 @@ Atom
 getatom(xcb_connection_t *xc, const char *name)
 {
 	Atom atom = 0;
-	xcb_generic_error_t *error;
 	xcb_intern_atom_cookie_t cookie;
 	xcb_intern_atom_reply_t *reply;
 
 	cookie = xcb_intern_atom(xc, 0, strlen(name), name);
-	reply = xcb_intern_atom_reply(xc, cookie, &error);
-	if (reply != NULL && error == NULL)
+	if ((reply = xcb_intern_atom_reply(xc, cookie, NULL)))
 		atom = reply->atom;
 	free(reply);
 
@@ -1722,7 +1720,8 @@ xwaylandready(struct wl_listener *listener, void *data) {
 		return;
 	}
 
-	/* collect atoms we are interested in */
+	/* Collect atoms we are interested in.  If getatom returns 0, we will
+	 * not detect that window type. */
 	netatom[NetWMWindowTypeDialog] = getatom(xc, "_NET_WM_WINDOW_TYPE_DIALOG");
 	netatom[NetWMWindowTypeSplash] = getatom(xc, "_NET_WM_WINDOW_TYPE_SPLASH");
 	netatom[NetWMWindowTypeUtility] = getatom(xc, "_NET_WM_WINDOW_TYPE_TOOLBAR");
