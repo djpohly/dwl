@@ -189,6 +189,7 @@ static void keypress(struct wl_listener *listener, void *data);
 static void keypressmod(struct wl_listener *listener, void *data);
 static void killclient(const Arg *arg);
 static void maprequest(struct wl_listener *listener, void *data);
+static void monocle(Monitor *m);
 static void motionabsolute(struct wl_listener *listener, void *data);
 static void motionnotify(uint32_t time);
 static void motionrelative(struct wl_listener *listener, void *data);
@@ -930,6 +931,18 @@ maprequest(struct wl_listener *listener, void *data)
 
 	/* Set initial monitor, tags, floating status, and focus */
 	applyrules(c);
+}
+
+void
+monocle(Monitor *m)
+{
+	Client *c;
+
+	wl_list_for_each(c, &clients, link) {
+		if (!VISIBLEON(c, m) || c->isfloating)
+			continue;
+		resize(c, m->w.x, m->w.y, m->w.width, m->w.height, 0);
+	}
 }
 
 void
