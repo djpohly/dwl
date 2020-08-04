@@ -1169,6 +1169,18 @@ renderclients(Monitor *m, struct timespec *now)
 			{ox, oy + c->bw + h, w + 2 * c->bw, c->bw}, /* bottom */
 		};
 
+		/* This calls our render function for each surface among the
+		 * xdg_surface's toplevel and popups. */
+		rdata.output = m->wlr_output;
+		rdata.when = now;
+		rdata.x = c->geom.x + c->bw;
+		rdata.y = c->geom.y + c->bw;
+		wlr_renderer_scissor(drw, &c->geom);
+		if (c->type != XDGShell)
+			wlr_surface_for_each_surface(c->surface.xwayland->surface, render, &rdata);
+		else
+			wlr_xdg_surface_for_each_surface(c->surface.xdg, render, &rdata);
+
 		/* Draw window borders */
 		color = (c == sel) ? focuscolor : bordercolor;
 		for (i = 0; i < 4; i++) {
@@ -1176,18 +1188,8 @@ renderclients(Monitor *m, struct timespec *now)
 			wlr_render_rect(drw, &borders[i], color,
 					m->wlr_output->transform_matrix);
 		}
-
-		/* This calls our render function for each surface among the
-		 * xdg_surface's toplevel and popups. */
-		rdata.output = m->wlr_output;
-		rdata.when = now;
-		rdata.x = c->geom.x + c->bw;
-		rdata.y = c->geom.y + c->bw;
-		if (c->type != XDGShell)
-			wlr_surface_for_each_surface(c->surface.xwayland->surface, render, &rdata);
-		else
-			wlr_xdg_surface_for_each_surface(c->surface.xdg, render, &rdata);
 	}
+	wlr_renderer_scissor(drw, NULL);
 }
 
 void
@@ -1195,7 +1197,7 @@ renderindependents(struct wlr_output *output, struct timespec *now)
 {
 	Client *c;
 	struct render_data rdata;
-	struct wlr_box geom;
+	struct wlr_box geom, pg;
 
 	wl_list_for_each_reverse(c, &independents, link) {
 		geom.x = c->surface.xwayland->x;
@@ -1212,8 +1214,19 @@ renderindependents(struct wlr_output *output, struct timespec *now)
 		rdata.x = c->surface.xwayland->x;
 		rdata.y = c->surface.xwayland->y;
 
+		if (c->surface.xwayland->parent) {
+			pg.x = c->surface.xwayland->parent->x;
+			pg.y = c->surface.xwayland->parent->y;
+			pg.width = c->surface.xwayland->parent->width;
+			pg.height = c->surface.xwayland->parent->height;
+			wlr_renderer_scissor(drw, &pg);
+		} else {
+			wlr_renderer_scissor(drw, &geom);
+		}
+
 		wlr_surface_for_each_surface(c->surface.xwayland->surface, render, &rdata);
 	}
+	wlr_renderer_scissor(drw, NULL);
 }
 
 void
