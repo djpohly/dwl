@@ -224,6 +224,7 @@ static void unmapnotify(struct wl_listener *listener, void *data);
 static void xwaylandready(struct wl_listener *listener, void *data);
 static void view(const Arg *arg);
 static Client *xytoclient(double x, double y);
+static Client *xytoindependent(double x, double y);
 static Monitor *xytomon(double x, double y);
 static void zoom(const Arg *arg);
 
@@ -677,7 +678,7 @@ focusclient(Client *old, Client *c, int lift)
 	struct wlr_keyboard *kb = wlr_seat_get_keyboard(seat);
 
 	/* Raise client in stacking order if requested */
-	if (c && lift) {
+	if (c && c->type != X11Unmanaged && lift) {
 		wl_list_remove(&c->slink);
 		wl_list_insert(&stack, &c->slink);
 	}
@@ -706,8 +707,10 @@ focusclient(Client *old, Client *c, int lift)
 			kb->keycodes, kb->num_keycodes, &kb->modifiers);
 
 	/* Put the new client atop the focus stack and select its monitor */
-	wl_list_remove(&c->flink);
-	wl_list_insert(&fstack, &c->flink);
+	if (c->type != X11Unmanaged) {
+		wl_list_remove(&c->flink);
+		wl_list_insert(&fstack, &c->flink);
+	}
 	selmon = c->mon;
 
 	/* Activate the new client */
@@ -983,8 +986,14 @@ motionnotify(uint32_t time)
 		return;
 	}
 
+	/* Find an independent under the pointer and send the event along. */
+	if ((c = xytoindependent(cursor->x, cursor->y))) {
+		surface = wlr_surface_surface_at(c->surface.xwayland->surface,
+				cursor->x - c->surface.xwayland->x - c->bw,
+				cursor->y - c->surface.xwayland->y - c->bw, &sx, &sy);
+
 	/* Otherwise, find the client under the pointer and send the event along. */
-	if ((c = xytoclient(cursor->x, cursor->y))) {
+	} else if (!c && (c = xytoclient(cursor->x, cursor->y))) {
 		if (c->type != XDGShell)
 			surface = wlr_surface_surface_at(c->surface.xwayland->surface,
 					cursor->x - c->geom.x - c->bw,
@@ -1768,6 +1777,25 @@ xytoclient(double x, double y)
 	wl_list_for_each(c, &stack, slink)
 		if (VISIBLEON(c, c->mon) && wlr_box_contains_point(&c->geom, x, y))
 			return c;
+	return NULL;
+}
+
+Client *
+xytoindependent(double x, double y)
+{
+	/* Find the topmost visible independent at point (x, y).
+	 * For independents, the most recently created can be used as the "top".
+	 * AMC TODO: factor monitor or owning client visibility in. */
+	Client *c;
+	struct wlr_box geom;
+	wl_list_for_each_reverse(c, &independents, link) {
+		geom.x = c->surface.xwayland->x;
+		geom.y = c->surface.xwayland->y;
+		geom.width = c->surface.xwayland->width;
+		geom.height = c->surface.xwayland->height;
+		if (wlr_box_contains_point(&geom, x, y))
+			return c;
+	}
 	return NULL;
 }
 
