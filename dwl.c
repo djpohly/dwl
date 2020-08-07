@@ -671,6 +671,25 @@ dirtomon(int dir)
 	}
 }
 
+static bool drop_permissions(void) {
+	if (getuid() != geteuid() || getgid() != getegid()) {
+		// Set the gid and uid in the correct order.
+		if (setgid(getgid()) != 0) {
+			fprintf(stderr, "Unable to drop root group, refusing to start\n");
+			return false;
+		}
+		if (setuid(getuid()) != 0) {
+			fprintf(stderr, "Unable to drop root user, refusing to start\n");
+			return false;
+		}
+	}
+	if (setgid(0) != -1 || setuid(0) != -1) {
+		fprintf(stderr, "Unable to drop root, refusing to start\n");
+		return false;
+	}
+	return true;
+}
+
 void
 focusclient(Client *old, Client *c, int lift)
 {
@@ -1843,6 +1862,10 @@ main(int argc, char *argv[])
 	// socket
 	if (!getenv("XDG_RUNTIME_DIR")) {
 		fprintf(stderr, "XDG_RUNTIME_DIR must be set\n");
+		exit(EXIT_FAILURE);
+	}
+
+	if (!drop_permissions()) {
 		exit(EXIT_FAILURE);
 	}
 
