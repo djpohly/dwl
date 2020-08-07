@@ -1117,6 +1117,23 @@ dirtomon(enum wlr_direction dir)
 	return selmon;
 }
 
+static void
+drop_permissions(void)
+{
+	if (getuid() != geteuid() || getgid() != getegid()) {
+		/* Set the gid and uid in the correct order. */
+		if (setgid(getgid()) != 0) {
+			die("Unable to drop root group, refusing to start");
+		}
+		if (setuid(getuid()) != 0) {
+			die("Unable to drop root user, refusing to start");
+		}
+	}
+	if (setgid(0) != -1 || setuid(0) != -1) {
+		die("Unable to drop root, refusing to start");
+	}
+}
+
 void
 focusclient(Client *c, int lift)
 {
@@ -1928,6 +1945,8 @@ setup(void)
 	 * don't). */
 	if (!(backend = wlr_backend_autocreate(dpy)))
 		die("couldn't create backend");
+
+	drop_permissions();
 
 	/* Initialize the scene graph used to lay out windows */
 	scene = wlr_scene_create();
