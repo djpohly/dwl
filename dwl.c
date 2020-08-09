@@ -678,7 +678,7 @@ focusclient(Client *old, Client *c, int lift)
 	struct wlr_keyboard *kb = wlr_seat_get_keyboard(seat);
 
 	/* Raise client in stacking order if requested */
-	if (c && c->type != X11Unmanaged && lift) {
+	if (c && lift) {
 		wl_list_remove(&c->slink);
 		wl_list_insert(&stack, &c->slink);
 	}
@@ -707,10 +707,8 @@ focusclient(Client *old, Client *c, int lift)
 			kb->keycodes, kb->num_keycodes, &kb->modifiers);
 
 	/* Put the new client atop the focus stack and select its monitor */
-	if (c->type != X11Unmanaged) {
-		wl_list_remove(&c->flink);
-		wl_list_insert(&fstack, &c->flink);
-	}
+	wl_list_remove(&c->flink);
+	wl_list_insert(&fstack, &c->flink);
 	selmon = c->mon;
 
 	/* Activate the new client */
@@ -1079,7 +1077,7 @@ pointerfocus(Client *c, struct wlr_surface *surface, double sx, double sy,
 	/* Otherwise, let the client know that the mouse cursor has entered one
 	 * of its surfaces, and make keyboard focus follow if desired. */
 	wlr_seat_pointer_notify_enter(seat, surface, sx, sy);
-	if (sloppyfocus)
+	if (sloppyfocus && c->type != X11Unmanaged)
 		focusclient(selclient(), c, 0);
 }
 
