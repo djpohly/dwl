@@ -1783,7 +1783,9 @@ xytoindependent(double x, double y)
 {
 	/* Find the topmost visible independent at point (x, y).
 	 * For independents, the most recently created can be used as the "top".
-	 * AMC TODO: factor monitor or owning client visibility in. */
+	 * We rely on the X11 convention of unmapping unmanaged when the "owning"
+	 * client loses focus, which ensures that unmanaged are only visible on
+	 * the current tag. */
 	Client *c;
 	struct wlr_box geom;
 	wl_list_for_each_reverse(c, &independents, link) {
