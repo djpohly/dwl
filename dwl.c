@@ -33,9 +33,11 @@
 #include <wlr/types/wlr_xdg_output_v1.h>
 #include <wlr/types/wlr_xdg_shell.h>
 #include <wlr/util/log.h>
-#include <wlr/xwayland.h>
-#include <X11/Xlib.h>
 #include <xkbcommon/xkbcommon.h>
+#ifdef XWAYLAND
+#include <X11/Xlib.h>
+#include <wlr/xwayland.h>
+#endif
 
 /* macros */
 #define MAX(A, B)               ((A) > (B) ? (A) : (B))
@@ -45,13 +47,19 @@
 #define LENGTH(X)               (sizeof X / sizeof X[0])
 #define END(A)                  ((A) + LENGTH(A))
 #define TAGMASK                 ((1 << LENGTH(tags)) - 1)
+#ifdef XWAYLAND
 #define WLR_SURFACE(C)          ((C)->type != XDGShell ? (C)->surface.xwayland->surface : (C)->surface.xdg->surface)
+#else
+#define WLR_SURFACE(C)          ((C)->surface.xdg->surface)
+#endif
 
 /* enums */
 enum { CurNormal, CurMove, CurResize }; /* cursor */
 enum { NetWMWindowTypeDialog, NetWMWindowTypeSplash, NetWMWindowTypeToolbar,
 	NetWMWindowTypeUtility, NetLast }; /* EWMH atoms */
+#ifdef XWAYLAND
 enum { XDGShell, X11Managed, X11Unmanaged }; /* client types */
+#endif
 
 typedef union {
 	int i;
@@ -74,16 +82,22 @@ typedef struct {
 	struct wl_list slink;
 	union {
 		struct wlr_xdg_surface *xdg;
+#ifdef XWAYLAND
 		struct wlr_xwayland_surface *xwayland;
+#endif
 	} surface;
+#ifdef XWAYLAND
 	struct wl_listener activate;
+#endif
 	struct wl_listener commit;
 	struct wl_listener map;
 	struct wl_listener unmap;
 	struct wl_listener destroy;
 	struct wlr_box geom;  /* layout-relative, includes border */
 	Monitor *mon;
+#ifdef XWAYLAND
 	unsigned int type;
+#endif
 	int bw;
 	unsigned int tags;
 	int isfloating;
@@ -157,7 +171,6 @@ struct render_data {
 };
 
 /* function declarations */
-static void activatex11(struct wl_listener *listener, void *data);
 static void applybounds(Client *c, struct wlr_box *bbox);
 static void applyrules(Client *c);
 static void arrange(Monitor *m);
@@ -169,7 +182,6 @@ static void cleanupmon(struct wl_listener *listener, void *data);
 static void createkeyboard(struct wlr_input_device *device);
 static void createmon(struct wl_listener *listener, void *data);
 static void createnotify(struct wl_listener *listener, void *data);
-static void createnotifyx11(struct wl_listener *listener, void *data);
 static void createpointer(struct wlr_input_device *device);
 static void createxdeco(struct wl_listener *listener, void *data);
 static void cursorframe(struct wl_listener *listener, void *data);
@@ -180,7 +192,6 @@ static void focusclient(Client *old, Client *c, int lift);
 static void focusmon(const Arg *arg);
 static void focusstack(const Arg *arg);
 static Client *focustop(Monitor *m);
-static Atom getatom(xcb_connection_t *xc, const char *name);
 static void getxdecomode(struct wl_listener *listener, void *data);
 static void incnmaster(const Arg *arg);
 static void inputdevice(struct wl_listener *listener, void *data);
@@ -219,9 +230,7 @@ static void tile(Monitor *m);
 static void togglefloating(const Arg *arg);
 static void toggletag(const Arg *arg);
 static void toggleview(const Arg *arg);
-static void updatewindowtype(Client *c);
 static void unmapnotify(struct wl_listener *listener, void *data);
-static void xwaylandready(struct wl_listener *listener, void *data);
 static void view(const Arg *arg);
 static Client *xytoclient(double x, double y);
 static Monitor *xytomon(double x, double y);
@@ -233,7 +242,6 @@ static struct wl_display *dpy;
 static struct wlr_backend *backend;
 static struct wlr_renderer *drw;
 static struct wlr_compositor *compositor;
-static struct wlr_xwayland *xwayland;
 
 static struct wlr_xdg_shell *xdg_shell;
 static struct wl_list clients; /* tiling order */
@@ -256,8 +264,6 @@ static struct wlr_box sgeom;
 static struct wl_list mons;
 static Monitor *selmon;
 
-static Atom netatom[NetLast];
-
 /* global event handlers */
 static struct wl_listener cursor_axis = {.notify = axisnotify};
 static struct wl_listener cursor_button = {.notify = buttonpress};
@@ -268,11 +274,22 @@ static struct wl_listener new_input = {.notify = inputdevice};
 static struct wl_listener new_output = {.notify = createmon};
 static struct wl_listener new_xdeco = {.notify = createxdeco};
 static struct wl_listener new_xdg_surface = {.notify = createnotify};
-static struct wl_listener new_xwayland_surface = {.notify = createnotifyx11};
 static struct wl_listener request_cursor = {.notify = setcursor};
 static struct wl_listener request_set_psel = {.notify = setpsel};
 static struct wl_listener request_set_sel = {.notify = setsel};
+
+#ifdef XWAYLAND
+static void activatex11(struct wl_listener *listener, void *data);
+static void createnotifyx11(struct wl_listener *listener, void *data);
+static Atom getatom(xcb_connection_t *xc, const char *name);
+static void renderindependents(struct wlr_output *output, struct timespec *now);
+static void updatewindowtype(Client *c);
+static void xwaylandready(struct wl_listener *listener, void *data);
+static struct wl_listener new_xwayland_surface = {.notify = createnotifyx11};
 static struct wl_listener xwayland_ready = {.notify = xwaylandready};
+static struct wlr_xwayland *xwayland;
+static Atom netatom[NetLast];
+#endif
 
 /* configuration, allows nested code to access above variables */
 #include "config.h"
@@ -281,16 +298,6 @@ static struct wl_listener xwayland_ready = {.notify = xwaylandready};
 struct NumTags { char limitexceeded[LENGTH(tags) > 31 ? -1 : 1]; };
 
 /* function implementations */
-void
-activatex11(struct wl_listener *listener, void *data)
-{
-       Client *c = wl_container_of(listener, c, activate);
-
-       /* Only "managed" windows can be activated */
-       if (c->type == X11Managed)
-               wlr_xwayland_surface_activate(c->surface.xwayland, 1);
-}
-
 void
 applybounds(Client *c, struct wlr_box *bbox)
 {
@@ -318,10 +325,17 @@ applyrules(Client *c)
 
 	/* rule matching */
 	c->isfloating = 0;
-	appid = c->type != XDGShell ? c->surface.xwayland->class :
-		c->surface.xdg->toplevel->app_id;
-	title = c->type != XDGShell ? c->surface.xwayland->title :
-		c->surface.xdg->toplevel->title;
+#ifdef XWAYLAND
+	updatewindowtype(c);
+	if (c->type != XDGShell) {
+		appid = c->surface.xwayland->class;
+		title = c->surface.xwayland->title;
+	} else
+#endif
+	{
+		appid = c->surface.xdg->toplevel->app_id;
+		title = c->surface.xdg->toplevel->title;
+	}
 	if (!appid)
 		appid = broken;
 	if (!title)
@@ -338,7 +352,6 @@ applyrules(Client *c)
 					mon = m;
 		}
 	}
-	updatewindowtype(c);
 	setmon(c, mon, newtags);
 }
 
@@ -552,7 +565,6 @@ createnotify(struct wl_listener *listener, void *data)
 	/* Allocate a Client for this surface */
 	c = xdg_surface->data = calloc(1, sizeof(*c));
 	c->surface.xdg = xdg_surface;
-	c->type = XDGShell;
 	c->bw = borderpx;
 
 	/* Tell the client not to try anything fancy */
@@ -568,29 +580,6 @@ createnotify(struct wl_listener *listener, void *data)
 	wl_signal_add(&xdg_surface->events.unmap, &c->unmap);
 	c->destroy.notify = destroynotify;
 	wl_signal_add(&xdg_surface->events.destroy, &c->destroy);
-}
-
-void
-createnotifyx11(struct wl_listener *listener, void *data)
-{
-	struct wlr_xwayland_surface *xwayland_surface = data;
-	Client *c;
-
-	/* Allocate a Client for this surface */
-	c = xwayland_surface->data = calloc(1, sizeof(*c));
-	c->surface.xwayland = xwayland_surface;
-	c->type = xwayland_surface->override_redirect ? X11Unmanaged : X11Managed;
-	c->bw = borderpx;
-
-	/* Listen to the various events it can emit */
-	c->map.notify = maprequest;
-	wl_signal_add(&xwayland_surface->events.map, &c->map);
-	c->unmap.notify = unmapnotify;
-	wl_signal_add(&xwayland_surface->events.unmap, &c->unmap);
-	c->activate.notify = activatex11;
-	wl_signal_add(&xwayland_surface->events.request_activate, &c->activate);
-	c->destroy.notify = destroynotify;
-	wl_signal_add(&xwayland_surface->events.destroy, &c->destroy);
 }
 
 void
@@ -637,10 +626,12 @@ destroynotify(struct wl_listener *listener, void *data)
 	wl_list_remove(&c->map.link);
 	wl_list_remove(&c->unmap.link);
 	wl_list_remove(&c->destroy.link);
-	if (c->type == XDGShell)
-		wl_list_remove(&c->commit.link);
+#ifdef XWAYLAND
 	if (c->type == X11Managed)
 		wl_list_remove(&c->activate.link);
+	else if (c->type == XDGShell)
+#endif
+		wl_list_remove(&c->commit.link);
 	free(c);
 }
 
@@ -688,9 +679,11 @@ focusclient(Client *old, Client *c, int lift)
 
 	/* Deactivate old client if focus is changing */
 	if (c != old && old) {
+#ifdef XWAYLAND
 		if (old->type != XDGShell)
 			wlr_xwayland_surface_activate(old->surface.xwayland, 0);
 		else
+#endif
 			wlr_xdg_toplevel_set_activated(old->surface.xdg, 0);
 	}
 
@@ -711,9 +704,11 @@ focusclient(Client *old, Client *c, int lift)
 	selmon = c->mon;
 
 	/* Activate the new client */
+#ifdef XWAYLAND
 	if (c->type != XDGShell)
 		wlr_xwayland_surface_activate(c->surface.xwayland, 1);
 	else
+#endif
 		wlr_xdg_toplevel_set_activated(c->surface.xdg, 1);
 }
 
@@ -760,21 +755,6 @@ focustop(Monitor *m)
 		if (VISIBLEON(c, m))
 			return c;
 	return NULL;
-}
-
-Atom
-getatom(xcb_connection_t *xc, const char *name)
-{
-	Atom atom = 0;
-	xcb_intern_atom_cookie_t cookie;
-	xcb_intern_atom_reply_t *reply;
-
-	cookie = xcb_intern_atom(xc, 0, strlen(name), name);
-	if ((reply = xcb_intern_atom_reply(xc, cookie, NULL)))
-		atom = reply->atom;
-	free(reply);
-
-	return atom;
 }
 
 void
@@ -895,9 +875,11 @@ killclient(const Arg *arg)
 	if (!sel)
 		return;
 
+#ifdef XWAYLAND
 	if (sel->type != XDGShell)
 		wlr_xwayland_surface_close(sel->surface.xwayland);
 	else
+#endif
 		wlr_xdg_toplevel_send_close(sel->surface.xdg);
 }
 
@@ -907,23 +889,28 @@ maprequest(struct wl_listener *listener, void *data)
 	/* Called when the surface is mapped, or ready to display on-screen. */
 	Client *c = wl_container_of(listener, c, map);
 
+#ifdef XWAYLAND
 	if (c->type == X11Unmanaged) {
 		/* Insert this independent into independents lists. */
 		wl_list_insert(&independents, &c->link);
 		return;
 	}
+#endif
 
 	/* Insert this client into client lists. */
 	wl_list_insert(&clients, &c->link);
 	wl_list_insert(&fstack, &c->flink);
 	wl_list_insert(&stack, &c->slink);
 
+#ifdef XWAYLAND
 	if (c->type != XDGShell) {
 		c->geom.x = c->surface.xwayland->x;
 		c->geom.y = c->surface.xwayland->y;
 		c->geom.width = c->surface.xwayland->width + 2 * c->bw;
 		c->geom.height = c->surface.xwayland->height + 2 * c->bw;
-	} else {
+	} else
+#endif
+	{
 		wlr_xdg_surface_get_geometry(c->surface.xdg, &c->geom);
 		c->geom.width += 2 * c->bw;
 		c->geom.height += 2 * c->bw;
@@ -985,11 +972,13 @@ motionnotify(uint32_t time)
 
 	/* Otherwise, find the client under the pointer and send the event along. */
 	if ((c = xytoclient(cursor->x, cursor->y))) {
+#ifdef XWAYLAND
 		if (c->type != XDGShell)
 			surface = wlr_surface_surface_at(c->surface.xwayland->surface,
 					cursor->x - c->geom.x - c->bw,
 					cursor->y - c->geom.y - c->bw, &sx, &sy);
 		else
+#endif
 			surface = wlr_xdg_surface_surface_at(c->surface.xdg,
 					cursor->x - c->geom.x - c->bw,
 					cursor->y - c->geom.y - c->bw, &sx, &sy);
@@ -1183,36 +1172,12 @@ renderclients(Monitor *m, struct timespec *now)
 		rdata.when = now;
 		rdata.x = c->geom.x + c->bw;
 		rdata.y = c->geom.y + c->bw;
+#ifdef XWAYLAND
 		if (c->type != XDGShell)
 			wlr_surface_for_each_surface(c->surface.xwayland->surface, render, &rdata);
 		else
+#endif
 			wlr_xdg_surface_for_each_surface(c->surface.xdg, render, &rdata);
-	}
-}
-
-void
-renderindependents(struct wlr_output *output, struct timespec *now)
-{
-	Client *c;
-	struct render_data rdata;
-	struct wlr_box geom;
-
-	wl_list_for_each_reverse(c, &independents, link) {
-		geom.x = c->surface.xwayland->x;
-		geom.y = c->surface.xwayland->y;
-		geom.width = c->surface.xwayland->width;
-		geom.height = c->surface.xwayland->height;
-
-		/* Only render visible clients which show on this output */
-		if (!wlr_output_layout_intersects(output_layout, output, &geom))
-			continue;
-
-		rdata.output = output;
-		rdata.when = now;
-		rdata.x = c->surface.xwayland->x;
-		rdata.y = c->surface.xwayland->y;
-
-		wlr_surface_for_each_surface(c->surface.xwayland->surface, render, &rdata);
 	}
 }
 
@@ -1247,7 +1212,9 @@ rendermon(struct wl_listener *listener, void *data)
 		wlr_renderer_clear(drw, rootcolor);
 
 		renderclients(m, &now);
+#ifdef XWAYLAND
 		renderindependents(m->wlr_output, &now);
+#endif
 
 		/* Hardware cursors are rendered by the GPU on a separate plane, and can be
 		 * moved around without re-rendering what's beneath them - which is more
@@ -1280,11 +1247,13 @@ resize(Client *c, int x, int y, int w, int h, int interact)
 	c->geom.height = h;
 	applybounds(c, bbox);
 	/* wlroots makes this a no-op if size hasn't changed */
+#ifdef XWAYLAND
 	if (c->type != XDGShell)
 		wlr_xwayland_surface_configure(c->surface.xwayland,
 				c->geom.x, c->geom.y,
 				c->geom.width - 2 * c->bw, c->geom.height - 2 * c->bw);
 	else
+#endif
 		c->resize = wlr_xdg_toplevel_set_size(c->surface.xdg,
 				c->geom.width - 2 * c->bw, c->geom.height - 2 * c->bw);
 }
@@ -1579,6 +1548,7 @@ setup(void)
 	wl_signal_add(&seat->events.request_set_primary_selection,
 			&request_set_psel);
 
+#ifdef XWAYLAND
 	/*
 	 * Initialise the XWayland X server.
 	 * It will be started when the first X client is started.
@@ -1592,6 +1562,7 @@ setup(void)
 	} else {
 		fprintf(stderr, "failed to setup XWayland X server, continuing without it\n");
 	}
+#endif
 }
 
 void
@@ -1703,47 +1674,13 @@ unmapnotify(struct wl_listener *listener, void *data)
 	/* Called when the surface is unmapped, and should no longer be shown. */
 	Client *c = wl_container_of(listener, c, unmap);
 	wl_list_remove(&c->link);
+#ifdef XWAYLAND
 	if (c->type == X11Unmanaged)
 		return;
+#endif
 	setmon(c, NULL, 0);
 	wl_list_remove(&c->flink);
 	wl_list_remove(&c->slink);
-}
-
-void
-updatewindowtype(Client *c)
-{
-	size_t i;
-
-	if (c->type != XDGShell)
-		for (i = 0; i < c->surface.xwayland->window_type_len; i++)
-			if (c->surface.xwayland->window_type[i] == netatom[NetWMWindowTypeDialog] ||
-					c->surface.xwayland->window_type[i] == netatom[NetWMWindowTypeSplash] ||
-					c->surface.xwayland->window_type[i] == netatom[NetWMWindowTypeToolbar] ||
-					c->surface.xwayland->window_type[i] == netatom[NetWMWindowTypeUtility])
-				c->isfloating = 1;
-}
-
-void
-xwaylandready(struct wl_listener *listener, void *data) {
-	xcb_connection_t *xc = xcb_connect(xwayland->display_name, NULL);
-	int err = xcb_connection_has_error(xc);
-	if (err) {
-		fprintf(stderr, "xcb_connect to X server failed with code %d\n. Continuing with degraded functionality.\n", err);
-		return;
-	}
-
-	/* Collect atoms we are interested in.  If getatom returns 0, we will
-	 * not detect that window type. */
-	netatom[NetWMWindowTypeDialog] = getatom(xc, "_NET_WM_WINDOW_TYPE_DIALOG");
-	netatom[NetWMWindowTypeSplash] = getatom(xc, "_NET_WM_WINDOW_TYPE_SPLASH");
-	netatom[NetWMWindowTypeUtility] = getatom(xc, "_NET_WM_WINDOW_TYPE_TOOLBAR");
-	netatom[NetWMWindowTypeToolbar] = getatom(xc, "_NET_WM_WINDOW_TYPE_UTILITY");
-
-	/* assign the one and only seat */
-	wlr_xwayland_set_seat(xwayland, seat);
-
-	xcb_disconnect(xc);
 }
 
 void
@@ -1810,6 +1747,119 @@ zoom(const Arg *arg)
 	arrange(selmon);
 }
 
+#ifdef XWAYLAND
+void
+activatex11(struct wl_listener *listener, void *data)
+{
+       Client *c = wl_container_of(listener, c, activate);
+
+       /* Only "managed" windows can be activated */
+       if (c->type == X11Managed)
+               wlr_xwayland_surface_activate(c->surface.xwayland, 1);
+}
+
+void
+createnotifyx11(struct wl_listener *listener, void *data)
+{
+	struct wlr_xwayland_surface *xwayland_surface = data;
+	Client *c;
+
+	/* Allocate a Client for this surface */
+	c = xwayland_surface->data = calloc(1, sizeof(*c));
+	c->surface.xwayland = xwayland_surface;
+	c->type = xwayland_surface->override_redirect ? X11Unmanaged : X11Managed;
+	c->bw = borderpx;
+
+	/* Listen to the various events it can emit */
+	c->map.notify = maprequest;
+	wl_signal_add(&xwayland_surface->events.map, &c->map);
+	c->unmap.notify = unmapnotify;
+	wl_signal_add(&xwayland_surface->events.unmap, &c->unmap);
+	c->activate.notify = activatex11;
+	wl_signal_add(&xwayland_surface->events.request_activate, &c->activate);
+	c->destroy.notify = destroynotify;
+	wl_signal_add(&xwayland_surface->events.destroy, &c->destroy);
+}
+
+Atom
+getatom(xcb_connection_t *xc, const char *name)
+{
+	Atom atom = 0;
+	xcb_intern_atom_cookie_t cookie;
+	xcb_intern_atom_reply_t *reply;
+
+	cookie = xcb_intern_atom(xc, 0, strlen(name), name);
+	if ((reply = xcb_intern_atom_reply(xc, cookie, NULL)))
+		atom = reply->atom;
+	free(reply);
+
+	return atom;
+}
+
+void
+renderindependents(struct wlr_output *output, struct timespec *now)
+{
+	Client *c;
+	struct render_data rdata;
+	struct wlr_box geom;
+
+	wl_list_for_each_reverse(c, &independents, link) {
+		geom.x = c->surface.xwayland->x;
+		geom.y = c->surface.xwayland->y;
+		geom.width = c->surface.xwayland->width;
+		geom.height = c->surface.xwayland->height;
+
+		/* Only render visible clients which show on this output */
+		if (!wlr_output_layout_intersects(output_layout, output, &geom))
+			continue;
+
+		rdata.output = output;
+		rdata.when = now;
+		rdata.x = c->surface.xwayland->x;
+		rdata.y = c->surface.xwayland->y;
+
+		wlr_surface_for_each_surface(c->surface.xwayland->surface, render, &rdata);
+	}
+}
+
+void
+updatewindowtype(Client *c)
+{
+	size_t i;
+
+	if (c->type != XDGShell)
+		for (i = 0; i < c->surface.xwayland->window_type_len; i++)
+			if (c->surface.xwayland->window_type[i] == netatom[NetWMWindowTypeDialog] ||
+					c->surface.xwayland->window_type[i] == netatom[NetWMWindowTypeSplash] ||
+					c->surface.xwayland->window_type[i] == netatom[NetWMWindowTypeToolbar] ||
+					c->surface.xwayland->window_type[i] == netatom[NetWMWindowTypeUtility])
+				c->isfloating = 1;
+}
+
+void
+xwaylandready(struct wl_listener *listener, void *data)
+{
+	xcb_connection_t *xc = xcb_connect(xwayland->display_name, NULL);
+	int err = xcb_connection_has_error(xc);
+	if (err) {
+		fprintf(stderr, "xcb_connect to X server failed with code %d\n. Continuing with degraded functionality.\n", err);
+		return;
+	}
+
+	/* Collect atoms we are interested in.  If getatom returns 0, we will
+	 * not detect that window type. */
+	netatom[NetWMWindowTypeDialog] = getatom(xc, "_NET_WM_WINDOW_TYPE_DIALOG");
+	netatom[NetWMWindowTypeSplash] = getatom(xc, "_NET_WM_WINDOW_TYPE_SPLASH");
+	netatom[NetWMWindowTypeUtility] = getatom(xc, "_NET_WM_WINDOW_TYPE_TOOLBAR");
+	netatom[NetWMWindowTypeToolbar] = getatom(xc, "_NET_WM_WINDOW_TYPE_UTILITY");
+
+	/* assign the one and only seat */
+	wlr_xwayland_set_seat(xwayland, seat);
+
+	xcb_disconnect(xc);
+}
+#endif
+
 int
 main(int argc, char *argv[])
 {
@@ -1854,7 +1904,9 @@ main(int argc, char *argv[])
 	run(startup_cmd);
 
 	/* Once wl_display_run returns, we shut down the server. */
+#ifdef XWAYLAND
 	wlr_xwayland_destroy(xwayland);
+#endif
 	wl_display_destroy_clients(dpy);
 	wl_display_destroy(dpy);
 

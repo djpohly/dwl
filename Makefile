@@ -1,8 +1,9 @@
+include config.mk
+
+CFLAGS += -I. -DWLR_USE_UNSTABLE -std=c99 -Werror=declaration-after-statement
+
 WAYLAND_PROTOCOLS=$(shell pkg-config --variable=pkgdatadir wayland-protocols)
 WAYLAND_SCANNER=$(shell pkg-config --variable=wayland_scanner wayland-scanner)
-
-CFLAGS ?= -g -Wall -Wextra -Werror -Wno-unused-parameter -Wno-sign-compare -Wno-error=unused-function
-CFLAGS += -I. -DWLR_USE_UNSTABLE -std=c99 -Werror=declaration-after-statement
 
 PKGS = wlroots wayland-server xcb xkbcommon
 CFLAGS += $(foreach p,$(PKGS),$(shell pkg-config --cflags $(p)))
