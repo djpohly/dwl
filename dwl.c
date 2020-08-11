@@ -251,9 +251,11 @@ static struct wl_list independents;
 static struct wlr_xdg_decoration_manager_v1 *xdeco_mgr;
 
 static struct wlr_cursor *cursor;
-static struct wlr_xcursor *xcursor;
 static struct wlr_xcursor_manager *cursor_mgr;
+#ifdef XWAYLAND
+static struct wlr_xcursor *xcursor;
 static struct wlr_xcursor_manager *xcursor_mgr;
+#endif
 
 static struct wlr_seat *seat;
 static struct wl_list keyboards;
