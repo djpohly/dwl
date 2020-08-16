@@ -428,10 +428,7 @@ buttonpress(struct wl_listener *listener, void *data)
 void
 chvt(const Arg *arg)
 {
-	struct wlr_session *s = wlr_backend_get_session(backend);
-	if (!s)
-		return;
-	wlr_session_change_vt(s, arg->ui);
+	wlr_session_change_vt(wlr_backend_get_session(backend), arg->ui);
 }
 
 void
