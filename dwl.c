@@ -977,10 +977,9 @@ motionnotify(uint32_t time)
 				cursor->y - c->surface.xwayland->y - c->bw, &sx, &sy);
 
 	/* Otherwise, find the client under the pointer and send the event along. */
-	} else if ((c = xytoclient(cursor->x, cursor->y))) {
-#else
-	if ((c = xytoclient(cursor->x, cursor->y))) {
+	} else
 #endif
+	if ((c = xytoclient(cursor->x, cursor->y))) {
 #ifdef XWAYLAND
 		if (c->type != XDGShell)
 			surface = wlr_surface_surface_at(c->surface.xwayland->surface,
