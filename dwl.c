@@ -286,6 +286,7 @@ static Atom getatom(xcb_connection_t *xc, const char *name);
 static void renderindependents(struct wlr_output *output, struct timespec *now);
 static void updatewindowtype(Client *c);
 static void xwaylandready(struct wl_listener *listener, void *data);
+static Client *xytoindependent(double x, double y);
 static struct wl_listener new_xwayland_surface = {.notify = createnotifyx11};
 static struct wl_listener xwayland_ready = {.notify = xwaylandready};
 static struct wlr_xwayland *xwayland;
@@ -971,8 +972,18 @@ motionnotify(uint32_t time)
 		return;
 	}
 
+#ifdef XWAYLAND
+	/* Find an independent under the pointer and send the event along. */
+	if ((c = xytoindependent(cursor->x, cursor->y))) {
+		surface = wlr_surface_surface_at(c->surface.xwayland->surface,
+				cursor->x - c->surface.xwayland->x - c->bw,
+				cursor->y - c->surface.xwayland->y - c->bw, &sx, &sy);
+
 	/* Otherwise, find the client under the pointer and send the event along. */
+	} else if ((c = xytoclient(cursor->x, cursor->y))) {
+#else
 	if ((c = xytoclient(cursor->x, cursor->y))) {
+#endif
 #ifdef XWAYLAND
 		if (c->type != XDGShell)
 			surface = wlr_surface_surface_at(c->surface.xwayland->surface,
@@ -1060,6 +1071,12 @@ pointerfocus(Client *c, struct wlr_surface *surface, double sx, double sy,
 	/* Otherwise, let the client know that the mouse cursor has entered one
 	 * of its surfaces, and make keyboard focus follow if desired. */
 	wlr_seat_pointer_notify_enter(seat, surface, sx, sy);
+
+#if XWAYLAND
+	if (c->type == X11Unmanaged)
+		return;
+#endif
+
 	if (sloppyfocus)
 		focusclient(selclient(), c, 0);
 }
@@ -1858,6 +1875,27 @@ xwaylandready(struct wl_listener *listener, void *data)
 	wlr_xwayland_set_seat(xwayland, seat);
 
 	xcb_disconnect(xc);
+}
+
+Client *
+xytoindependent(double x, double y)
+{
+	/* Find the topmost visible independent at point (x, y).
+	 * For independents, the most recently created can be used as the "top".
+	 * We rely on the X11 convention of unmapping unmanaged when the "owning"
+	 * client loses focus, which ensures that unmanaged are only visible on
+	 * the current tag. */
+	Client *c;
+	struct wlr_box geom;
+	wl_list_for_each_reverse(c, &independents, link) {
+		geom.x = c->surface.xwayland->x;
+		geom.y = c->surface.xwayland->y;
+		geom.width = c->surface.xwayland->width;
+		geom.height = c->surface.xwayland->height;
+		if (wlr_box_contains_point(&geom, x, y))
+			return c;
+	}
+	return NULL;
 }
 #endif
 
