@@ -55,9 +55,9 @@
 
 /* enums */
 enum { CurNormal, CurMove, CurResize }; /* cursor */
+#ifdef XWAYLAND
 enum { NetWMWindowTypeDialog, NetWMWindowTypeSplash, NetWMWindowTypeToolbar,
 	NetWMWindowTypeUtility, NetLast }; /* EWMH atoms */
-#ifdef XWAYLAND
 enum { XDGShell, X11Managed, X11Unmanaged }; /* client types */
 #endif
 
