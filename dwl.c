@@ -224,6 +224,7 @@ static void setlayout(const Arg *arg);
 static void setmfact(const Arg *arg);
 static void setmon(Client *c, Monitor *m, unsigned int newtags);
 static void setup(void);
+static void sigchld(int unused);
 static void spawn(const Arg *arg);
 static void tag(const Arg *arg);
 static void tagmon(const Arg *arg);
@@ -1458,6 +1459,9 @@ setsel(struct wl_listener *listener, void *data)
 void
 setup(void)
 {
+	/* clean up child processes immediately */
+	sigchld(0);
+
 	/* The backend is a wlroots feature which abstracts the underlying input and
 	 * output hardware. The autocreate option will choose the most suitable
 	 * backend based on the current environment, such as opening an X11 window
@@ -1577,6 +1581,17 @@ setup(void)
 		fprintf(stderr, "failed to setup XWayland X server, continuing without it\n");
 	}
 #endif
+}
+
+void
+sigchld(int unused)
+{
+	if (signal(SIGCHLD, sigchld) == SIG_ERR) {
+		perror("can't install SIGCHLD handler");
+		exit(EXIT_FAILURE);
+	}
+	while (0 < waitpid(-1, NULL, WNOHANG))
+		;
 }
 
 void
