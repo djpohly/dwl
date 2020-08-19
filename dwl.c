@@ -331,8 +331,8 @@ applyrules(Client *c)
 	/* rule matching */
 	c->isfloating = 0;
 #ifdef XWAYLAND
-	updatewindowtype(c);
 	if (c->type != XDGShell) {
+		updatewindowtype(c);
 		appid = c->surface.xwayland->class;
 		title = c->surface.xwayland->title;
 	} else
@@ -1842,14 +1842,12 @@ void
 updatewindowtype(Client *c)
 {
 	size_t i;
-
-	if (c->type != XDGShell)
-		for (i = 0; i < c->surface.xwayland->window_type_len; i++)
-			if (c->surface.xwayland->window_type[i] == netatom[NetWMWindowTypeDialog] ||
-					c->surface.xwayland->window_type[i] == netatom[NetWMWindowTypeSplash] ||
-					c->surface.xwayland->window_type[i] == netatom[NetWMWindowTypeToolbar] ||
-					c->surface.xwayland->window_type[i] == netatom[NetWMWindowTypeUtility])
-				c->isfloating = 1;
+	for (i = 0; i < c->surface.xwayland->window_type_len; i++)
+		if (c->surface.xwayland->window_type[i] == netatom[NetWMWindowTypeDialog] ||
+				c->surface.xwayland->window_type[i] == netatom[NetWMWindowTypeSplash] ||
+				c->surface.xwayland->window_type[i] == netatom[NetWMWindowTypeToolbar] ||
+				c->surface.xwayland->window_type[i] == netatom[NetWMWindowTypeUtility])
+			c->isfloating = 1;
 }
 
 void
