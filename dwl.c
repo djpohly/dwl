@@ -1950,6 +1950,5 @@ main(int argc, char *argv[])
 	return EXIT_SUCCESS;
 
 usage:
-	printf("Usage: %s [-qvd] [-s startup command]\n", argv[0]);
-	return EXIT_FAILURE;
+	BARF("Usage: %s [-qvd] [-s startup command]", argv[0]);
 }
