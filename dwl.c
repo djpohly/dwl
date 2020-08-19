@@ -1934,5 +1934,5 @@ main(int argc, char *argv[])
 	return EXIT_SUCCESS;
 
 usage:
-	BARF("Usage: %s [-qvd] [-s startup command]", argv[0]);
+	BARF("Usage: %s [-s startup command]", argv[0]);
 }
