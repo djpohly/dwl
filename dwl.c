@@ -1317,8 +1317,6 @@ run(char *startup_cmd)
 	 * compositor. Starting the backend rigged up all of the necessary event
 	 * loop configuration to listen to libinput events, DRM events, generate
 	 * frame events at the refresh rate, and so on. */
-	wlr_log(WLR_INFO, "Running Wayland compositor on WAYLAND_DISPLAY=%s",
-			socket);
 	wl_display_run(dpy);
 
 	if (startup_cmd) {
@@ -1899,30 +1897,16 @@ int
 main(int argc, char *argv[])
 {
 	char *startup_cmd = NULL;
-	enum wlr_log_importance loglevel = WLR_ERROR;
-
 	int c;
-	while ((c = getopt(argc, argv, "qvds:h")) != -1) {
-		switch (c) {
-		case 'q':
-			loglevel = WLR_SILENT;
-			break;
-		case 'v':
-			loglevel = WLR_INFO;
-			break;
-		case 'd':
-			loglevel = WLR_DEBUG;
-			break;
-		case 's':
+
+	while ((c = getopt(argc, argv, "s:h")) != -1) {
+		if (c == 's')
 			startup_cmd = optarg;
-			break;
-		default:
+		else
 			goto usage;
-		}
 	}
 	if (optind < argc)
 		goto usage;
-	wlr_log_init(loglevel, NULL);
 
 	// Wayland requires XDG_RUNTIME_DIR for creating its communications
 	// socket
