@@ -1460,7 +1460,8 @@ setup(void)
 	 * backend uses the renderer, for example, to fall back to software cursors
 	 * if the backend does not support hardware cursors (some older GPUs
 	 * don't). */
-	backend = wlr_backend_autocreate(dpy, NULL);
+	if (!(backend = wlr_backend_autocreate(dpy, NULL)))
+		BARF("couldn't create backend");
 
 	/* If we don't provide a renderer, autocreate makes a GLES2 renderer for us.
 	 * The renderer is responsible for defining the various pixel formats it
