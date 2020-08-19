@@ -40,6 +40,8 @@
 #endif
 
 /* macros */
+#define BARF(fmt, ...)		do { fprintf(stderr, fmt "\n", ##__VA_ARGS__); exit(EXIT_FAILURE); } while (0)
+#define EBARF(fmt, ...)		BARF(fmt ": %s", ##__VA_ARGS__, strerror(errno))
 #define MAX(A, B)               ((A) > (B) ? (A) : (B))
 #define MIN(A, B)               ((A) < (B) ? (A) : (B))
 #define CLEANMASK(mask)         (mask & ~WLR_MODIFIER_CAPS)
@@ -1280,20 +1282,13 @@ run(char *startup_cmd)
 
 	/* Add a Unix socket to the Wayland display. */
 	const char *socket = wl_display_add_socket_auto(dpy);
-	if (!socket) {
-		perror("startup: display_add_socket_auto");
-		wlr_backend_destroy(backend);
-		exit(EXIT_FAILURE);
-	}
+	if (!socket)
+		BARF("startup: display_add_socket_auto");
 
 	/* Start the backend. This will enumerate outputs and inputs, become the DRM
 	 * master, etc */
-	if (!wlr_backend_start(backend)) {
-		perror("startup: backend_start");
-		wlr_backend_destroy(backend);
-		wl_display_destroy(dpy);
-		exit(EXIT_FAILURE);
-	}
+	if (!wlr_backend_start(backend))
+		BARF("startup: backend_start");
 
 	/* Now that outputs are initialized, choose initial selmon based on
 	 * cursor position, and set default cursor image */
@@ -1311,16 +1306,11 @@ run(char *startup_cmd)
 	setenv("WAYLAND_DISPLAY", socket, 1);
 	if (startup_cmd) {
 		startup_pid = fork();
-		if (startup_pid < 0) {
-			perror("startup: fork");
-			wl_display_destroy(dpy);
-			exit(EXIT_FAILURE);
-		}
+		if (startup_pid < 0)
+			EBARF("startup: fork");
 		if (startup_pid == 0) {
 			execl("/bin/sh", "/bin/sh", "-c", startup_cmd, (void *)NULL);
-			perror("startup: execl");
-			wl_display_destroy(dpy);
-			exit(EXIT_FAILURE);
+			EBARF("startup: execl");
 		}
 	}
 	/* Run the Wayland event loop. This does not return until you exit the
@@ -1586,10 +1576,8 @@ setup(void)
 void
 sigchld(int unused)
 {
-	if (signal(SIGCHLD, sigchld) == SIG_ERR) {
-		perror("can't install SIGCHLD handler");
-		exit(EXIT_FAILURE);
-	}
+	if (signal(SIGCHLD, sigchld) == SIG_ERR)
+		EBARF("can't install SIGCHLD handler");
 	while (0 < waitpid(-1, NULL, WNOHANG))
 		;
 }
@@ -1600,9 +1588,7 @@ spawn(const Arg *arg)
 	if (fork() == 0) {
 		setsid();
 		execvp(((char **)arg->v)[0], (char **)arg->v);
-		fprintf(stderr, "dwl: execvp %s", ((char **)arg->v)[0]);
-		perror(" failed");
-		exit(EXIT_FAILURE);
+		EBARF("dwl: execvp %s failed", ((char **)arg->v)[0]);
 	}
 }
 
@@ -1941,10 +1927,8 @@ main(int argc, char *argv[])
 
 	// Wayland requires XDG_RUNTIME_DIR for creating its communications
 	// socket
-	if (!getenv("XDG_RUNTIME_DIR")) {
-		fprintf(stderr, "XDG_RUNTIME_DIR must be set\n");
-		exit(EXIT_FAILURE);
-	}
+	if (!getenv("XDG_RUNTIME_DIR"))
+		BARF("XDG_RUNTIME_DIR must be set");
 
 	/* The Wayland display is managed by libwayland. It handles accepting
 	 * clients from the Unix socket, manging Wayland globals, and so on. */
