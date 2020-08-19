@@ -179,6 +179,7 @@ static void arrange(Monitor *m);
 static void axisnotify(struct wl_listener *listener, void *data);
 static void buttonpress(struct wl_listener *listener, void *data);
 static void chvt(const Arg *arg);
+static void cleanup(void);
 static void cleanupkeyboard(struct wl_listener *listener, void *data);
 static void cleanupmon(struct wl_listener *listener, void *data);
 static void commitnotify(struct wl_listener *listener, void *data);
@@ -432,6 +433,20 @@ void
 chvt(const Arg *arg)
 {
 	wlr_session_change_vt(wlr_backend_get_session(backend), arg->ui);
+}
+
+void
+cleanup(void)
+{
+#ifdef XWAYLAND
+	wlr_xwayland_destroy(xwayland);
+#endif
+	wl_display_destroy_clients(dpy);
+	wl_display_destroy(dpy);
+
+	wlr_xcursor_manager_destroy(cursor_mgr);
+	wlr_cursor_destroy(cursor);
+	wlr_output_layout_destroy(output_layout);
 }
 
 void
@@ -1447,6 +1462,10 @@ setsel(struct wl_listener *listener, void *data)
 void
 setup(void)
 {
+	/* The Wayland display is managed by libwayland. It handles accepting
+	 * clients from the Unix socket, manging Wayland globals, and so on. */
+	dpy = wl_display_create();
+
 	/* clean up child processes immediately */
 	sigchld(0);
 
@@ -1912,25 +1931,9 @@ main(int argc, char *argv[])
 	// socket
 	if (!getenv("XDG_RUNTIME_DIR"))
 		BARF("XDG_RUNTIME_DIR must be set");
-
-	/* The Wayland display is managed by libwayland. It handles accepting
-	 * clients from the Unix socket, manging Wayland globals, and so on. */
-	dpy = wl_display_create();
-
 	setup();
 	run(startup_cmd);
-
-	/* Once wl_display_run returns, we shut down the server. */
-#ifdef XWAYLAND
-	wlr_xwayland_destroy(xwayland);
-#endif
-	wl_display_destroy_clients(dpy);
-	wl_display_destroy(dpy);
-
-	wlr_xcursor_manager_destroy(cursor_mgr);
-	wlr_cursor_destroy(cursor);
-	wlr_output_layout_destroy(output_layout);
-
+	cleanup();
 	return EXIT_SUCCESS;
 
 usage:
