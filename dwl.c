@@ -17,6 +17,7 @@
 #include <wlr/types/wlr_cursor.h>
 #include <wlr/types/wlr_data_device.h>
 #include <wlr/types/wlr_export_dmabuf_v1.h>
+#include <wlr/types/wlr_gamma_control_v1.h>
 #include <wlr/types/wlr_input_device.h>
 #include <wlr/types/wlr_keyboard.h>
 #include <wlr/types/wlr_matrix.h>
@@ -1497,6 +1498,7 @@ setup(void)
 	wlr_screencopy_manager_v1_create(dpy);
 	wlr_data_device_manager_create(dpy);
 	wlr_primary_selection_v1_device_manager_create(dpy);
+	wlr_gamma_control_manager_v1_create(dpy);
 	wlr_viewporter_create(dpy);
 
 	/* Creates an output layout, which a wlroots utility for working with an
