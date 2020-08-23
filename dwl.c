@@ -1497,8 +1497,8 @@ setup(void)
 	wlr_export_dmabuf_manager_v1_create(dpy);
 	wlr_screencopy_manager_v1_create(dpy);
 	wlr_data_device_manager_create(dpy);
-	wlr_primary_selection_v1_device_manager_create(dpy);
 	wlr_gamma_control_manager_v1_create(dpy);
+	wlr_primary_selection_v1_device_manager_create(dpy);
 	wlr_viewporter_create(dpy);
 
 	/* Creates an output layout, which a wlroots utility for working with an
