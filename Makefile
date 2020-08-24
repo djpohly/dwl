@@ -23,12 +23,22 @@ xdg-shell-protocol.c:
 
 xdg-shell-protocol.o: xdg-shell-protocol.h
 
+wlr-layer-shell-unstable-v1-protocol.h:
+	$(WAYLAND_SCANNER) server-header \
+		protocols/wlr-layer-shell-unstable-v1.xml $@
+
+wlr-layer-shell-unstable-v1-protocol.c:
+	$(WAYLAND_SCANNER) private-code \
+		protocols/wlr-layer-shell-unstable-v1.xml $@
+
+wlr-layer-shell-unstable-v1-protocol.o: wlr-layer-shell-unstable-v1-protocol.h
+
 config.h: | config.def.h
 	cp config.def.h $@
 
-dwl.o: config.h xdg-shell-protocol.h
+dwl.o: config.h xdg-shell-protocol.h wlr-layer-shell-unstable-v1-protocol.h
 
-dwl: xdg-shell-protocol.o
+dwl: xdg-shell-protocol.o wlr-layer-shell-unstable-v1-protocol.o
 
 clean:
 	rm -f dwl *.o xdg-shell-protocol.h xdg-shell-protocol.c
