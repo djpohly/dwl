@@ -140,7 +140,7 @@ typedef struct {
 
 	struct wlr_box geo;
 	enum zwlr_layer_shell_v1_layer layer;
-} Layer;
+} LayerSurface;
 
 typedef struct {
 	const char *symbol;
@@ -154,7 +154,7 @@ struct Monitor {
 	struct wl_listener destroy;
 	struct wlr_box m;      /* monitor area, layout-relative */
 	struct wlr_box w;      /* window area, layout-relative */
-	struct wl_list layers[4]; // Layer::link
+	struct wl_list layers[4]; // LayerSurface::link
 	const Layout *lt[2];
 	unsigned int seltags;
 	unsigned int sellt;
@@ -261,7 +261,7 @@ static void tile(Monitor *m);
 static void togglefloating(const Arg *arg);
 static void toggletag(const Arg *arg);
 static void toggleview(const Arg *arg);
-static void unmaplayer(Layer *layer);
+static void unmaplayer(LayerSurface *layersurface);
 static void unmapnotify(struct wl_listener *listener, void *data);
 static void unmaplayernotify(struct wl_listener *listener, void *data);
 static void view(const Arg *arg);
@@ -470,14 +470,14 @@ arrange(Monitor *m)
 void
 arrangelayer(Monitor *m, struct wl_list *list, struct wlr_box *usable_area, bool exclusive)
 {
-	Layer *layer;
+	LayerSurface *layersurface;
 	struct wlr_box full_area = { 0 };
 	wlr_output_effective_resolution(m->wlr_output,
 			&full_area.width, &full_area.height);
 
-	wl_list_for_each(layer, list, link) {
-		struct wlr_layer_surface_v1 *layer_surface = layer->layer_surface;
-		struct wlr_layer_surface_v1_state *state = &layer_surface->current;
+	wl_list_for_each(layersurface, list, link) {
+		struct wlr_layer_surface_v1 *wlr_layer_surface = layersurface->layer_surface;
+		struct wlr_layer_surface_v1_state *state = &wlr_layer_surface->current;
 		struct wlr_box bounds;
 		struct wlr_box box = {
 			.width = state->desired_width,
@@ -533,15 +533,15 @@ arrangelayer(Monitor *m, struct wl_list *list, struct wlr_box *usable_area, bool
 			box.y -= state->margin.bottom;
 		}
 		if (box.width < 0 || box.height < 0) {
-			wlr_layer_surface_v1_close(layer_surface);
+			wlr_layer_surface_v1_close(wlr_layer_surface);
 			continue;
 		}
-		layer->geo = box;
+		layersurface->geo = box;
 
 		applyexclusive(usable_area, state->anchor, state->exclusive_zone,
 				state->margin.top, state->margin.right,
 				state->margin.bottom, state->margin.left);
-		wlr_layer_surface_v1_configure(layer_surface, box.width, box.height);
+		wlr_layer_surface_v1_configure(wlr_layer_surface, box.width, box.height);
 	}
 }
 
@@ -554,7 +554,7 @@ arrangelayers(Monitor *m)
 		ZWLR_LAYER_SHELL_V1_LAYER_TOP,
 	};
 	size_t nlayers = LENGTH(layers_above_shell);
-	Layer *layer, *topmost = NULL;
+	LayerSurface *layersurface, *topmost = NULL;
 
 	wlr_output_effective_resolution(m->wlr_output,
 			&usable_area.width, &usable_area.height);
@@ -588,11 +588,11 @@ arrangelayers(Monitor *m)
 
 	// Find topmost keyboard interactive layer, if such a layer exists
 	for (size_t i = 0; i < nlayers; ++i) {
-		wl_list_for_each_reverse(layer,
+		wl_list_for_each_reverse(layersurface,
 				&m->layers[layers_above_shell[i]], link) {
-			if (layer->layer_surface->current.keyboard_interactive &&
-					layer->layer_surface->mapped) {
-				topmost = layer;
+			if (layersurface->layer_surface->current.keyboard_interactive &&
+					layersurface->layer_surface->mapped) {
+				topmost = layersurface;
 				break;
 			}
 		}
@@ -713,9 +713,9 @@ cleanupmon(struct wl_listener *listener, void *data)
 void
 commitlayernotify(struct wl_listener *listener, void *data)
 {
-	Layer *layer = wl_container_of(listener, layer, surface_commit);
-	struct wlr_layer_surface_v1 *layer_surface = layer->layer_surface;
-	struct wlr_output *wlr_output = layer_surface->output;
+	LayerSurface *layersurface = wl_container_of(listener, layersurface, surface_commit);
+	struct wlr_layer_surface_v1 *wlr_layer_surface = layersurface->layer_surface;
+	struct wlr_output *wlr_output = wlr_layer_surface->output;
 	Monitor *m;
 
 	if (!wlr_output)
@@ -724,11 +724,11 @@ commitlayernotify(struct wl_listener *listener, void *data)
 	m = wlr_output->data;
 	arrangelayers(m);
 
-	if (layer->layer != layer_surface->current.layer) {
-		wl_list_remove(&layer->link);
-		wl_list_insert(&m->layers[layer_surface->current.layer],
-			&layer->link);
-		layer->layer = layer_surface->current.layer;
+	if (layersurface->layer != wlr_layer_surface->current.layer) {
+		wl_list_remove(&layersurface->link);
+		wl_list_insert(&m->layers[wlr_layer_surface->current.layer],
+			&layersurface->link);
+		layersurface->layer = wlr_layer_surface->current.layer;
 	}
 }
 
@@ -871,43 +871,44 @@ createnotify(struct wl_listener *listener, void *data)
 void
 createlayer(struct wl_listener *listener, void *data)
 {
-	struct wlr_layer_surface_v1 *layer_surface = data;
-	Layer *layer;
+	struct wlr_layer_surface_v1 *wlr_layer_surface = data;
+	LayerSurface *layersurface;
 	Monitor *m;
 	struct wlr_layer_surface_v1_state old_state;
 
-	if (!layer_surface->output) {
-		layer_surface->output = selmon->wlr_output;
+	if (!wlr_layer_surface->output) {
+		wlr_layer_surface->output = selmon->wlr_output;
 	}
 
-	layer = calloc(1, sizeof(Layer));
-	if (!layer)
+	layersurface = calloc(1, sizeof(LayerSurface));
+	if (!layersurface)
 		return;
 
-	layer->surface_commit.notify = commitlayernotify;
-	wl_signal_add(&layer_surface->surface->events.commit,
-		&layer->surface_commit);
+	layersurface->surface_commit.notify = commitlayernotify;
+	wl_signal_add(&wlr_layer_surface->surface->events.commit,
+		&layersurface->surface_commit);
 
-	layer->destroy.notify = destroylayernotify;
-	wl_signal_add(&layer_surface->events.destroy, &layer->destroy);
-	layer->map.notify = maplayernotify;
-	wl_signal_add(&layer_surface->events.map, &layer->map);
-	layer->unmap.notify = unmaplayernotify;
-	wl_signal_add(&layer_surface->events.unmap, &layer->unmap);
+	layersurface->destroy.notify = destroylayernotify;
+	wl_signal_add(&wlr_layer_surface->events.destroy, &layersurface->destroy);
+	layersurface->map.notify = maplayernotify;
+	wl_signal_add(&wlr_layer_surface->events.map, &layersurface->map);
+	layersurface->unmap.notify = unmaplayernotify;
+	wl_signal_add(&wlr_layer_surface->events.unmap, &layersurface->unmap);
 
-	layer->layer_surface = layer_surface;
-	layer_surface->data = layer;
+	layersurface->layer_surface = wlr_layer_surface;
+	wlr_layer_surface->data = layersurface;
 
-	m = layer_surface->output->data;
+	m = wlr_layer_surface->output->data;
 
-	wl_list_insert(&m->layers[layer_surface->client_pending.layer], &layer->link);
+	wl_list_insert(&m->layers[wlr_layer_surface->client_pending.layer],
+			&layersurface->link);
 
 	// Temporarily set the layer's current state to client_pending
 	// so that we can easily arrange it
-	old_state = layer_surface->current;
-	layer_surface->current = layer_surface->client_pending;
+	old_state = wlr_layer_surface->current;
+	wlr_layer_surface->current = wlr_layer_surface->client_pending;
 	arrangelayers(m);
-	layer_surface->current = old_state;
+	wlr_layer_surface->current = old_state;
 }
 
 void
@@ -949,23 +950,23 @@ cursorframe(struct wl_listener *listener, void *data)
 void
 destroylayernotify(struct wl_listener *listener, void *data)
 {
-	Layer *layer = wl_container_of(listener, layer, destroy);
+	LayerSurface *layersurface = wl_container_of(listener, layersurface, destroy);
 	Monitor *m;
 
-	if (layer->layer_surface->mapped)
-		unmaplayer(layer);
-	wl_list_remove(&layer->link);
-	wl_list_remove(&layer->destroy.link);
-	wl_list_remove(&layer->map.link);
-	wl_list_remove(&layer->unmap.link);
-	wl_list_remove(&layer->surface_commit.link);
-	if (layer->layer_surface->output) {
-		m = layer->layer_surface->output->data;
+	if (layersurface->layer_surface->mapped)
+		unmaplayer(layersurface);
+	wl_list_remove(&layersurface->link);
+	wl_list_remove(&layersurface->destroy.link);
+	wl_list_remove(&layersurface->map.link);
+	wl_list_remove(&layersurface->unmap.link);
+	wl_list_remove(&layersurface->surface_commit.link);
+	if (layersurface->layer_surface->output) {
+		m = layersurface->layer_surface->output->data;
 		if (m)
 			arrangelayers(m);
-		layer->layer_surface->output = NULL;
+		layersurface->layer_surface->output = NULL;
 	}
-	free(layer);
+	free(layersurface);
 }
 
 void
@@ -1236,8 +1237,8 @@ killclient(const Arg *arg)
 void
 maplayernotify(struct wl_listener *listener, void *data)
 {
-	Layer *layer = wl_container_of(listener, layer, map);
-	wlr_surface_send_enter(layer->layer_surface->surface, layer->layer_surface->output);
+	LayerSurface *layersurface = wl_container_of(listener, layersurface, map);
+	wlr_surface_send_enter(layersurface->layer_surface->surface, layersurface->layer_surface->output);
 	// XXX recheck pointer focus
 }
 
@@ -2048,7 +2049,7 @@ toggleview(const Arg *arg)
 }
 
 void
-unmaplayer(Layer *layer)
+unmaplayer(LayerSurface *layersurface)
 {
 	if (
 		seat->keyboard_state.focused_surface
@@ -2079,8 +2080,8 @@ unmapnotify(struct wl_listener *listener, void *data)
 void
 unmaplayernotify(struct wl_listener *listener, void *data)
 {
-	Layer *layer = wl_container_of(listener, layer, unmap);
-	unmaplayer(layer);
+	LayerSurface *layersurface = wl_container_of(listener, layersurface, unmap);
+	unmaplayer(layersurface);
 }
 
 void
