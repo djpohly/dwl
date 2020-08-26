@@ -204,16 +204,16 @@ static void chvt(const Arg *arg);
 static void cleanup(void);
 static void cleanupkeyboard(struct wl_listener *listener, void *data);
 static void cleanupmon(struct wl_listener *listener, void *data);
-static void commitlayernotify(struct wl_listener *listener, void *data);
+static void commitlayersurfacenotify(struct wl_listener *listener, void *data);
 static void commitnotify(struct wl_listener *listener, void *data);
 static void createkeyboard(struct wlr_input_device *device);
 static void createmon(struct wl_listener *listener, void *data);
 static void createnotify(struct wl_listener *listener, void *data);
-static void createlayer(struct wl_listener *listener, void *data);
+static void createlayersurface(struct wl_listener *listener, void *data);
 static void createpointer(struct wlr_input_device *device);
 static void createxdeco(struct wl_listener *listener, void *data);
 static void cursorframe(struct wl_listener *listener, void *data);
-static void destroylayernotify(struct wl_listener *listener, void *data);
+static void destroylayersurfacenotify(struct wl_listener *listener, void *data);
 static void destroynotify(struct wl_listener *listener, void *data);
 static void destroyxdeco(struct wl_listener *listener, void *data);
 static Monitor *dirtomon(int dir);
@@ -228,7 +228,7 @@ static int keybinding(uint32_t mods, xkb_keysym_t sym);
 static void keypress(struct wl_listener *listener, void *data);
 static void keypressmod(struct wl_listener *listener, void *data);
 static void killclient(const Arg *arg);
-static void maplayernotify(struct wl_listener *listener, void *data);
+static void maplayersurfacenotify(struct wl_listener *listener, void *data);
 static void maprequest(struct wl_listener *listener, void *data);
 static void monocle(Monitor *m);
 static void motionabsolute(struct wl_listener *listener, void *data);
@@ -263,9 +263,9 @@ static void tile(Monitor *m);
 static void togglefloating(const Arg *arg);
 static void toggletag(const Arg *arg);
 static void toggleview(const Arg *arg);
-static void unmaplayer(LayerSurface *layersurface);
+static void unmaplayersurface(LayerSurface *layersurface);
 static void unmapnotify(struct wl_listener *listener, void *data);
-static void unmaplayernotify(struct wl_listener *listener, void *data);
+static void unmaplayersurfacenotify(struct wl_listener *listener, void *data);
 static void view(const Arg *arg);
 static Client *xytoclient(double x, double y);
 static Monitor *xytomon(double x, double y);
@@ -310,7 +310,7 @@ static struct wl_listener new_input = {.notify = inputdevice};
 static struct wl_listener new_output = {.notify = createmon};
 static struct wl_listener new_xdeco = {.notify = createxdeco};
 static struct wl_listener new_xdg_surface = {.notify = createnotify};
-static struct wl_listener new_layer_shell_surface = {.notify = createlayer};
+static struct wl_listener new_layer_shell_surface = {.notify = createlayersurface};
 static struct wl_listener request_cursor = {.notify = setcursor};
 static struct wl_listener request_set_psel = {.notify = setpsel};
 static struct wl_listener request_set_sel = {.notify = setsel};
@@ -713,7 +713,7 @@ cleanupmon(struct wl_listener *listener, void *data)
 }
 
 void
-commitlayernotify(struct wl_listener *listener, void *data)
+commitlayersurfacenotify(struct wl_listener *listener, void *data)
 {
 	LayerSurface *layersurface = wl_container_of(listener, layersurface, surface_commit);
 	struct wlr_layer_surface_v1 *wlr_layer_surface = layersurface->layer_surface;
@@ -871,7 +871,7 @@ createnotify(struct wl_listener *listener, void *data)
 }
 
 void
-createlayer(struct wl_listener *listener, void *data)
+createlayersurface(struct wl_listener *listener, void *data)
 {
 	struct wlr_layer_surface_v1 *wlr_layer_surface = data;
 	LayerSurface *layersurface;
@@ -886,15 +886,15 @@ createlayer(struct wl_listener *listener, void *data)
 	if (!layersurface)
 		return;
 
-	layersurface->surface_commit.notify = commitlayernotify;
+	layersurface->surface_commit.notify = commitlayersurfacenotify;
 	wl_signal_add(&wlr_layer_surface->surface->events.commit,
 		&layersurface->surface_commit);
 
-	layersurface->destroy.notify = destroylayernotify;
+	layersurface->destroy.notify = destroylayersurfacenotify;
 	wl_signal_add(&wlr_layer_surface->events.destroy, &layersurface->destroy);
-	layersurface->map.notify = maplayernotify;
+	layersurface->map.notify = maplayersurfacenotify;
 	wl_signal_add(&wlr_layer_surface->events.map, &layersurface->map);
-	layersurface->unmap.notify = unmaplayernotify;
+	layersurface->unmap.notify = unmaplayersurfacenotify;
 	wl_signal_add(&wlr_layer_surface->events.unmap, &layersurface->unmap);
 
 	layersurface->layer_surface = wlr_layer_surface;
@@ -950,13 +950,13 @@ cursorframe(struct wl_listener *listener, void *data)
 }
 
 void
-destroylayernotify(struct wl_listener *listener, void *data)
+destroylayersurfacenotify(struct wl_listener *listener, void *data)
 {
 	LayerSurface *layersurface = wl_container_of(listener, layersurface, destroy);
 	Monitor *m;
 
 	if (layersurface->layer_surface->mapped)
-		unmaplayer(layersurface);
+		unmaplayersurface(layersurface);
 	wl_list_remove(&layersurface->link);
 	wl_list_remove(&layersurface->destroy.link);
 	wl_list_remove(&layersurface->map.link);
@@ -1237,7 +1237,7 @@ killclient(const Arg *arg)
 }
 
 void
-maplayernotify(struct wl_listener *listener, void *data)
+maplayersurfacenotify(struct wl_listener *listener, void *data)
 {
 	LayerSurface *layersurface = wl_container_of(listener, layersurface, map);
 	wlr_surface_send_enter(layersurface->layer_surface->surface, layersurface->layer_surface->output);
@@ -2092,7 +2092,7 @@ toggleview(const Arg *arg)
 }
 
 void
-unmaplayer(LayerSurface *layersurface)
+unmaplayersurface(LayerSurface *layersurface)
 {
 	if (
 		seat->keyboard_state.focused_surface
@@ -2121,10 +2121,10 @@ unmapnotify(struct wl_listener *listener, void *data)
 }
 
 void
-unmaplayernotify(struct wl_listener *listener, void *data)
+unmaplayersurfacenotify(struct wl_listener *listener, void *data)
 {
 	LayerSurface *layersurface = wl_container_of(listener, layersurface, unmap);
-	unmaplayer(layersurface);
+	unmaplayersurface(layersurface);
 }
 
 void
