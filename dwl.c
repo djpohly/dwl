@@ -17,6 +17,7 @@
 #include <wlr/types/wlr_cursor.h>
 #include <wlr/types/wlr_data_device.h>
 #include <wlr/types/wlr_export_dmabuf_v1.h>
+#include <wlr/types/wlr_gamma_control_v1.h>
 #include <wlr/types/wlr_input_device.h>
 #include <wlr/types/wlr_keyboard.h>
 #include <wlr/types/wlr_matrix.h>
@@ -40,6 +41,8 @@
 #endif
 
 /* macros */
+#define BARF(fmt, ...)		do { fprintf(stderr, fmt "\n", ##__VA_ARGS__); exit(EXIT_FAILURE); } while (0)
+#define EBARF(fmt, ...)		BARF(fmt ": %s", ##__VA_ARGS__, strerror(errno))
 #define MAX(A, B)               ((A) > (B) ? (A) : (B))
 #define MIN(A, B)               ((A) < (B) ? (A) : (B))
 #define CLEANMASK(mask)         (mask & ~WLR_MODIFIER_CAPS)
@@ -55,9 +58,9 @@
 
 /* enums */
 enum { CurNormal, CurMove, CurResize }; /* cursor */
+#ifdef XWAYLAND
 enum { NetWMWindowTypeDialog, NetWMWindowTypeSplash, NetWMWindowTypeToolbar,
 	NetWMWindowTypeUtility, NetLast }; /* EWMH atoms */
-#ifdef XWAYLAND
 enum { XDGShell, X11Managed, X11Unmanaged }; /* client types */
 #endif
 
@@ -177,6 +180,7 @@ static void arrange(Monitor *m);
 static void axisnotify(struct wl_listener *listener, void *data);
 static void buttonpress(struct wl_listener *listener, void *data);
 static void chvt(const Arg *arg);
+static void cleanup(void);
 static void cleanupkeyboard(struct wl_listener *listener, void *data);
 static void cleanupmon(struct wl_listener *listener, void *data);
 static void commitnotify(struct wl_listener *listener, void *data);
@@ -224,6 +228,7 @@ static void setlayout(const Arg *arg);
 static void setmfact(const Arg *arg);
 static void setmon(Client *c, Monitor *m, unsigned int newtags);
 static void setup(void);
+static void sigchld(int unused);
 static void spawn(const Arg *arg);
 static void tag(const Arg *arg);
 static void tagmon(const Arg *arg);
@@ -286,6 +291,7 @@ static Atom getatom(xcb_connection_t *xc, const char *name);
 static void renderindependents(struct wlr_output *output, struct timespec *now);
 static void updatewindowtype(Client *c);
 static void xwaylandready(struct wl_listener *listener, void *data);
+static Client *xytoindependent(double x, double y);
 static struct wl_listener new_xwayland_surface = {.notify = createnotifyx11};
 static struct wl_listener xwayland_ready = {.notify = xwaylandready};
 static struct wlr_xwayland *xwayland;
@@ -327,8 +333,8 @@ applyrules(Client *c)
 	/* rule matching */
 	c->isfloating = 0;
 #ifdef XWAYLAND
-	updatewindowtype(c);
 	if (c->type != XDGShell) {
+		updatewindowtype(c);
 		appid = c->surface.xwayland->class;
 		title = c->surface.xwayland->title;
 	} else
@@ -427,10 +433,21 @@ buttonpress(struct wl_listener *listener, void *data)
 void
 chvt(const Arg *arg)
 {
-	struct wlr_session *s = wlr_backend_get_session(backend);
-	if (!s)
-		return;
-	wlr_session_change_vt(s, arg->ui);
+	wlr_session_change_vt(wlr_backend_get_session(backend), arg->ui);
+}
+
+void
+cleanup(void)
+{
+#ifdef XWAYLAND
+	wlr_xwayland_destroy(xwayland);
+#endif
+	wl_display_destroy_clients(dpy);
+	wl_display_destroy(dpy);
+
+	wlr_xcursor_manager_destroy(cursor_mgr);
+	wlr_cursor_destroy(cursor);
+	wlr_output_layout_destroy(output_layout);
 }
 
 void
@@ -971,7 +988,16 @@ motionnotify(uint32_t time)
 		return;
 	}
 
+#ifdef XWAYLAND
+	/* Find an independent under the pointer and send the event along. */
+	if ((c = xytoindependent(cursor->x, cursor->y))) {
+		surface = wlr_surface_surface_at(c->surface.xwayland->surface,
+				cursor->x - c->surface.xwayland->x - c->bw,
+				cursor->y - c->surface.xwayland->y - c->bw, &sx, &sy);
+
 	/* Otherwise, find the client under the pointer and send the event along. */
+	} else
+#endif
 	if ((c = xytoclient(cursor->x, cursor->y))) {
 #ifdef XWAYLAND
 		if (c->type != XDGShell)
@@ -1060,6 +1086,12 @@ pointerfocus(Client *c, struct wlr_surface *surface, double sx, double sy,
 	/* Otherwise, let the client know that the mouse cursor has entered one
 	 * of its surfaces, and make keyboard focus follow if desired. */
 	wlr_seat_pointer_notify_enter(seat, surface, sx, sy);
+
+#if XWAYLAND
+	if (c->type == X11Unmanaged)
+		return;
+#endif
+
 	if (sloppyfocus)
 		focusclient(selclient(), c, 0);
 }
@@ -1266,20 +1298,13 @@ run(char *startup_cmd)
 
 	/* Add a Unix socket to the Wayland display. */
 	const char *socket = wl_display_add_socket_auto(dpy);
-	if (!socket) {
-		perror("startup: display_add_socket_auto");
-		wlr_backend_destroy(backend);
-		exit(EXIT_FAILURE);
-	}
+	if (!socket)
+		BARF("startup: display_add_socket_auto");
 
 	/* Start the backend. This will enumerate outputs and inputs, become the DRM
 	 * master, etc */
-	if (!wlr_backend_start(backend)) {
-		perror("startup: backend_start");
-		wlr_backend_destroy(backend);
-		wl_display_destroy(dpy);
-		exit(EXIT_FAILURE);
-	}
+	if (!wlr_backend_start(backend))
+		BARF("startup: backend_start");
 
 	/* Now that outputs are initialized, choose initial selmon based on
 	 * cursor position, and set default cursor image */
@@ -1297,24 +1322,17 @@ run(char *startup_cmd)
 	setenv("WAYLAND_DISPLAY", socket, 1);
 	if (startup_cmd) {
 		startup_pid = fork();
-		if (startup_pid < 0) {
-			perror("startup: fork");
-			wl_display_destroy(dpy);
-			exit(EXIT_FAILURE);
-		}
+		if (startup_pid < 0)
+			EBARF("startup: fork");
 		if (startup_pid == 0) {
 			execl("/bin/sh", "/bin/sh", "-c", startup_cmd, (void *)NULL);
-			perror("startup: execl");
-			wl_display_destroy(dpy);
-			exit(EXIT_FAILURE);
+			EBARF("startup: execl");
 		}
 	}
 	/* Run the Wayland event loop. This does not return until you exit the
 	 * compositor. Starting the backend rigged up all of the necessary event
 	 * loop configuration to listen to libinput events, DRM events, generate
 	 * frame events at the refresh rate, and so on. */
-	wlr_log(WLR_INFO, "Running Wayland compositor on WAYLAND_DISPLAY=%s",
-			socket);
 	wl_display_run(dpy);
 
 	if (startup_cmd) {
@@ -1445,6 +1463,13 @@ setsel(struct wl_listener *listener, void *data)
 void
 setup(void)
 {
+	/* The Wayland display is managed by libwayland. It handles accepting
+	 * clients from the Unix socket, manging Wayland globals, and so on. */
+	dpy = wl_display_create();
+
+	/* clean up child processes immediately */
+	sigchld(0);
+
 	/* The backend is a wlroots feature which abstracts the underlying input and
 	 * output hardware. The autocreate option will choose the most suitable
 	 * backend based on the current environment, such as opening an X11 window
@@ -1453,7 +1478,8 @@ setup(void)
 	 * backend uses the renderer, for example, to fall back to software cursors
 	 * if the backend does not support hardware cursors (some older GPUs
 	 * don't). */
-	backend = wlr_backend_autocreate(dpy, NULL);
+	if (!(backend = wlr_backend_autocreate(dpy, NULL)))
+		BARF("couldn't create backend");
 
 	/* If we don't provide a renderer, autocreate makes a GLES2 renderer for us.
 	 * The renderer is responsible for defining the various pixel formats it
@@ -1471,6 +1497,7 @@ setup(void)
 	wlr_export_dmabuf_manager_v1_create(dpy);
 	wlr_screencopy_manager_v1_create(dpy);
 	wlr_data_device_manager_create(dpy);
+	wlr_gamma_control_manager_v1_create(dpy);
 	wlr_primary_selection_v1_device_manager_create(dpy);
 	wlr_viewporter_create(dpy);
 
@@ -1567,14 +1594,21 @@ setup(void)
 }
 
 void
+sigchld(int unused)
+{
+	if (signal(SIGCHLD, sigchld) == SIG_ERR)
+		EBARF("can't install SIGCHLD handler");
+	while (0 < waitpid(-1, NULL, WNOHANG))
+		;
+}
+
+void
 spawn(const Arg *arg)
 {
 	if (fork() == 0) {
 		setsid();
 		execvp(((char **)arg->v)[0], (char **)arg->v);
-		fprintf(stderr, "dwl: execvp %s", ((char **)arg->v)[0]);
-		perror(" failed");
-		exit(EXIT_FAILURE);
+		EBARF("dwl: execvp %s failed", ((char **)arg->v)[0]);
 	}
 }
 
@@ -1827,14 +1861,12 @@ void
 updatewindowtype(Client *c)
 {
 	size_t i;
-
-	if (c->type != XDGShell)
-		for (i = 0; i < c->surface.xwayland->window_type_len; i++)
-			if (c->surface.xwayland->window_type[i] == netatom[NetWMWindowTypeDialog] ||
-					c->surface.xwayland->window_type[i] == netatom[NetWMWindowTypeSplash] ||
-					c->surface.xwayland->window_type[i] == netatom[NetWMWindowTypeToolbar] ||
-					c->surface.xwayland->window_type[i] == netatom[NetWMWindowTypeUtility])
-				c->isfloating = 1;
+	for (i = 0; i < c->surface.xwayland->window_type_len; i++)
+		if (c->surface.xwayland->window_type[i] == netatom[NetWMWindowTypeDialog] ||
+				c->surface.xwayland->window_type[i] == netatom[NetWMWindowTypeSplash] ||
+				c->surface.xwayland->window_type[i] == netatom[NetWMWindowTypeToolbar] ||
+				c->surface.xwayland->window_type[i] == netatom[NetWMWindowTypeUtility])
+			c->isfloating = 1;
 }
 
 void
@@ -1859,65 +1891,53 @@ xwaylandready(struct wl_listener *listener, void *data)
 
 	xcb_disconnect(xc);
 }
+
+Client *
+xytoindependent(double x, double y)
+{
+	/* Find the topmost visible independent at point (x, y).
+	 * For independents, the most recently created can be used as the "top".
+	 * We rely on the X11 convention of unmapping unmanaged when the "owning"
+	 * client loses focus, which ensures that unmanaged are only visible on
+	 * the current tag. */
+	Client *c;
+	struct wlr_box geom;
+	wl_list_for_each_reverse(c, &independents, link) {
+		geom.x = c->surface.xwayland->x;
+		geom.y = c->surface.xwayland->y;
+		geom.width = c->surface.xwayland->width;
+		geom.height = c->surface.xwayland->height;
+		if (wlr_box_contains_point(&geom, x, y))
+			return c;
+	}
+	return NULL;
+}
 #endif
 
 int
 main(int argc, char *argv[])
 {
 	char *startup_cmd = NULL;
-	enum wlr_log_importance loglevel = WLR_ERROR;
-
 	int c;
-	while ((c = getopt(argc, argv, "qvds:h")) != -1) {
-		switch (c) {
-		case 'q':
-			loglevel = WLR_SILENT;
-			break;
-		case 'v':
-			loglevel = WLR_INFO;
-			break;
-		case 'd':
-			loglevel = WLR_DEBUG;
-			break;
-		case 's':
+
+	while ((c = getopt(argc, argv, "s:h")) != -1) {
+		if (c == 's')
 			startup_cmd = optarg;
-			break;
-		default:
+		else
 			goto usage;
-		}
 	}
 	if (optind < argc)
 		goto usage;
-	wlr_log_init(loglevel, NULL);
 
 	// Wayland requires XDG_RUNTIME_DIR for creating its communications
 	// socket
-	if (!getenv("XDG_RUNTIME_DIR")) {
-		fprintf(stderr, "XDG_RUNTIME_DIR must be set\n");
-		exit(EXIT_FAILURE);
-	}
-
-	/* The Wayland display is managed by libwayland. It handles accepting
-	 * clients from the Unix socket, manging Wayland globals, and so on. */
-	dpy = wl_display_create();
-
+	if (!getenv("XDG_RUNTIME_DIR"))
+		BARF("XDG_RUNTIME_DIR must be set");
 	setup();
 	run(startup_cmd);
-
-	/* Once wl_display_run returns, we shut down the server. */
-#ifdef XWAYLAND
-	wlr_xwayland_destroy(xwayland);
-#endif
-	wl_display_destroy_clients(dpy);
-	wl_display_destroy(dpy);
-
-	wlr_xcursor_manager_destroy(cursor_mgr);
-	wlr_cursor_destroy(cursor);
-	wlr_output_layout_destroy(output_layout);
-
+	cleanup();
 	return EXIT_SUCCESS;
 
 usage:
-	printf("Usage: %s [-qvd] [-s startup command]\n", argv[0]);
-	return EXIT_FAILURE;
+	BARF("Usage: %s [-s startup command]", argv[0]);
 }
