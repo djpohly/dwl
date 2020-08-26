@@ -407,7 +407,7 @@ applyexclusive(struct wlr_box *usable_area,
 	edges[3].margin = margin_right;
 
 	for (size_t i = 0; i < LENGTH(edges); ++i) {
-		if ((anchor  == edges[i].singular_anchor || anchor == edges[i].anchor_triplet)
+		if ((anchor == edges[i].singular_anchor || anchor == edges[i].anchor_triplet)
 				&& exclusive + edges[i].margin > 0) {
 			if (edges[i].positive_axis)
 				*edges[i].positive_axis += exclusive + edges[i].margin;
