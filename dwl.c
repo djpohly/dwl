@@ -196,7 +196,7 @@ static void applyexclusive(struct wlr_box *usable_area, uint32_t anchor,
 static void applyrules(Client *c);
 static void arrange(Monitor *m);
 static void arrangelayer(Monitor *m, struct wl_list *list,
-		struct wlr_box *usablearea, bool exclusive);
+		struct wlr_box *usable_area, bool exclusive);
 static void arrangelayers(Monitor *m);
 static void axisnotify(struct wl_listener *listener, void *data);
 static void buttonpress(struct wl_listener *listener, void *data);
