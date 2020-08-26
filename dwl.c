@@ -240,6 +240,8 @@ static void pointerfocus(Client *c, struct wlr_surface *surface,
 static void quit(const Arg *arg);
 static void render(struct wlr_surface *surface, int sx, int sy, void *data);
 static void renderclients(Monitor *m, struct timespec *now);
+static void renderlayer(Monitor *m, struct wl_list *layer_surfaces);
+static void renderlayersurface(struct wlr_surface *surface, int sx, int sy, void *data);
 static void rendermon(struct wl_listener *listener, void *data);
 static void resize(Client *c, int x, int y, int w, int h, int interact);
 static void run(char *startup_cmd);
@@ -1556,6 +1558,43 @@ renderclients(Monitor *m, struct timespec *now)
 }
 
 void
+renderlayer(Monitor *m, struct wl_list *layer_surfaces)
+{
+	LayerSurface *layersurface;
+	wl_list_for_each(layersurface, layer_surfaces, link)
+		wlr_surface_for_each_surface(layersurface->layer_surface->surface,
+			renderlayersurface, layersurface);
+}
+
+void
+renderlayersurface(struct wlr_surface *surface, int sx, int sy, void *data)
+{
+	LayerSurface *layersurface = data;
+	struct wlr_texture *texture = wlr_surface_get_texture(surface);
+	struct wlr_output *output;
+	double ox = 0, oy = 0;
+	enum wl_output_transform transform;
+	struct wlr_box box;
+	float matrix[9];
+	struct timespec now;
+
+	if (!texture) {
+		return;
+	}
+
+	output = layersurface->layer_surface->output;
+	wlr_output_layout_output_coords(output_layout, output, &ox, &oy);
+	ox += layersurface->geo.x + sx, oy += layersurface->geo.y + sy;
+	transform = wlr_output_transform_invert(surface->current.transform);
+	memcpy(&box, &layersurface->geo, sizeof(struct wlr_box));
+	wlr_matrix_project_box(matrix, &box, transform, 0,
+		output->transform_matrix);
+	wlr_render_texture_with_matrix(drw, texture, matrix, 1);
+	clock_gettime(CLOCK_MONOTONIC, &now);
+	wlr_surface_send_frame_done(surface, &now);
+}
+
+void
 rendermon(struct wl_listener *listener, void *data)
 {
 	Client *c;
@@ -1585,7 +1624,11 @@ rendermon(struct wl_listener *listener, void *data)
 		wlr_renderer_begin(drw, m->wlr_output->width, m->wlr_output->height);
 		wlr_renderer_clear(drw, rootcolor);
 
+		renderlayer(m, &m->layers[ZWLR_LAYER_SHELL_V1_LAYER_BACKGROUND]);
+		renderlayer(m, &m->layers[ZWLR_LAYER_SHELL_V1_LAYER_BOTTOM]);
 		renderclients(m, &now);
+		renderlayer(m, &m->layers[ZWLR_LAYER_SHELL_V1_LAYER_TOP]);
+		renderlayer(m, &m->layers[ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY]);
 #ifdef XWAYLAND
 		renderindependents(m->wlr_output, &now);
 #endif
