@@ -1184,19 +1184,21 @@ renderclients(Monitor *m, struct timespec *now)
 				&ox, &oy);
 		w = surface->current.width;
 		h = surface->current.height;
-		borders = (struct wlr_box[4]) {
-			{ox, oy, w + 2 * c->bw, c->bw},             /* top */
-			{ox, oy + c->bw, c->bw, h},                 /* left */
-			{ox + c->bw + w, oy + c->bw, c->bw, h},     /* right */
-			{ox, oy + c->bw + h, w + 2 * c->bw, c->bw}, /* bottom */
-		};
+		if (c->bw) {
+			borders = (struct wlr_box[4]) {
+				{ox, oy, w + 2 * c->bw, c->bw},             /* top */
+				{ox, oy + c->bw, c->bw, h},                 /* left */
+				{ox + c->bw + w, oy + c->bw, c->bw, h},     /* right */
+				{ox, oy + c->bw + h, w + 2 * c->bw, c->bw}, /* bottom */
+			};
 
-		/* Draw window borders */
-		color = (c == sel) ? focuscolor : bordercolor;
-		for (i = 0; i < 4; i++) {
-			scalebox(&borders[i], m->wlr_output->scale);
-			wlr_render_rect(drw, &borders[i], color,
-					m->wlr_output->transform_matrix);
+			/* Draw window borders */
+			color = (c == sel) ? focuscolor : bordercolor;
+			for (i = 0; i < 4; i++) {
+				scalebox(&borders[i], m->wlr_output->scale);
+				wlr_render_rect(drw, &borders[i], color,
+						m->wlr_output->transform_matrix);
+			}
 		}
 
 		/* This calls our render function for each surface among the
