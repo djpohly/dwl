@@ -461,9 +461,6 @@ applyrules(Client *c)
 void
 arrange(Monitor *m)
 {
-	/* Get effective monitor geometry to use for window area */
-	m->m = *wlr_output_layout_get_box(output_layout, m->wlr_output);
-	m->w = m->m;
 	if (m->lt[m->sellt]->arrange)
 		m->lt[m->sellt]->arrange(m);
 	/* XXX recheck pointer focus here... or in resize()? */
@@ -832,6 +829,10 @@ createmon(struct wl_listener *listener, void *data)
 	 */
 	wlr_output_layout_add_auto(output_layout, wlr_output);
 	sgeom = *wlr_output_layout_get_box(output_layout, NULL);
+
+	/* Get effective monitor geometry to use for window area */
+	m->m = *wlr_output_layout_get_box(output_layout, m->wlr_output);
+	m->w = m->m;
 
 	len = LENGTH(m->layers);
 	for (size_t i = 0; i < len; ++i) {
