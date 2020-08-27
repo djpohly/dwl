@@ -568,8 +568,6 @@ arrangelayers(Monitor *m)
 	arrangelayer(m, &m->layers[ZWLR_LAYER_SHELL_V1_LAYER_BACKGROUND],
 			&usable_area, true);
 
-	/* XXX does wlr_output_effective_resolution return the same dimensions
-	   as wlr_output_layout_get_box which is used to set m->m ? */
 	if (memcmp(&usable_area, &m->w, sizeof(struct wlr_box))) {
 		memcpy(&m->w, &usable_area, sizeof(struct wlr_box));
 		arrange(m);
