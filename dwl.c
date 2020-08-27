@@ -547,16 +547,13 @@ arrangelayer(Monitor *m, struct wl_list *list, struct wlr_box *usable_area, bool
 void
 arrangelayers(Monitor *m)
 {
-	struct wlr_box usable_area = { 0 };
+	struct wlr_box usable_area = m->m;
 	uint32_t layers_above_shell[] = {
 		ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY,
 		ZWLR_LAYER_SHELL_V1_LAYER_TOP,
 	};
 	size_t nlayers = LENGTH(layers_above_shell);
 	LayerSurface *layersurface, *topmost = NULL;
-
-	wlr_output_effective_resolution(m->wlr_output,
-			&usable_area.width, &usable_area.height);
 
 	// Arrange exclusive surfaces from top->bottom
 	arrangelayer(m, &m->layers[ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY],
