@@ -1627,11 +1627,11 @@ rendermon(struct wl_listener *listener, void *data)
 		renderlayer(m, &m->layers[ZWLR_LAYER_SHELL_V1_LAYER_BACKGROUND]);
 		renderlayer(m, &m->layers[ZWLR_LAYER_SHELL_V1_LAYER_BOTTOM]);
 		renderclients(m, &now);
-		renderlayer(m, &m->layers[ZWLR_LAYER_SHELL_V1_LAYER_TOP]);
-		renderlayer(m, &m->layers[ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY]);
 #ifdef XWAYLAND
 		renderindependents(m->wlr_output, &now);
 #endif
+		renderlayer(m, &m->layers[ZWLR_LAYER_SHELL_V1_LAYER_TOP]);
+		renderlayer(m, &m->layers[ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY]);
 
 		/* Hardware cursors are rendered by the GPU on a separate plane, and can be
 		 * moved around without re-rendering what's beneath them - which is more
