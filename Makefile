@@ -41,7 +41,7 @@ dwl.o: config.h xdg-shell-protocol.h wlr-layer-shell-unstable-v1-protocol.h
 dwl: xdg-shell-protocol.o wlr-layer-shell-unstable-v1-protocol.o
 
 clean:
-	rm -f dwl *.o xdg-shell-protocol.h xdg-shell-protocol.c wlr-layer-shell-unstable-v1-protocol.h wlr-layer-shell-unstable-v1-protocol.c
+	rm -f dwl *.o *-protocol.h *-protocol.c
 
 .DEFAULT_GOAL=dwl
 .PHONY: clean
