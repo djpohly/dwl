@@ -882,7 +882,6 @@ createlayersurface(struct wl_listener *listener, void *data)
 	layersurface->surface_commit.notify = commitlayersurfacenotify;
 	wl_signal_add(&wlr_layer_surface->surface->events.commit,
 		&layersurface->surface_commit);
-
 	layersurface->destroy.notify = destroylayersurfacenotify;
 	wl_signal_add(&wlr_layer_surface->events.destroy, &layersurface->destroy);
 	layersurface->map.notify = maplayersurfacenotify;
