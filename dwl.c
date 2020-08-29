@@ -878,8 +878,6 @@ createlayersurface(struct wl_listener *listener, void *data)
 	}
 
 	layersurface = calloc(1, sizeof(LayerSurface));
-	if (!layersurface)
-		return;
 
 	layersurface->surface_commit.notify = commitlayersurfacenotify;
 	wl_signal_add(&wlr_layer_surface->surface->events.commit,
