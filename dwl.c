@@ -282,8 +282,8 @@ static struct wl_list clients; /* tiling order */
 static struct wl_list fstack;  /* focus order */
 static struct wl_list stack;   /* stacking z-order */
 static struct wl_list independents;
-static struct wlr_xdg_decoration_manager_v1 *xdeco_mgr;
 static struct wlr_layer_shell_v1 *layer_shell;
+static struct wlr_xdg_decoration_manager_v1 *xdeco_mgr;
 
 static struct wlr_cursor *cursor;
 static struct wlr_xcursor_manager *cursor_mgr;
