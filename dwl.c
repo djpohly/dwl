@@ -553,6 +553,7 @@ arrangelayers(Monitor *m)
 	};
 	size_t nlayers = LENGTH(layers_above_shell);
 	LayerSurface *layersurface, *topmost = NULL;
+	struct wlr_keyboard *kb = wlr_seat_get_keyboard(seat);
 
 	// Arrange exclusive surfaces from top->bottom
 	arrangelayer(m, &m->layers[ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY],
@@ -595,8 +596,8 @@ arrangelayers(Monitor *m)
 	}
 
 	if (topmost)
-		wlr_seat_keyboard_notify_enter(seat,
-				topmost->layer_surface->surface, NULL, 0, NULL);
+		wlr_seat_keyboard_notify_enter(seat, topmost->layer_surface->surface,
+				kb->keycodes, kb->num_keycodes, &kb->modifiers);
 	else if (
 		seat->keyboard_state.focused_surface
 		&& wlr_surface_is_layer_surface(seat->keyboard_state.focused_surface)
