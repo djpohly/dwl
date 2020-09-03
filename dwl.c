@@ -605,6 +605,7 @@ arrangelayers(Monitor *m)
 			->current.keyboard_interactive
 	)
 		wlr_seat_keyboard_notify_clear_focus(seat);
+	/* XXX recheck keyboard focus */
 }
 
 void
@@ -1234,7 +1235,7 @@ maplayersurfacenotify(struct wl_listener *listener, void *data)
 {
 	LayerSurface *layersurface = wl_container_of(listener, layersurface, map);
 	wlr_surface_send_enter(layersurface->layer_surface->surface, layersurface->layer_surface->output);
-	// XXX recheck pointer focus
+	/* XXX recheck pointer focus */
 }
 
 void
@@ -2075,7 +2076,7 @@ unmaplayersurface(LayerSurface *layersurface)
 	)
 		wlr_seat_keyboard_notify_clear_focus(seat);
 
-	// XXX recheck pointer focus
+	/* XXX recheck keyboard and pointer focus */
 }
 
 void
