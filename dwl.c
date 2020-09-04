@@ -1045,7 +1045,9 @@ destroyxdeco(struct wl_listener *listener, void *data)
 void
 fullscreenotify(struct wl_listener *listener, void *data) {
 	Client *c = wl_container_of(listener, c, fullscreen);
-	wlr_xdg_toplevel_set_fullscreen(c->surface.xdg, !c->surface.xdg->toplevel->current.fullscreen);
+	wlr_xdg_toplevel_set_fullscreen(
+			c->surface.xdg, !c->surface.xdg->toplevel->current.fullscreen);
+	c->bw = (int)c->surface.xdg->toplevel->current.fullscreen * borderpx;
 }
 
 Monitor *
@@ -1670,6 +1672,10 @@ renderclients(Monitor *m, struct timespec *now)
 		ox = c->geom.x, oy = c->geom.y;
 		wlr_output_layout_output_coords(output_layout, m->wlr_output,
 				&ox, &oy);
+
+		if (c->bw == 0)
+			goto render;
+
 		w = surface->current.width;
 		h = surface->current.height;
 		borders = (struct wlr_box[4]) {
@@ -1687,6 +1693,7 @@ renderclients(Monitor *m, struct timespec *now)
 					m->wlr_output->transform_matrix);
 		}
 
+ render:
 		/* This calls our render function for each surface among the
 		 * xdg_surface's toplevel and popups. */
 		rdata.output = m->wlr_output;
