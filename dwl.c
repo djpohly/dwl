@@ -2090,13 +2090,8 @@ toggleview(const Arg *arg)
 void
 unmaplayersurface(LayerSurface *layersurface)
 {
-	if (
-		layersurface->layer_surface->current.keyboard_interactive
-		&& seat->keyboard_state.focused_surface
-		&& wlr_surface_is_layer_surface(seat->keyboard_state.focused_surface)
-		&& wlr_layer_surface_v1_from_wlr_surface(seat->keyboard_state.focused_surface)
-			== layersurface->layer_surface
-	)
+	if (layersurface->layer_surface->surface ==
+			seat->keyboard_state.focused_surface)
 		wlr_seat_keyboard_notify_clear_focus(seat);
 
 	/* XXX recheck keyboard focus */
