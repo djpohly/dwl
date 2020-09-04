@@ -140,6 +140,7 @@ typedef struct {
 
 	struct wlr_box geo;
 	enum zwlr_layer_shell_v1_layer layer;
+	bool unmapping;
 } LayerSurface;
 
 typedef struct {
@@ -2082,6 +2083,7 @@ toggleview(const Arg *arg)
 void
 unmaplayersurface(LayerSurface *layersurface)
 {
+	layersurface->unmapping = true;
 	if (layersurface->layer_surface->surface ==
 			seat->keyboard_state.focused_surface)
 		focusclient(NULL, selclient(), 1);
@@ -2141,7 +2143,10 @@ xytolayersurface(struct wl_list *layer_surfaces, double x, double y,
 {
 	LayerSurface *layersurface;
 	wl_list_for_each_reverse(layersurface, layer_surfaces, link) {
-		struct wlr_surface *sub = wlr_layer_surface_v1_surface_at(
+		struct wlr_surface *sub;
+		if (layersurface->unmapping)
+			continue;
+		sub = wlr_layer_surface_v1_surface_at(
 				layersurface->layer_surface,
 				x - layersurface->geo.x,
 				y - layersurface->geo.y,
