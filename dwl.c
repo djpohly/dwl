@@ -267,6 +267,8 @@ static void unmapnotify(struct wl_listener *listener, void *data);
 static void unmaplayersurfacenotify(struct wl_listener *listener, void *data);
 static void view(const Arg *arg);
 static Client *xytoclient(double x, double y);
+static struct wlr_surface *xytolayersurface(struct wl_list *layer_surfaces,
+		double x, double y, double *sx, double *sy);
 static Monitor *xytomon(double x, double y);
 static void zoom(const Arg *arg);
 
@@ -1234,8 +1236,16 @@ void
 maplayersurfacenotify(struct wl_listener *listener, void *data)
 {
 	LayerSurface *layersurface = wl_container_of(listener, layersurface, map);
+	double sx = 0.0, sy = 0.0;
+	struct wlr_surface *sub = wlr_layer_surface_v1_surface_at(
+			layersurface->layer_surface,
+			cursor->x - layersurface->geo.x,
+			cursor->y - layersurface->geo.y,
+			&sx, &sy);
 	wlr_surface_send_enter(layersurface->layer_surface->surface, layersurface->layer_surface->output);
-	/* XXX recheck pointer focus */
+	if (sub)
+		wlr_seat_pointer_notify_enter(seat, sub, sx, sy);
+	/* XXX check if the layer surface is below a client */
 }
 
 void
@@ -1306,7 +1316,7 @@ motionnotify(uint32_t time)
 {
 	double sx = 0, sy = 0;
 	struct wlr_surface *surface = NULL;
-	Client *c;
+	Client *c = NULL;
 
 	/* Update selmon (even while dragging a window) */
 	if (sloppyfocus)
@@ -1325,17 +1335,23 @@ motionnotify(uint32_t time)
 		return;
 	}
 
+	if ((surface = xytolayersurface(&selmon->layers[ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY],
+					cursor->x, cursor->y, &sx, &sy)))
+		;
+	else if ((surface = xytolayersurface(&selmon->layers[ZWLR_LAYER_SHELL_V1_LAYER_TOP],
+					cursor->x, cursor->y, &sx, &sy)))
+		;
 #ifdef XWAYLAND
 	/* Find an independent under the pointer and send the event along. */
-	if ((c = xytoindependent(cursor->x, cursor->y))) {
+	else if ((c = xytoindependent(cursor->x, cursor->y))) {
 		surface = wlr_surface_surface_at(c->surface.xwayland->surface,
 				cursor->x - c->surface.xwayland->x - c->bw,
 				cursor->y - c->surface.xwayland->y - c->bw, &sx, &sy);
 
 	/* Otherwise, find the client under the pointer and send the event along. */
-	} else
+	}
 #endif
-	if ((c = xytoclient(cursor->x, cursor->y))) {
+	else if ((c = xytoclient(cursor->x, cursor->y))) {
 #ifdef XWAYLAND
 		if (c->type != XDGShell)
 			surface = wlr_surface_surface_at(c->surface.xwayland->surface,
@@ -1346,6 +1362,13 @@ motionnotify(uint32_t time)
 			surface = wlr_xdg_surface_surface_at(c->surface.xdg,
 					cursor->x - c->geom.x - c->bw,
 					cursor->y - c->geom.y - c->bw, &sx, &sy);
+	}
+	else if ((surface = xytolayersurface(&selmon->layers[ZWLR_LAYER_SHELL_V1_LAYER_BOTTOM],
+					cursor->x, cursor->y, &sx, &sy)))
+		;
+	else if ((surface = xytolayersurface(&selmon->layers[ZWLR_LAYER_SHELL_V1_LAYER_BACKGROUND],
+					cursor->x, cursor->y, &sx, &sy))) { // gcc complains without these braces
+		;
 	}
 	/* If there's no client surface under the cursor, set the cursor image to a
 	 * default. This is what makes the cursor image appear when you move it
@@ -1423,6 +1446,9 @@ pointerfocus(Client *c, struct wlr_surface *surface, double sx, double sy,
 	/* Otherwise, let the client know that the mouse cursor has entered one
 	 * of its surfaces, and make keyboard focus follow if desired. */
 	wlr_seat_pointer_notify_enter(seat, surface, sx, sy);
+
+	if (!c)
+		return;
 
 #if XWAYLAND
 	if (c->type == X11Unmanaged)
@@ -2123,6 +2149,24 @@ xytoclient(double x, double y)
 	wl_list_for_each(c, &stack, slink)
 		if (VISIBLEON(c, c->mon) && wlr_box_contains_point(&c->geom, x, y))
 			return c;
+	return NULL;
+}
+
+struct wlr_surface *
+xytolayersurface(struct wl_list *layer_surfaces, double x, double y,
+		double *sx, double *sy)
+{
+	LayerSurface *layersurface;
+	wl_list_for_each_reverse(layersurface, layer_surfaces, link) {
+		struct wlr_surface *sub = wlr_layer_surface_v1_surface_at(
+				layersurface->layer_surface,
+				x - layersurface->geo.x,
+				y - layersurface->geo.y,
+				sx, sy);
+		if (sub)
+			return sub;
+
+	}
 	return NULL;
 }
 
