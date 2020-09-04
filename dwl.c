@@ -672,7 +672,7 @@ destroyxdeco(struct wl_listener *listener, void *data)
 void
 fullscreenotify(struct wl_listener *listener, void *data) {
 	Client *c = wl_container_of(listener, c, fullscreen);
-	wlr_xdg_toplevel_set_fullscreen(c->surface.xdg, true);
+	wlr_xdg_toplevel_set_fullscreen(c->surface.xdg, !c->surface.xdg->toplevel->current.fullscreen);
 }
 
 Monitor *
