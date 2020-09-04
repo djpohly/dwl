@@ -345,7 +345,6 @@ static struct wl_listener request_set_sel = {.notify = setsel};
 static void activatex11(struct wl_listener *listener, void *data);
 static void configurex11(struct wl_listener *listener, void *data);
 static void createnotifyx11(struct wl_listener *listener, void *data);
-static void fullscreenotifyx11(struct wl_listener *listener, void *data);
 static Atom getatom(xcb_connection_t *xc, const char *name);
 static void renderindependents(struct wlr_output *output, struct timespec *now);
 static void updatewindowtype(Client *c);
@@ -920,6 +919,7 @@ createnotify(struct wl_listener *listener, void *data)
 
 	c->fullscreen.notify = fullscreenotify;
 	wl_signal_add(&xdg_surface->toplevel->events.request_fullscreen, &c->fullscreen);
+	c->isfullscreen = false;
 }
 
 void
@@ -1052,18 +1052,24 @@ destroyxdeco(struct wl_listener *listener, void *data)
 void
 fullscreenotify(struct wl_listener *listener, void *data) {
 	Client *c = wl_container_of(listener, c, fullscreen);
-	wlr_xdg_toplevel_set_fullscreen(
-			c->surface.xdg, !c->surface.xdg->toplevel->current.fullscreen);
-	c->bw = (int)c->surface.xdg->toplevel->current.fullscreen * borderpx;
+	c->isfullscreen = !c->isfullscreen;
 
-	if (c->surface.xdg->toplevel->current.fullscreen) { /* fullscreen off */
-		resize(c, c->prevx, c->prevy, c->prevwidth, c->prevheight, 0);
-	} else { /* fullscreen on */
+#ifdef XWAYLAND
+	if (c->type == X11Managed)
+		wlr_xwayland_surface_set_fullscreen(c->surface.xwayland, c->isfullscreen);
+	else
+#endif
+		wlr_xdg_toplevel_set_fullscreen(c->surface.xdg, c->isfullscreen);
+
+	c->bw = ((int)(!c->isfullscreen)) * borderpx;
+	if (c->isfullscreen) {
 		c->prevx = c->geom.x;
 		c->prevy = c->geom.y;
 		c->prevheight = c->geom.height;
 		c->prevwidth = c->geom.width;
 		resize(c, c->mon->w.x, c->mon->w.y, c->mon->w.width, c->mon->w.height, 0);
+	} else {
+		resize(c, c->prevx, c->prevy, c->prevwidth, c->prevheight, 0);
 	}
 }
 
@@ -2458,33 +2464,9 @@ createnotifyx11(struct wl_listener *listener, void *data)
 	c->destroy.notify = destroynotify;
 	wl_signal_add(&xwayland_surface->events.destroy, &c->destroy);
 
-	c->fullscreen.notify = fullscreenotifyx11;
+	c->fullscreen.notify = fullscreenotify;
 	wl_signal_add(&xwayland_surface->events.request_fullscreen, &c->fullscreen);
 	c->isfullscreen = false;
-}
-
-void
-fullscreenotifyx11(struct wl_listener *listener, void *data) {
-	FILE *xway = fopen("/tmp/dwl/xway", "a");
-    Client *c;
-	c = wl_container_of(listener, c, fullscreen);
-	c->isfullscreen = !c->isfullscreen;
-	wlr_xwayland_surface_set_fullscreen(
-			c->surface.xwayland, c->isfullscreen);
-	c->bw = ((int)(!c->isfullscreen)) * borderpx;
-
-	fprintf(xway, "fullscreen: %d\n", c->surface.xwayland->fullscreen);
-	fclose(xway);
-
-	if (c->isfullscreen) { /* fullscreen off */
-		c->prevx = c->geom.x;
-		c->prevy = c->geom.y;
-		c->prevheight = c->geom.height;
-		c->prevwidth = c->geom.width;
-		resize(c, c->mon->w.x, c->mon->w.y, c->mon->w.width, c->mon->w.height, 0);
-	} else { /* fullscreen on */
-		resize(c, c->prevx, c->prevy, c->prevwidth, c->prevheight, 1);
-	}
 }
 
 Atom
