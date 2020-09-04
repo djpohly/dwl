@@ -256,6 +256,7 @@ static void setmfact(const Arg *arg);
 static void setmon(Client *c, Monitor *m, unsigned int newtags);
 static void setup(void);
 static void sigchld(int unused);
+static bool shouldfocusclients();
 static void spawn(const Arg *arg);
 static void tag(const Arg *arg);
 static void tagmon(const Arg *arg);
@@ -1037,8 +1038,9 @@ focusclient(Client *old, Client *c, int lift)
 	}
 
 	/* Have a client, so focus its top-level wlr_surface */
-	wlr_seat_keyboard_notify_enter(seat, WLR_SURFACE(c),
-			kb->keycodes, kb->num_keycodes, &kb->modifiers);
+	if (shouldfocusclients(c->mon))
+		wlr_seat_keyboard_notify_enter(seat, WLR_SURFACE(c),
+				kb->keycodes, kb->num_keycodes, &kb->modifiers);
 
 	/* Put the new client atop the focus stack and select its monitor */
 	wl_list_remove(&c->flink);
@@ -1977,6 +1979,22 @@ sigchld(int unused)
 		EBARF("can't install SIGCHLD handler");
 	while (0 < waitpid(-1, NULL, WNOHANG))
 		;
+}
+
+bool
+shouldfocusclients(Monitor *m)
+{
+	LayerSurface *layersurface;
+	uint32_t layers_above_shell[] = {
+		ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY,
+		ZWLR_LAYER_SHELL_V1_LAYER_TOP,
+	};
+	for (unsigned int i = 0; i < LENGTH(layers_above_shell); ++i)
+		wl_list_for_each(layersurface, &m->layers[layers_above_shell[i]], link)
+			if (layersurface->layer_surface->current.keyboard_interactive &&
+					!layersurface->unmapping)
+				return false;
+	return true;
 }
 
 void
