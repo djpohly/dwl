@@ -600,13 +600,6 @@ arrangelayers(Monitor *m)
 	if (topmost)
 		wlr_seat_keyboard_notify_enter(seat, topmost->layer_surface->surface,
 				kb->keycodes, kb->num_keycodes, &kb->modifiers);
-	else if (
-		seat->keyboard_state.focused_surface
-		&& wlr_surface_is_layer_surface(seat->keyboard_state.focused_surface)
-		&& !wlr_layer_surface_v1_from_wlr_surface(seat->keyboard_state.focused_surface)
-			->current.keyboard_interactive
-	)
-		focusclient(NULL, selclient(), 1);
 }
 
 void
