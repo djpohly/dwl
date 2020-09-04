@@ -116,7 +116,7 @@ typedef struct {
 	int prevy;
 	int prevwidth;
 	int prevheight;
-	bool isfullscreen;
+	int isfullscreen;
 } Client;
 
 typedef struct {
@@ -919,7 +919,7 @@ createnotify(struct wl_listener *listener, void *data)
 
 	c->fullscreen.notify = fullscreenotify;
 	wl_signal_add(&xdg_surface->toplevel->events.request_fullscreen, &c->fullscreen);
-	c->isfullscreen = false;
+	c->isfullscreen = 0;
 }
 
 void
@@ -1050,7 +1050,8 @@ destroyxdeco(struct wl_listener *listener, void *data)
 }
 
 void
-fullscreenotify(struct wl_listener *listener, void *data) {
+fullscreenotify(struct wl_listener *listener, void *data)
+{
 	Client *c = wl_container_of(listener, c, fullscreen);
 	c->isfullscreen = !c->isfullscreen;
 
@@ -2466,7 +2467,7 @@ createnotifyx11(struct wl_listener *listener, void *data)
 
 	c->fullscreen.notify = fullscreenotify;
 	wl_signal_add(&xwayland_surface->events.request_fullscreen, &c->fullscreen);
-	c->isfullscreen = false;
+	c->isfullscreen = 0;
 }
 
 Atom
