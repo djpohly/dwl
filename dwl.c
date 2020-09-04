@@ -2092,9 +2092,7 @@ unmaplayersurface(LayerSurface *layersurface)
 {
 	if (layersurface->layer_surface->surface ==
 			seat->keyboard_state.focused_surface)
-		wlr_seat_keyboard_notify_clear_focus(seat);
-
-	/* XXX recheck keyboard focus */
+		focusclient(NULL, selclient(), 1);
 	motionnotify(0); // XXX why doesn't this work?
 }
 
