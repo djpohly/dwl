@@ -102,6 +102,7 @@ typedef struct {
 	struct wl_listener map;
 	struct wl_listener unmap;
 	struct wl_listener destroy;
+	struct wl_listener fullscreen;
 	struct wlr_box geom;  /* layout-relative, includes border */
 	Monitor *mon;
 #ifdef XWAYLAND
@@ -222,6 +223,7 @@ static void cursorframe(struct wl_listener *listener, void *data);
 static void destroylayersurfacenotify(struct wl_listener *listener, void *data);
 static void destroynotify(struct wl_listener *listener, void *data);
 static void destroyxdeco(struct wl_listener *listener, void *data);
+static void fullscreenotify(struct wl_listener *listener, void *data);
 static Monitor *dirtomon(int dir);
 static void focusclient(Client *c, int lift);
 static void focusmon(const Arg *arg);
@@ -909,6 +911,9 @@ createnotify(struct wl_listener *listener, void *data)
 	wl_signal_add(&xdg_surface->events.unmap, &c->unmap);
 	c->destroy.notify = destroynotify;
 	wl_signal_add(&xdg_surface->events.destroy, &c->destroy);
+
+	wl_signal_add(&xdg_surface->toplevel->events.request_fullscreen, &c->fullscreen);
+	c->fullscreen.notify = fullscreenotify;
 }
 
 void
@@ -1035,6 +1040,12 @@ destroyxdeco(struct wl_listener *listener, void *data)
 	wl_list_remove(&d->destroy.link);
 	wl_list_remove(&d->request_mode.link);
 	free(d);
+}
+
+void
+fullscreenotify(struct wl_listener *listener, void *data) {
+	Client *c = wl_container_of(listener, c, fullscreen);
+	wlr_xdg_toplevel_set_fullscreen(c->surface.xdg, true);
 }
 
 Monitor *
