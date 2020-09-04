@@ -1355,10 +1355,10 @@ motionnotify(uint32_t time)
 	else if ((surface = xytolayersurface(&selmon->layers[ZWLR_LAYER_SHELL_V1_LAYER_BOTTOM],
 					cursor->x, cursor->y, &sx, &sy)))
 		;
-	else if ((surface = xytolayersurface(&selmon->layers[ZWLR_LAYER_SHELL_V1_LAYER_BACKGROUND],
-					cursor->x, cursor->y, &sx, &sy))) { // gcc complains without these braces
-		;
-	}
+	else
+		surface = xytolayersurface(&selmon->layers[ZWLR_LAYER_SHELL_V1_LAYER_BACKGROUND],
+					cursor->x, cursor->y, &sx, &sy);
+
 	/* If there's no client surface under the cursor, set the cursor image to a
 	 * default. This is what makes the cursor image appear when you move it
 	 * off of a client or over its border. */
