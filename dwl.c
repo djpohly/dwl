@@ -263,8 +263,8 @@ static void togglefloating(const Arg *arg);
 static void toggletag(const Arg *arg);
 static void toggleview(const Arg *arg);
 static void unmaplayersurface(LayerSurface *layersurface);
-static void unmapnotify(struct wl_listener *listener, void *data);
 static void unmaplayersurfacenotify(struct wl_listener *listener, void *data);
+static void unmapnotify(struct wl_listener *listener, void *data);
 static void view(const Arg *arg);
 static Client *xytoclient(double x, double y);
 static struct wlr_surface *xytolayersurface(struct wl_list *layer_surfaces,
@@ -2099,6 +2099,13 @@ unmaplayersurface(LayerSurface *layersurface)
 }
 
 void
+unmaplayersurfacenotify(struct wl_listener *listener, void *data)
+{
+	LayerSurface *layersurface = wl_container_of(listener, layersurface, unmap);
+	unmaplayersurface(layersurface);
+}
+
+void
 unmapnotify(struct wl_listener *listener, void *data)
 {
 	/* Called when the surface is unmapped, and should no longer be shown. */
@@ -2111,13 +2118,6 @@ unmapnotify(struct wl_listener *listener, void *data)
 	setmon(c, NULL, 0);
 	wl_list_remove(&c->flink);
 	wl_list_remove(&c->slink);
-}
-
-void
-unmaplayersurfacenotify(struct wl_listener *listener, void *data)
-{
-	LayerSurface *layersurface = wl_container_of(listener, layersurface, unmap);
-	unmaplayersurface(layersurface);
 }
 
 void
