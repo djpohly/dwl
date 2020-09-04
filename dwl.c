@@ -2085,7 +2085,7 @@ unmaplayersurface(LayerSurface *layersurface)
 	if (layersurface->layer_surface->surface ==
 			seat->keyboard_state.focused_surface)
 		focusclient(NULL, selclient(), 1);
-	motionnotify(0); // XXX why doesn't this work?
+	motionnotify(0);
 }
 
 void
