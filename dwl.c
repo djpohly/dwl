@@ -1236,16 +1236,8 @@ void
 maplayersurfacenotify(struct wl_listener *listener, void *data)
 {
 	LayerSurface *layersurface = wl_container_of(listener, layersurface, map);
-	double sx = 0.0, sy = 0.0;
-	struct wlr_surface *sub = wlr_layer_surface_v1_surface_at(
-			layersurface->layer_surface,
-			cursor->x - layersurface->geo.x,
-			cursor->y - layersurface->geo.y,
-			&sx, &sy);
 	wlr_surface_send_enter(layersurface->layer_surface->surface, layersurface->layer_surface->output);
-	if (sub)
-		wlr_seat_pointer_notify_enter(seat, sub, sx, sy);
-	/* XXX check if the layer surface is below a client */
+	motionnotify(0);
 }
 
 void
@@ -1317,6 +1309,11 @@ motionnotify(uint32_t time)
 	double sx = 0, sy = 0;
 	struct wlr_surface *surface = NULL;
 	Client *c = NULL;
+	struct timespec now;
+	if (!time) {
+		clock_gettime(CLOCK_MONOTONIC, &now);
+		time = now.tv_sec * 1000 + now.tv_nsec / 1000000;
+	}
 
 	/* Update selmon (even while dragging a window) */
 	if (sloppyfocus)
@@ -2102,7 +2099,8 @@ unmaplayersurface(LayerSurface *layersurface)
 	)
 		wlr_seat_keyboard_notify_clear_focus(seat);
 
-	/* XXX recheck keyboard and pointer focus */
+	/* XXX recheck keyboard focus */
+	motionnotify(0); // XXX why doesn't this work?
 }
 
 void
