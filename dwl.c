@@ -198,11 +198,11 @@ static void createxdeco(struct wl_listener *listener, void *data);
 static void cursorframe(struct wl_listener *listener, void *data);
 static void destroynotify(struct wl_listener *listener, void *data);
 static void destroyxdeco(struct wl_listener *listener, void *data);
-static void fullscreenotify(struct wl_listener *listener, void *data);
 static Monitor *dirtomon(int dir);
 static void focusclient(Client *old, Client *c, int lift);
 static void focusmon(const Arg *arg);
 static void focusstack(const Arg *arg);
+static void fullscreenotify(struct wl_listener *listener, void *data);
 static Client *focustop(Monitor *m);
 static void getxdecomode(struct wl_listener *listener, void *data);
 static void incnmaster(const Arg *arg);
@@ -217,6 +217,7 @@ static void motionabsolute(struct wl_listener *listener, void *data);
 static void motionnotify(uint32_t time);
 static void motionrelative(struct wl_listener *listener, void *data);
 static void moveresize(const Arg *arg);
+static void quitfullscreen(Client *c);
 static void pointerfocus(Client *c, struct wlr_surface *surface,
 		double sx, double sy, uint32_t time);
 static void quit(const Arg *arg);
@@ -577,6 +578,24 @@ createmon(struct wl_listener *listener, void *data)
 }
 
 void
+quitfullscreen(Client *c)
+{
+	wl_list_for_each(c, &clients, link) {
+		if (c->isfullscreen && VISIBLEON(c, c->mon)) {
+#ifdef XWAYLAND
+			if (c->type == X11Managed)
+				wlr_xwayland_surface_set_fullscreen(c->surface.xwayland, false);
+			else
+#endif
+				wlr_xdg_toplevel_set_fullscreen(c->surface.xdg, false);
+			c->bw = borderpx;
+			resize(c, c->prevx, c->prevy, c->prevwidth, c->prevheight, 0);
+			c->isfullscreen = 0;
+		}
+	}
+}
+
+void
 createnotify(struct wl_listener *listener, void *data)
 {
 	/* This event is raised when wlr_xdg_shell receives a new xdg surface from a
@@ -591,6 +610,7 @@ createnotify(struct wl_listener *listener, void *data)
 	c = xdg_surface->data = calloc(1, sizeof(*c));
 	c->surface.xdg = xdg_surface;
 	c->bw = borderpx;
+	quitfullscreen(c);
 
 	/* Tell the client not to try anything fancy */
 	wlr_xdg_toplevel_set_tiled(c->surface.xdg, WLR_EDGE_TOP |
@@ -634,7 +654,6 @@ createxdeco(struct wl_listener *listener, void *data)
 
 	getxdecomode(&d->request_mode, wlr_deco);
 }
-
 
 void
 cursorframe(struct wl_listener *listener, void *data)
@@ -1846,6 +1865,7 @@ createnotifyx11(struct wl_listener *listener, void *data)
 	c->surface.xwayland = xwayland_surface;
 	c->type = xwayland_surface->override_redirect ? X11Unmanaged : X11Managed;
 	c->bw = borderpx;
+	quitfullscreen(c);
 
 	/* Listen to the various events it can emit */
 	c->map.notify = maprequest;
