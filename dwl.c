@@ -606,8 +606,7 @@ arrangelayers(Monitor *m)
 		&& !wlr_layer_surface_v1_from_wlr_surface(seat->keyboard_state.focused_surface)
 			->current.keyboard_interactive
 	)
-		wlr_seat_keyboard_notify_clear_focus(seat);
-	/* XXX recheck keyboard focus */
+		focusclient(NULL, selclient(), 1);
 }
 
 void
