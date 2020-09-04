@@ -106,6 +106,10 @@ typedef struct {
 	unsigned int tags;
 	int isfloating;
 	uint32_t resize; /* configure serial of a pending resize */
+	int prevx;
+	int prevy;
+	int prevwidth;
+	int prevheight;
 } Client;
 
 typedef struct {
@@ -675,6 +679,16 @@ fullscreenotify(struct wl_listener *listener, void *data) {
 	wlr_xdg_toplevel_set_fullscreen(
 			c->surface.xdg, !c->surface.xdg->toplevel->current.fullscreen);
 	c->bw = (int)c->surface.xdg->toplevel->current.fullscreen * borderpx;
+
+	if (c->surface.xdg->toplevel->current.fullscreen) { /* fullscreen off */
+		resize(c, c->prevx, c->prevy, c->prevwidth, c->prevheight, 0);
+	} else { /* fullscreen on */
+		c->prevx = c->geom.x;
+		c->prevy = c->geom.y;
+		c->prevheight = c->geom.height;
+		c->prevwidth = c->geom.width;
+		resize(c, c->mon->w.x, c->mon->w.y, c->mon->w.width, c->mon->w.height, 0);
+	}
 }
 
 Monitor *
