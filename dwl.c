@@ -409,7 +409,7 @@ applyexclusive(struct wlr_box *usable_area,
 	edges[3].negative_axis = &usable_area->width;
 	edges[3].margin = margin_right;
 
-	for (unsigned int i = 0; i < LENGTH(edges); ++i) {
+	for (size_t i = 0; i < LENGTH(edges); ++i) {
 		if ((anchor == edges[i].singular_anchor || anchor == edges[i].anchor_triplet)
 				&& exclusive + edges[i].margin > 0) {
 			if (edges[i].positive_axis)
@@ -585,7 +585,7 @@ arrangelayers(Monitor *m)
 			&usable_area, false);
 
 	// Find topmost keyboard interactive layer, if such a layer exists
-	for (unsigned int i = 0; i < nlayers; ++i) {
+	for (size_t i = 0; i < nlayers; ++i) {
 		wl_list_for_each_reverse(layersurface,
 				&m->layers[layers_above_shell[i]], link) {
 			if (layersurface->layer_surface->current.keyboard_interactive &&
@@ -820,7 +820,7 @@ createmon(struct wl_listener *listener, void *data)
 	m->m = *wlr_output_layout_get_box(output_layout, m->wlr_output);
 	m->w = m->m;
 
-	for (unsigned int i = 0; i < nlayers; ++i) {
+	for (size_t i = 0; i < nlayers; ++i) {
 		wl_list_init(&m->layers[i]);
 	}
 }
@@ -1982,7 +1982,7 @@ shouldfocusclients(Monitor *m)
 		ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY,
 		ZWLR_LAYER_SHELL_V1_LAYER_TOP,
 	};
-	for (unsigned int i = 0; i < LENGTH(layers_above_shell); ++i)
+	for (size_t i = 0; i < LENGTH(layers_above_shell); ++i)
 		wl_list_for_each(layersurface, &m->layers[layers_above_shell[i]], link)
 			if (layersurface->layer_surface->current.keyboard_interactive &&
 					!layersurface->unmapping)
