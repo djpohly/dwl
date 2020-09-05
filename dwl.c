@@ -556,7 +556,7 @@ arrangelayers(Monitor *m)
 		ZWLR_LAYER_SHELL_V1_LAYER_TOP,
 	};
 	size_t nlayers = LENGTH(layers_above_shell);
-	LayerSurface *layersurface, *topmost = NULL;
+	LayerSurface *layersurface;
 	struct wlr_keyboard *kb = wlr_seat_get_keyboard(seat);
 
 	// Arrange exclusive surfaces from top->bottom
@@ -590,18 +590,12 @@ arrangelayers(Monitor *m)
 				&m->layers[layers_above_shell[i]], link) {
 			if (layersurface->layer_surface->current.keyboard_interactive &&
 					layersurface->layer_surface->mapped) {
-				topmost = layersurface;
-				break;
+				wlr_seat_keyboard_notify_enter(seat, layersurface->layer_surface->surface,
+						kb->keycodes, kb->num_keycodes, &kb->modifiers);
+				return;
 			}
 		}
-		if (topmost) {
-			break;
-		}
 	}
-
-	if (topmost)
-		wlr_seat_keyboard_notify_enter(seat, topmost->layer_surface->surface,
-				kb->keycodes, kb->num_keycodes, &kb->modifiers);
 }
 
 void
