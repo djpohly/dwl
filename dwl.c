@@ -769,7 +769,7 @@ createmon(struct wl_listener *listener, void *data)
 	struct wlr_output *wlr_output = data;
 	Monitor *m;
 	const MonitorRule *r;
-	size_t len;
+	size_t nlayers = LENGTH(m->layers);
 
 	/* The mode is a tuple of (width, height, refresh rate), and each
 	 * monitor supports only a specific set of modes. We just pick the
@@ -820,8 +820,7 @@ createmon(struct wl_listener *listener, void *data)
 	m->m = *wlr_output_layout_get_box(output_layout, m->wlr_output);
 	m->w = m->m;
 
-	len = LENGTH(m->layers);
-	for (unsigned int i = 0; i < len; ++i) {
+	for (unsigned int i = 0; i < nlayers; ++i) {
 		wl_list_init(&m->layers[i]);
 	}
 }
