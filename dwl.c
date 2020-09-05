@@ -232,6 +232,7 @@ static void setcursor(struct wl_listener *listener, void *data);
 static void setpsel(struct wl_listener *listener, void *data);
 static void setsel(struct wl_listener *listener, void *data);
 static void setfloating(Client *c, int floating);
+static void setfullscreen(Client *c, int fullscreen);
 static void setlayout(const Arg *arg);
 static void setmfact(const Arg *arg);
 static void setmon(Client *c, Monitor *m, unsigned int newtags);
@@ -242,6 +243,7 @@ static void tag(const Arg *arg);
 static void tagmon(const Arg *arg);
 static void tile(Monitor *m);
 static void togglefloating(const Arg *arg);
+static void togglefullscreen(const Arg *arg);
 static void toggletag(const Arg *arg);
 static void toggleview(const Arg *arg);
 static void unmapnotify(struct wl_listener *listener, void *data);
@@ -696,10 +698,16 @@ destroyxdeco(struct wl_listener *listener, void *data)
 }
 
 void
-fullscreenotify(struct wl_listener *listener, void *data)
+togglefullscreen(const Arg *arg)
 {
-	Client *c = wl_container_of(listener, c, fullscreen);
-	c->isfullscreen = !c->isfullscreen;
+	Client *sel = selclient();
+	setfullscreen(sel, !sel->isfullscreen);
+}
+
+void
+setfullscreen(Client *c, int fullscreen)
+{
+	c->isfullscreen = fullscreen;
 
 #ifdef XWAYLAND
 	if (c->type == X11Managed)
@@ -718,6 +726,13 @@ fullscreenotify(struct wl_listener *listener, void *data)
 	} else {
 		resize(c, c->prevx, c->prevy, c->prevwidth, c->prevheight, 0);
 	}
+}
+
+void
+fullscreenotify(struct wl_listener *listener, void *data)
+{
+	Client *c = wl_container_of(listener, c, fullscreen);
+	setfullscreen(c, !c->isfullscreen);
 }
 
 Monitor *
