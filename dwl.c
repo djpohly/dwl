@@ -1731,7 +1731,7 @@ renderclients(Monitor *m, struct timespec *now)
 		wlr_output_layout_output_coords(output_layout, m->wlr_output,
 				&ox, &oy);
 
-		if (c->bw == 0)
+		if (c->isfullscreen || borderpx == 0)
 			goto render;
 
 		w = surface->current.width;
@@ -1751,7 +1751,7 @@ renderclients(Monitor *m, struct timespec *now)
 					m->wlr_output->transform_matrix);
 		}
 
- render:
+render:
 		/* This calls our render function for each surface among the
 		 * xdg_surface's toplevel and popups. */
 		rdata.output = m->wlr_output;
