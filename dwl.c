@@ -140,7 +140,6 @@ typedef struct {
 
 	struct wlr_box geo;
 	enum zwlr_layer_shell_v1_layer layer;
-	bool unmapping;
 } LayerSurface;
 
 typedef struct {
@@ -1985,7 +1984,7 @@ shouldfocusclients(Monitor *m)
 	for (size_t i = 0; i < LENGTH(layers_above_shell); ++i)
 		wl_list_for_each(layersurface, &m->layers[layers_above_shell[i]], link)
 			if (layersurface->layer_surface->current.keyboard_interactive &&
-					!layersurface->unmapping)
+					layersurface->layer_surface->mapped)
 				return false;
 	return true;
 }
@@ -2094,7 +2093,7 @@ toggleview(const Arg *arg)
 void
 unmaplayersurface(LayerSurface *layersurface)
 {
-	layersurface->unmapping = true;
+	layersurface->layer_surface->mapped = false;
 	if (layersurface->layer_surface->surface ==
 			seat->keyboard_state.focused_surface)
 		focusclient(NULL, selclient(), 1);
@@ -2155,7 +2154,7 @@ xytolayersurface(struct wl_list *layer_surfaces, double x, double y,
 	LayerSurface *layersurface;
 	wl_list_for_each_reverse(layersurface, layer_surfaces, link) {
 		struct wlr_surface *sub;
-		if (layersurface->unmapping)
+		if (!layersurface->layer_surface->mapped)
 			continue;
 		sub = wlr_layer_surface_v1_surface_at(
 				layersurface->layer_surface,
