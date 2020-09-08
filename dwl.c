@@ -50,6 +50,7 @@
 #define LENGTH(X)               (sizeof X / sizeof X[0])
 #define END(A)                  ((A) + LENGTH(A))
 #define TAGMASK                 ((1 << LENGTH(tags)) - 1)
+#define ROUND(X)                ((X)>=0?(long)((X)+0.5):(long)((X)-0.5))
 #ifdef XWAYLAND
 #define WLR_SURFACE(C)          ((C)->type != XDGShell ? (C)->surface.xwayland->surface : (C)->surface.xdg->surface)
 #else
@@ -1344,10 +1345,10 @@ run(char *startup_cmd)
 void
 scalebox(struct wlr_box *box, float scale)
 {
-	box->x *= scale;
-	box->y *= scale;
-	box->width *= scale;
-	box->height *= scale;
+	box->width =  ROUND((box->x + box->width) * scale) -  ROUND(box->x * scale);
+	box->height = ROUND((box->y + box->height) * scale) - ROUND(box->y * scale);
+	box->x = ROUND(box->x * scale);
+	box->y = ROUND(box->y * scale);
 }
 
 Client *
