@@ -463,6 +463,7 @@ applyrules(Client *c)
 void
 arrange(Monitor *m)
 {
+	m->m = *wlr_output_layout_get_box(output_layout, m->wlr_output);
 	if (m->lt[m->sellt]->arrange)
 		m->lt[m->sellt]->arrange(m);
 	/* XXX recheck pointer focus here... or in resize()? */
@@ -549,7 +550,7 @@ arrangelayer(Monitor *m, struct wl_list *list, struct wlr_box *usable_area, bool
 void
 arrangelayers(Monitor *m)
 {
-	struct wlr_box usable_area = m->m;
+	struct wlr_box usable_area = { 0 };
 	uint32_t layers_above_shell[] = {
 		ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY,
 		ZWLR_LAYER_SHELL_V1_LAYER_TOP,
@@ -557,6 +558,9 @@ arrangelayers(Monitor *m)
 	size_t nlayers = LENGTH(layers_above_shell);
 	LayerSurface *layersurface;
 	struct wlr_keyboard *kb = wlr_seat_get_keyboard(seat);
+
+	wlr_output_effective_resolution(m->wlr_output,
+			&usable_area.width, &usable_area.height);
 
 	// Arrange exclusive surfaces from top->bottom
 	arrangelayer(m, &m->layers[ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY],
