@@ -463,7 +463,6 @@ applyrules(Client *c)
 void
 arrange(Monitor *m)
 {
-	m->m = *wlr_output_layout_get_box(output_layout, m->wlr_output);
 	if (m->lt[m->sellt]->arrange)
 		m->lt[m->sellt]->arrange(m);
 	/* XXX recheck pointer focus here... or in resize()? */
