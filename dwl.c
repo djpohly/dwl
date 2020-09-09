@@ -472,9 +472,7 @@ void
 arrangelayer(Monitor *m, struct wl_list *list, struct wlr_box *usable_area, bool exclusive)
 {
 	LayerSurface *layersurface;
-	struct wlr_box full_area = { 0 };
-	wlr_output_effective_resolution(m->wlr_output,
-			&full_area.width, &full_area.height);
+	struct wlr_box full_area = *wlr_output_layout_get_box(output_layout, m->wlr_output);
 
 	wl_list_for_each(layersurface, list, link) {
 		struct wlr_layer_surface_v1 *wlr_layer_surface = layersurface->layer_surface;
