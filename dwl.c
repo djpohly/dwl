@@ -232,7 +232,7 @@ static Monitor *dirtomon(int dir);
 static void focusclient(Client *c, int lift);
 static void focusmon(const Arg *arg);
 static void focusstack(const Arg *arg);
-static void fullscreenotify(struct wl_listener *listener, void *data);
+static void fullscreennotify(struct wl_listener *listener, void *data);
 static Client *focustop(Monitor *m);
 static void getxdecomode(struct wl_listener *listener, void *data);
 static void incnmaster(const Arg *arg);
@@ -939,7 +939,7 @@ createnotify(struct wl_listener *listener, void *data)
 	c->destroy.notify = destroynotify;
 	wl_signal_add(&xdg_surface->events.destroy, &c->destroy);
 
-	c->fullscreen.notify = fullscreenotify;
+	c->fullscreen.notify = fullscreennotify;
 	wl_signal_add(&xdg_surface->toplevel->events.request_fullscreen, &c->fullscreen);
 	c->isfullscreen = 0;
 }
@@ -1102,7 +1102,7 @@ setfullscreen(Client *c, int fullscreen)
 }
 
 void
-fullscreenotify(struct wl_listener *listener, void *data)
+fullscreennotify(struct wl_listener *listener, void *data)
 {
 	Client *c = wl_container_of(listener, c, fullscreen);
 	setfullscreen(c, !c->isfullscreen);
@@ -2500,7 +2500,7 @@ createnotifyx11(struct wl_listener *listener, void *data)
 	c->destroy.notify = destroynotify;
 	wl_signal_add(&xwayland_surface->events.destroy, &c->destroy);
 
-	c->fullscreen.notify = fullscreenotify;
+	c->fullscreen.notify = fullscreennotify;
 	wl_signal_add(&xwayland_surface->events.request_fullscreen, &c->fullscreen);
 	c->isfullscreen = 0;
 }
