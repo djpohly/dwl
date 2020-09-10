@@ -567,7 +567,7 @@ arrangelayers(Monitor *m)
 			&usable_area, true);
 
 	if (memcmp(&usable_area, &m->w, sizeof(struct wlr_box))) {
-		memcpy(&m->w, &usable_area, sizeof(struct wlr_box));
+		m->w = usable_area;
 		arrange(m);
 	}
 
