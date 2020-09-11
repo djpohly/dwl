@@ -819,9 +819,8 @@ createmon(struct wl_listener *listener, void *data)
 	wlr_output_layout_add_auto(output_layout, wlr_output);
 	sgeom = *wlr_output_layout_get_box(output_layout, NULL);
 
-	for (size_t i = 0; i < nlayers; ++i) {
+	for (size_t i = 0; i < nlayers; ++i)
 		wl_list_init(&m->layers[i]);
-	}
 
 	/* Get effective monitor geometry to use for window area */
 	wl_list_for_each(m, &mons, link) {
