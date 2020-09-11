@@ -266,6 +266,7 @@ static void toggleview(const Arg *arg);
 static void unmaplayersurface(LayerSurface *layersurface);
 static void unmaplayersurfacenotify(struct wl_listener *listener, void *data);
 static void unmapnotify(struct wl_listener *listener, void *data);
+static void updatemons();
 static void view(const Arg *arg);
 static Client *xytoclient(double x, double y);
 static struct wlr_surface *xytolayersurface(struct wl_list *layer_surfaces,
@@ -691,11 +692,7 @@ cleanupmon(struct wl_listener *listener, void *data)
 	wl_list_remove(&m->destroy.link);
 	free(m);
 
-	wl_list_for_each(m, &mons, link) {
-		m->m = m->w = *wlr_output_layout_get_box(output_layout, m->wlr_output);
-		arrangelayers(m);
-		arrange(m);
-	}
+	updatemons();
 }
 
 void
@@ -822,12 +819,8 @@ createmon(struct wl_listener *listener, void *data)
 	for (size_t i = 0; i < nlayers; ++i)
 		wl_list_init(&m->layers[i]);
 
-	/* Get effective monitor geometry to use for window area */
-	wl_list_for_each(m, &mons, link) {
-		m->m = m->w = *wlr_output_layout_get_box(output_layout, m->wlr_output);
-		arrangelayers(m);
-		arrange(m);
-	}
+	/* When adding monitors, the geometries of all monitors must be updated */
+	updatemons();
 }
 
 void
@@ -2126,6 +2119,20 @@ unmapnotify(struct wl_listener *listener, void *data)
 	setmon(c, NULL, 0);
 	wl_list_remove(&c->flink);
 	wl_list_remove(&c->slink);
+}
+
+void
+updatemons()
+{
+	Monitor *m;
+	wl_list_for_each(m, &mons, link) {
+		/* Get the effective monitor geometry to use for surfaces */
+		m->m = m->w = *wlr_output_layout_get_box(output_layout, m->wlr_output);
+		/* Calculate the effective monitor geometry to use for clients */
+		arrangelayers(m);
+		/* Don't move clients to the left output when plugging monitors */
+		arrange(m);
+	}
 }
 
 void
