@@ -472,7 +472,7 @@ void
 arrangelayer(Monitor *m, struct wl_list *list, struct wlr_box *usable_area, bool exclusive)
 {
 	LayerSurface *layersurface;
-	struct wlr_box full_area = *wlr_output_layout_get_box(output_layout, m->wlr_output);
+	struct wlr_box full_area = m->m;
 
 	wl_list_for_each(layersurface, list, link) {
 		struct wlr_layer_surface_v1 *wlr_layer_surface = layersurface->layer_surface;
@@ -547,7 +547,7 @@ arrangelayer(Monitor *m, struct wl_list *list, struct wlr_box *usable_area, bool
 void
 arrangelayers(Monitor *m)
 {
-	struct wlr_box usable_area = *wlr_output_layout_get_box(output_layout, m->wlr_output);
+	struct wlr_box usable_area = m->m;
 	uint32_t layers_above_shell[] = {
 		ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY,
 		ZWLR_LAYER_SHELL_V1_LAYER_TOP,
@@ -690,6 +690,12 @@ cleanupmon(struct wl_listener *listener, void *data)
 
 	wl_list_remove(&m->destroy.link);
 	free(m);
+
+	wl_list_for_each(m, &mons, link) {
+		m->m = m->w = *wlr_output_layout_get_box(output_layout, m->wlr_output);
+		arrangelayers(m);
+		arrange(m);
+	}
 }
 
 void
@@ -813,12 +819,15 @@ createmon(struct wl_listener *listener, void *data)
 	wlr_output_layout_add_auto(output_layout, wlr_output);
 	sgeom = *wlr_output_layout_get_box(output_layout, NULL);
 
-	/* Get effective monitor geometry to use for window area */
-	m->m = *wlr_output_layout_get_box(output_layout, m->wlr_output);
-	m->w = m->m;
-
 	for (size_t i = 0; i < nlayers; ++i) {
 		wl_list_init(&m->layers[i]);
+	}
+
+	/* Get effective monitor geometry to use for window area */
+	wl_list_for_each(m, &mons, link) {
+		m->m = m->w = *wlr_output_layout_get_box(output_layout, m->wlr_output);
+		arrangelayers(m);
+		arrange(m);
 	}
 }
 
