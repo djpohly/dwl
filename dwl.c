@@ -195,7 +195,6 @@ static void applyexclusive(struct wlr_box *usable_area, uint32_t anchor,
 		int32_t margin_bottom, int32_t margin_left);
 static void applyrules(Client *c);
 static void arrange(Monitor *m);
-static void arrangefloat(Monitor *m, int sign);
 static void arrangelayer(Monitor *m, struct wl_list *list,
 		struct wlr_box *usable_area, bool exclusive);
 static void arrangelayers(Monitor *m);
@@ -471,17 +470,6 @@ arrange(Monitor *m)
 }
 
 void
-arrangefloat(Monitor *m, int sign)
-{
-	Client *c;
-	wl_list_for_each(c, &clients, link) {
-		if (c->isfloating)
-			resize(c, c->geom.x + m->w.width * sign, c->geom.y,
-					c->geom.width, c->geom.height, 0);
-	}
-}
-
-void
 arrangelayer(Monitor *m, struct wl_list *list, struct wlr_box *usable_area, bool exclusive)
 {
 	LayerSurface *layersurface;
@@ -699,13 +687,29 @@ void
 cleanupmon(struct wl_listener *listener, void *data)
 {
 	struct wlr_output *wlr_output = data;
-	Monitor *m = wlr_output->data;
+	Monitor *m = wlr_output->data, *newmon;
+	Client *c;
 
 	wl_list_remove(&m->destroy.link);
-	free(m);
+	wl_list_remove(&m->frame.link);
+	wl_list_remove(&m->link);
+	wlr_output_layout_remove(output_layout, m->wlr_output);
 
+	sgeom = *wlr_output_layout_get_box(output_layout, NULL);
 	updatemons();
-	arrangefloat(m, -1);
+
+	wl_list_for_each(newmon, &mons, link) {
+		wl_list_for_each(c, &clients, link) {
+			if (c->isfloating && c->geom.x > m->m.width) {
+				resize(c, c->geom.x - m->w.width, c->geom.y,
+						c->geom.width, c->geom.height, 0);
+			}
+			if (c->mon == m)
+				setmon(c, newmon, 0);
+		}
+		break;
+	}
+	free(m);
 }
 
 void
@@ -836,7 +840,12 @@ createmon(struct wl_listener *listener, void *data)
 	updatemons();
 	wl_list_for_each(m, &mons, link) {
 		/* the first monitor in the list is the most recently added */
-		arrangefloat(m, 1);
+		Client *c;
+		wl_list_for_each(c, &clients, link) {
+			if (c->isfloating)
+				resize(c, c->geom.x + m->w.width, c->geom.y,
+						c->geom.width, c->geom.height, 0);
+		}
 		return;
 	}
 }
