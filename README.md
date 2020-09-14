@@ -49,12 +49,6 @@ dwl can be run as-is, with no arguments. In an existing Wayland or X11 session, 
 
 You can also specify a startup program using the `-s` option.  The argument to this option will be run at startup as a shell command (using `sh -c`) and can serve a similar function to `.xinitrc`: starting a service manager or other startup applications.  Unlike `.xinitrc`, the display server will not shut down when this process terminates.  Instead, as dwl is shutting down, it will send this process a SIGTERM and wait for it to terminate (if it hasn't already).  This makes it ideal not only for initialization but also for execing into a user-level service manager like s6 or `systemd --user`.
 
-More/less verbose output can be requested with flags as well:
-
-* `-q`: quiet (log level WLR_SILENT)
-* `-v`: verbose (log level WLR_INFO)
-* `-d`: debug (log level WLR_DEBUG)
-
 Note: Wayland requires a valid `XDG_RUNTIME_DIR`, which is usually set up by a session manager such as `elogind` or `systemd-logind`.  If your system doesn't do this automatically, you will need to configure it prior to launching `dwl`, e.g.:
 
     export XDG_RUNTIME_DIR=/tmp/xdg-runtime-$(id -u)
