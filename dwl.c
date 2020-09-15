@@ -705,7 +705,7 @@ cleanupmon(struct wl_listener *listener, void *data)
 						c->geom.width, c->geom.height, 0);
 			}
 			if (c->mon == m)
-				setmon(c, newmon, 0);
+				setmon(c, newmon, c->tags);
 		}
 		break;
 	}
