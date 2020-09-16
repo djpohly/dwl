@@ -722,7 +722,7 @@ setfullscreen(Client *c, int fullscreen)
 		c->prevy = c->geom.y;
 		c->prevheight = c->geom.height;
 		c->prevwidth = c->geom.width;
-		resize(c, c->mon->w.x, c->mon->w.y, c->mon->w.width, c->mon->w.height, 0);
+		resize(c, c->mon->m.x, c->mon->m.y, c->mon->m.width, c->mon->m.height, 0);
 	} else {
 		resize(c, c->prevx, c->prevy, c->prevwidth, c->prevheight, 0);
 	}
