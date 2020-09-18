@@ -175,6 +175,7 @@ struct Monitor {
 	unsigned int tagset[2];
 	double mfact;
 	int nmaster;
+	int position;
 };
 
 typedef struct {
@@ -836,8 +837,8 @@ createmon(struct wl_listener *listener, void *data)
 	Monitor *m = wlr_output->data = calloc(1, sizeof(*m));
 	m->wlr_output = wlr_output;
 	m->tagset[0] = m->tagset[1] = 1;
-	const MonitorRule *r;
-	for (r = monrules; r < END(monrules); r++) {
+	m->position = -1;
+	for (const MonitorRule *r = monrules; r < END(monrules); r++) {
 		if (!r->name || strstr(wlr_output->name, r->name)) {
 			m->mfact = r->mfact;
 			m->nmaster = r->nmaster;
@@ -846,6 +847,7 @@ createmon(struct wl_listener *listener, void *data)
 			m->lt[0] = r->lt;
 			m->lt[1] = &layouts[LENGTH(layouts) > 1 && r->lt != &layouts[1]];
 			wlr_output_set_transform(wlr_output, r->rr);
+			m->position = r - monrules;
 			break;
 		}
 	}
@@ -856,7 +858,19 @@ createmon(struct wl_listener *listener, void *data)
 	m->destroy.notify = cleanupmon;
 	wl_signal_add(&wlr_output->events.destroy, &m->destroy);
 
-	wl_list_insert(&mons, &m->link);
+	Monitor *moni, *insertmon = NULL;
+	int x = 0;
+	wl_list_for_each(moni, &mons, link)
+		if (m->position > moni->position)
+			insertmon = moni;
+	if (insertmon) {
+		x = insertmon->w.x + insertmon->w.width;
+		wl_list_insert(&insertmon->link, &m->link);
+		fprintf(stderr, "%s inserted in pos %d\n", m->wlr_output->name, m->position);
+	} else {
+		wl_list_insert(&mons, &m->link);
+		fprintf(stderr, "%s defaulting\n", m->wlr_output->name);
+	}
 
 	wlr_output_enable(wlr_output, true);
 	if (!wlr_output_commit(wlr_output))
@@ -871,7 +885,15 @@ createmon(struct wl_listener *listener, void *data)
 	 * display, which Wayland clients can see to find out information about the
 	 * output (such as DPI, scale factor, manufacturer, etc).
 	 */
-	wlr_output_layout_add_auto(output_layout, wlr_output);
+	wlr_output_layout_add(output_layout, wlr_output, x, 0);
+	wl_list_for_each_reverse(moni, &mons, link) {
+		/* all monitors that on the right of the new one must be moved */
+		if (moni == m)
+			break;
+		wlr_output_layout_move(output_layout, moni->wlr_output, moni->w.x + m->wlr_output->width, 0);
+		fprintf(stderr, "moved %s to %d", moni->wlr_output->name, moni->w.x + m->wlr_output->width);
+	}
+	sgeom = *wlr_output_layout_get_box(output_layout, NULL);
 
 	size_t nlayers = LENGTH(m->layers);
 	for (size_t i = 0; i < nlayers; ++i)

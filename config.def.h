@@ -32,6 +32,9 @@ static const MonitorRule monrules[] = {
 	*/
 	/* defaults */
 	{ NULL,       0.55, 1,      1,    &layouts[0], WL_OUTPUT_TRANSFORM_NORMAL },
+	/* with the outputOder patch, the order in which every monitor is defined
+	 * defines its actual position. Non configured monitor, are always added to
+	 * the left */
 };
 
 /* keyboard */
