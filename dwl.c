@@ -1081,16 +1081,16 @@ void
 setfullscreen(Client *c, int fullscreen)
 {
 	c->isfullscreen = fullscreen;
+	c->bw = (1 - fullscreen) * borderpx;
 
 #ifdef XWAYLAND
 	if (c->type == X11Managed)
-		wlr_xwayland_surface_set_fullscreen(c->surface.xwayland, c->isfullscreen);
+		wlr_xwayland_surface_set_fullscreen(c->surface.xwayland, fullscreen);
 	else
 #endif
-		wlr_xdg_toplevel_set_fullscreen(c->surface.xdg, c->isfullscreen);
+		wlr_xdg_toplevel_set_fullscreen(c->surface.xdg, fullscreen);
 
-	c->bw = ((int)(!c->isfullscreen)) * borderpx;
-	if (c->isfullscreen) {
+	if (fullscreen) {
 		c->prevx = c->geom.x;
 		c->prevy = c->geom.y;
 		c->prevheight = c->geom.height;
