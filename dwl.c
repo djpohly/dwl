@@ -1405,6 +1405,10 @@ monocle(Monitor *m)
 	wl_list_for_each(c, &clients, link) {
 		if (!VISIBLEON(c, m) || c->isfloating)
 			continue;
+		if (c->isfullscreen) {
+			resize(c, c->mon->m.x, c->mon->m.y, c->mon->m.width, c->mon->m.height, 0);
+			return;
+		}
 		resize(c, m->w.x, m->w.y, m->w.width, m->w.height, 0);
 	}
 }
@@ -2254,6 +2258,10 @@ tile(Monitor *m)
 	wl_list_for_each(c, &clients, link) {
 		if (!VISIBLEON(c, m) || c->isfloating)
 			continue;
+		if (c->isfullscreen) {
+			resize(c, c->mon->m.x, c->mon->m.y, c->mon->m.width, c->mon->m.height, 0);
+			return;
+		}
 		if (i < m->nmaster) {
 			h = (m->w.height - my) / (MIN(n, m->nmaster) - i);
 			resize(c, m->w.x, m->w.y + my, mw, h, 0);
