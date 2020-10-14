@@ -251,7 +251,6 @@ static void moveresize(const Arg *arg);
 static void outputmgrapply(struct wl_listener *listener, void *data);
 static void outputmgrapplyortest(struct wlr_output_configuration_v1 *config, bool test);
 static void outputmgrtest(struct wl_listener *listener, void *data);
-static void quitfullscreen(Client *c);
 static void pointerfocus(Client *c, struct wlr_surface *surface,
 		double sx, double sy, uint32_t time);
 static void quit(const Arg *arg);
@@ -891,24 +890,6 @@ createmon(struct wl_listener *listener, void *data)
 }
 
 void
-quitfullscreen(Client *c)
-{
-	wl_list_for_each(c, &clients, link) {
-		if (c->isfullscreen && VISIBLEON(c, c->mon)) {
-#ifdef XWAYLAND
-			if (c->type == X11Managed)
-				wlr_xwayland_surface_set_fullscreen(c->surface.xwayland, false);
-			else
-#endif
-				wlr_xdg_toplevel_set_fullscreen(c->surface.xdg, false);
-			c->bw = borderpx;
-			resize(c, c->prevx, c->prevy, c->prevwidth, c->prevheight, 0);
-			c->isfullscreen = 0;
-		}
-	}
-}
-
-void
 createnotify(struct wl_listener *listener, void *data)
 {
 	/* This event is raised when wlr_xdg_shell receives a new xdg surface from a
@@ -919,11 +900,14 @@ createnotify(struct wl_listener *listener, void *data)
 	if (xdg_surface->role != WLR_XDG_SURFACE_ROLE_TOPLEVEL)
 		return;
 
+	wl_list_for_each(c, &clients, link)
+		if (c->isfullscreen && VISIBLEON(c, c->mon))
+			setfullscreen(c, 0);
+
 	/* Allocate a Client for this surface */
 	c = xdg_surface->data = calloc(1, sizeof(*c));
 	c->surface.xdg = xdg_surface;
 	c->bw = borderpx;
-	quitfullscreen(c);
 
 	/* Tell the client not to try anything fancy */
 	wlr_xdg_toplevel_set_tiled(c->surface.xdg, WLR_EDGE_TOP |
