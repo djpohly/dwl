@@ -588,7 +588,6 @@ createnotify(struct wl_listener *listener, void *data)
 
 	if (xdg_surface->role != WLR_XDG_SURFACE_ROLE_TOPLEVEL)
 		return;
-
 	wl_list_for_each(c, &clients, link)
 		if (c->isfullscreen && VISIBLEON(c, c->mon))
 			setfullscreen(c, 0);
@@ -1242,7 +1241,7 @@ renderclients(Monitor *m, struct timespec *now)
 		wlr_output_layout_output_coords(output_layout, m->wlr_output,
 				&ox, &oy);
 
-		if (c->isfullscreen || borderpx == 0)
+		if (c->isfullscreen)
 			goto render;
 
 		w = surface->current.width;
@@ -1866,13 +1865,15 @@ createnotifyx11(struct wl_listener *listener, void *data)
 {
 	struct wlr_xwayland_surface *xwayland_surface = data;
 	Client *c;
+	wl_list_for_each(c, &clients, link)
+		if (c->isfullscreen && VISIBLEON(c, c->mon))
+			setfullscreen(c, 0);
 
 	/* Allocate a Client for this surface */
 	c = xwayland_surface->data = calloc(1, sizeof(*c));
 	c->surface.xwayland = xwayland_surface;
 	c->type = xwayland_surface->override_redirect ? X11Unmanaged : X11Managed;
 	c->bw = borderpx;
-	quitfullscreen(c);
 
 	/* Listen to the various events it can emit */
 	c->map.notify = maprequest;
