@@ -24,6 +24,7 @@
 #include <wlr/types/wlr_matrix.h>
 #include <wlr/types/wlr_output.h>
 #include <wlr/types/wlr_output_layout.h>
+#include <wlr/types/wlr_output_management_v1.h>
 #include <wlr/types/wlr_pointer.h>
 #include <wlr/types/wlr_primary_selection.h>
 #include <wlr/types/wlr_primary_selection_v1.h>
@@ -235,6 +236,9 @@ static void motionabsolute(struct wl_listener *listener, void *data);
 static void motionnotify(uint32_t time);
 static void motionrelative(struct wl_listener *listener, void *data);
 static void moveresize(const Arg *arg);
+static void outputmgrapply(struct wl_listener *listener, void *data);
+static void outputmgrapplyortest(struct wlr_output_configuration_v1 *config, bool test);
+static void outputmgrtest(struct wl_listener *listener, void *data);
 static void pointerfocus(Client *c, struct wlr_surface *surface,
 		double sx, double sy, uint32_t time);
 static void quit(const Arg *arg);
@@ -288,6 +292,7 @@ static struct wl_list stack;   /* stacking z-order */
 static struct wl_list independents;
 static struct wlr_layer_shell_v1 *layer_shell;
 static struct wlr_xdg_decoration_manager_v1 *xdeco_mgr;
+static struct wlr_output_manager_v1 *output_mgr;
 
 static struct wlr_cursor *cursor;
 static struct wlr_xcursor_manager *cursor_mgr;
@@ -314,6 +319,8 @@ static struct wl_listener new_output = {.notify = createmon};
 static struct wl_listener new_xdeco = {.notify = createxdeco};
 static struct wl_listener new_xdg_surface = {.notify = createnotify};
 static struct wl_listener new_layer_shell_surface = {.notify = createlayersurface};
+static struct wl_listener output_mgr_apply = {.notify = outputmgrapply};
+static struct wl_listener output_mgr_test = {.notify = outputmgrtest};
 static struct wl_listener request_cursor = {.notify = setcursor};
 static struct wl_listener request_set_psel = {.notify = setpsel};
 static struct wl_listener request_set_sel = {.notify = setsel};
@@ -1407,6 +1414,63 @@ moveresize(const Arg *arg)
 }
 
 void
+outputmgrapply(struct wl_listener *listener, void *data)
+{
+	struct wlr_output_configuration_v1 *config = data;
+	outputmgrapplyortest(config, false);
+}
+
+// apply_output_config
+void
+outputmgrapplyortest(struct wlr_output_configuration_v1 *config, bool test)
+{
+	struct wlr_output_configuration_head_v1 *config_head;
+	bool ok = true;
+
+	wl_list_for_each(config_head, &config->heads, link) {
+		struct wlr_output *wlr_output = config_head->state.output;
+
+		wlr_output_enable(wlr_output, config_head->state.enabled);
+
+		if (config_head->state.enabled) {
+			if (config_head->state.mode)
+				wlr_output_set_mode(wlr_output, config_head->state.mode);
+			else
+				wlr_output_set_custom_mode(wlr_output,
+						config_head->state.custom_mode.width,
+						config_head->state.custom_mode.height,
+						config_head->state.custom_mode.refresh);
+
+			wlr_output_layout_move(output_layout, wlr_output,
+					config_head->state.x, config_head->state.y);
+			wlr_output_set_transform(wlr_output, config_head->state.transform);
+			wlr_output_set_scale(wlr_output, config_head->state.scale);
+		}
+
+		if (test) {
+			ok &= wlr_output_test(wlr_output);
+			wlr_output_rollback(wlr_output);
+		} else
+			ok &= wlr_output_commit(wlr_output);
+	}
+	if (ok) {
+		wlr_output_configuration_v1_send_succeeded(config);
+		if (!test)
+			updatemons();
+	}
+	else
+		wlr_output_configuration_v1_send_failed(config);
+	wlr_output_configuration_v1_destroy(config);
+}
+
+void
+outputmgrtest(struct wl_listener *listener, void *data)
+{
+	struct wlr_output_configuration_v1 *config = data;
+	outputmgrapplyortest(config, true);
+}
+
+void
 pointerfocus(Client *c, struct wlr_surface *surface, double sx, double sy,
 		uint32_t time)
 {
@@ -1946,6 +2010,10 @@ setup(void)
 	wl_signal_add(&seat->events.request_set_primary_selection,
 			&request_set_psel);
 
+	output_mgr = wlr_output_manager_v1_create(dpy);
+	wl_signal_add(&output_mgr->events.apply, &output_mgr_apply);
+	wl_signal_add(&output_mgr->events.test, &output_mgr_test);
+
 #ifdef XWAYLAND
 	/*
 	 * Initialise the XWayland X server.
@@ -2124,15 +2192,28 @@ unmapnotify(struct wl_listener *listener, void *data)
 void
 updatemons()
 {
+	struct wlr_output_configuration_v1 *config =
+		wlr_output_configuration_v1_create();
 	Monitor *m;
+
 	wl_list_for_each(m, &mons, link) {
+		struct wlr_output_configuration_head_v1 *config_head =
+			wlr_output_configuration_head_v1_create(config, m->wlr_output);
+
 		/* Get the effective monitor geometry to use for surfaces */
 		m->m = m->w = *wlr_output_layout_get_box(output_layout, m->wlr_output);
 		/* Calculate the effective monitor geometry to use for clients */
 		arrangelayers(m);
 		/* Don't move clients to the left output when plugging monitors */
 		arrange(m);
+
+		config_head->state.enabled = m->wlr_output->enabled;
+		config_head->state.mode = m->wlr_output->current_mode;
+		config_head->state.x = m->m.x;
+		config_head->state.y = m->m.y;
 	}
+
+	wlr_output_manager_v1_set_configuration(output_mgr, config);
 }
 
 void
