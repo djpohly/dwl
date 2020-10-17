@@ -10,6 +10,7 @@
 #include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
+#include <libinput.h>
 #include <wayland-server-core.h>
 #include <wlr/backend.h>
 #include <wlr/render/wlr_renderer.h>
@@ -38,6 +39,7 @@
 #include <wlr/types/wlr_xdg_decoration_v1.h>
 #include <wlr/types/wlr_xdg_output_v1.h>
 #include <wlr/types/wlr_xdg_shell.h>
+#include <wlr/backend/libinput.h>
 #include <wlr/util/log.h>
 #include <xkbcommon/xkbcommon.h>
 #ifdef XWAYLAND
@@ -970,6 +972,10 @@ createlayersurface(struct wl_listener *listener, void *data)
 void
 createpointer(struct wlr_input_device *device)
 {
+	struct libinput_device *libinput_device =  (struct libinput_device*)
+			wlr_libinput_get_device_handle(device);
+	if (tap_to_click && libinput_device_config_tap_get_finger_count(libinput_device))
+		libinput_device_config_tap_set_enabled(libinput_device, LIBINPUT_CONFIG_TAP_ENABLED);
 	/* We don't do anything special with pointers. All of our pointer handling
 	 * is proxied through wlr_cursor. On another compositor, you might take this
 	 * opportunity to do libinput configuration on the device to set
