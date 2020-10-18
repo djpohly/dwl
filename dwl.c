@@ -2149,8 +2149,8 @@ unmapnotify(struct wl_listener *listener, void *data)
 void
 updatemons()
 {
-	sgeom = *wlr_output_layout_get_box(output_layout, NULL);
 	Monitor *m;
+	sgeom = *wlr_output_layout_get_box(output_layout, NULL);
 	wl_list_for_each(m, &mons, link) {
 		/* Get the effective monitor geometry to use for surfaces */
 		m->m = m->w = *wlr_output_layout_get_box(output_layout, m->wlr_output);
