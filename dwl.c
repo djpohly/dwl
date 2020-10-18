@@ -695,7 +695,6 @@ cleanupmon(struct wl_listener *listener, void *data)
 	wl_list_remove(&m->link);
 	wlr_output_layout_remove(output_layout, m->wlr_output);
 
-	sgeom = *wlr_output_layout_get_box(output_layout, NULL);
 	updatemons();
 
 	wl_list_for_each(newmon, &mons, link) {
@@ -831,7 +830,6 @@ createmon(struct wl_listener *listener, void *data)
 	 * output (such as DPI, scale factor, manufacturer, etc).
 	 */
 	wlr_output_layout_add_auto(output_layout, wlr_output);
-	sgeom = *wlr_output_layout_get_box(output_layout, NULL);
 
 	for (size_t i = 0; i < nlayers; ++i)
 		wl_list_init(&m->layers[i]);
@@ -2151,6 +2149,7 @@ unmapnotify(struct wl_listener *listener, void *data)
 void
 updatemons()
 {
+	sgeom = *wlr_output_layout_get_box(output_layout, NULL);
 	Monitor *m;
 	wl_list_for_each(m, &mons, link) {
 		/* Get the effective monitor geometry to use for surfaces */
