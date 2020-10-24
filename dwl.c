@@ -204,6 +204,7 @@ static void chvt(const Arg *arg);
 static void cleanup(void);
 static void cleanupkeyboard(struct wl_listener *listener, void *data);
 static void cleanupmon(struct wl_listener *listener, void *data);
+static void closemon(Monitor *m);
 static void commitlayersurfacenotify(struct wl_listener *listener, void *data);
 static void commitnotify(struct wl_listener *listener, void *data);
 static void createkeyboard(struct wlr_input_device *device);
@@ -687,8 +688,7 @@ void
 cleanupmon(struct wl_listener *listener, void *data)
 {
 	struct wlr_output *wlr_output = data;
-	Monitor *m = wlr_output->data, *newmon;
-	Client *c;
+	Monitor *m = wlr_output->data;
 
 	wl_list_remove(&m->destroy.link);
 	wl_list_remove(&m->frame.link);
@@ -696,6 +696,16 @@ cleanupmon(struct wl_listener *listener, void *data)
 	wlr_output_layout_remove(output_layout, m->wlr_output);
 
 	updatemons();
+	closemon(m);
+	free(m);
+}
+
+void
+closemon(Monitor *m)
+{
+	// move all the clients on a closed monitor to another one
+	Monitor *newmon;
+	Client *c;
 
 	wl_list_for_each(newmon, &mons, link) {
 		wl_list_for_each(c, &clients, link) {
@@ -708,7 +718,6 @@ cleanupmon(struct wl_listener *listener, void *data)
 		}
 		break;
 	}
-	free(m);
 }
 
 void
