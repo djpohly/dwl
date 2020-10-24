@@ -71,7 +71,6 @@ dwl is a work in progress, and it has not yet reached its feature goals in a num
 - Statusbar support (built-in or external)
 - layer-shell
 - Damage tracking
-- Fullscreen/fixed windows (or whatever the Wayland analogues are)
 
 
 ## Acknowledgements
