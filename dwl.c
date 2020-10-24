@@ -694,12 +694,28 @@ void
 cleanupmon(struct wl_listener *listener, void *data)
 {
 	struct wlr_output *wlr_output = data;
-	Monitor *m = wlr_output->data;
+	Monitor *m = wlr_output->data, *newmon;
+	Client *c;
 
 	wl_list_remove(&m->destroy.link);
-	free(m);
+	wl_list_remove(&m->frame.link);
+	wl_list_remove(&m->link);
+	wlr_output_layout_remove(output_layout, m->wlr_output);
 
 	updatemons();
+
+	wl_list_for_each(newmon, &mons, link) {
+		wl_list_for_each(c, &clients, link) {
+			if (c->isfloating && c->geom.x > m->m.width) {
+				resize(c, c->geom.x - m->w.width, c->geom.y,
+						c->geom.width, c->geom.height, 0);
+			}
+			if (c->mon == m)
+				setmon(c, newmon, c->tags);
+		}
+		break;
+	}
+	free(m);
 }
 
 void
@@ -821,13 +837,22 @@ createmon(struct wl_listener *listener, void *data)
 	 * output (such as DPI, scale factor, manufacturer, etc).
 	 */
 	wlr_output_layout_add_auto(output_layout, wlr_output);
-	sgeom = *wlr_output_layout_get_box(output_layout, NULL);
 
 	for (size_t i = 0; i < nlayers; ++i)
 		wl_list_init(&m->layers[i]);
 
 	/* When adding monitors, the geometries of all monitors must be updated */
 	updatemons();
+	wl_list_for_each(m, &mons, link) {
+		/* the first monitor in the list is the most recently added */
+		Client *c;
+		wl_list_for_each(c, &clients, link) {
+			if (c->isfloating)
+				resize(c, c->geom.x + m->w.width, c->geom.y,
+						c->geom.width, c->geom.height, 0);
+		}
+		return;
+	}
 }
 
 void
@@ -2195,7 +2220,7 @@ updatemons()
 	struct wlr_output_configuration_v1 *config =
 		wlr_output_configuration_v1_create();
 	Monitor *m;
-
+	sgeom = *wlr_output_layout_get_box(output_layout, NULL);
 	wl_list_for_each(m, &mons, link) {
 		struct wlr_output_configuration_head_v1 *config_head =
 			wlr_output_configuration_head_v1_create(config, m->wlr_output);
