@@ -1465,6 +1465,15 @@ outputmgrapplyortest(struct wlr_output_configuration_v1 *config, bool test)
 		struct wlr_output *wlr_output = config_head->state.output;
 
 		wlr_output_enable(wlr_output, config_head->state.enabled);
+		if (!config_head->state.enabled) {
+			Monitor *m;
+			wl_list_for_each(m, &mons, link) {
+				if (m->wlr_output == wlr_output) {
+					closemon(m);
+					break;
+				}
+			}
+		}
 
 		if (config_head->state.enabled) {
 			if (config_head->state.mode)
@@ -1491,8 +1500,7 @@ outputmgrapplyortest(struct wlr_output_configuration_v1 *config, bool test)
 		wlr_output_configuration_v1_send_succeeded(config);
 		if (!test)
 			updatemons();
-	}
-	else
+	} else
 		wlr_output_configuration_v1_send_failed(config);
 	wlr_output_configuration_v1_destroy(config);
 }
