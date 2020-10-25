@@ -1466,7 +1466,7 @@ outputmgrapplyortest(struct wlr_output_configuration_v1 *config, bool test)
 		Monitor *m;
 
 		wlr_output_enable(wlr_output, config_head->state.enabled);
-		if (config_head->state.enabled) {
+		if (!wlr_output->enabled) {
 			wl_list_for_each(m, &mons, link) {
 				if (m->wlr_output == wlr_output) {
 					wlr_output_set_mode(m->wlr_output, wlr_output_preferred_mode(m->wlr_output));
