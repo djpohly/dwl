@@ -1087,10 +1087,12 @@ focusclient(Client *old, Client *c, int lift)
 void
 focusmon(const Arg *arg)
 {
-	Client *sel = selclient();
-
-	selmon = dirtomon(arg->i);
-	focusclient(sel, focustop(selmon), 1);
+	Client *sel;
+	do {
+		sel = selclient();
+		selmon = dirtomon(arg->i);
+		focusclient(sel, focustop(selmon), 1);
+	} while (!selmon->wlr_output->enabled);
 }
 
 void
