@@ -1459,13 +1459,13 @@ outputmgrapplyortest(struct wlr_output_configuration_v1 *config, bool test)
 
 	wl_list_for_each(config_head, &config->heads, link) {
 		struct wlr_output *wlr_output = config_head->state.output;
-		Monitor *m;
+		Monitor *m, *newmon;
 
 		wlr_output_enable(wlr_output, config_head->state.enabled);
 		if (!config_head->state.enabled)
 			wl_list_for_each(m, &mons, link)
 				if (m->wlr_output->name == wlr_output->name)
-					closemon(m);
+					closemon(m, wl_container_of(m->link.next, newmon, link));
 
 		if (config_head->state.enabled) {
 			if (config_head->state.mode)
