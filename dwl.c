@@ -709,10 +709,9 @@ closemon(Monitor *m)
 
 	wl_list_for_each(newmon, &mons, link) {
 		wl_list_for_each(c, &clients, link) {
-			if (c->isfloating && c->geom.x > m->m.width) {
+			if (c->isfloating && c->geom.x > m->m.width)
 				resize(c, c->geom.x - m->w.width, c->geom.y,
-						c->geom.width, c->geom.height, 0);
-			}
+					c->geom.width, c->geom.height, 0);
 			if (c->mon == m)
 				setmon(c, newmon, c->tags);
 		}
