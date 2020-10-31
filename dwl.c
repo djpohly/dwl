@@ -696,20 +696,19 @@ cleanupmon(struct wl_listener *listener, void *data)
 {
 	struct wlr_output *wlr_output = data;
 	Monitor *m = wlr_output->data;
+	int nmons = wl_list_length(&mons), i = 0;
 
 	wl_list_remove(&m->destroy.link);
 	wl_list_remove(&m->frame.link);
 	wl_list_remove(&m->link);
 	wlr_output_layout_remove(output_layout, m->wlr_output);
-
 	updatemons();
 
 	do // don't switch to disabled mons
-		selmon = wl_container_of(mons.next, selmon, link);
-	while (!selmon->wlr_output->enabled);
+		selmon = wl_container_of(mons.prev, selmon, link);
+	while (!selmon->wlr_output->enabled && i++ < nmons);
 	focusclient(selclient(), focustop(selmon), 1);
 	closemon(m);
-
 	free(m);
 }
 
