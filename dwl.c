@@ -1463,22 +1463,18 @@ outputmgrapplyortest(struct wlr_output_configuration_v1 *config, bool test)
 
 	wl_list_for_each(config_head, &config->heads, link) {
 		struct wlr_output *wlr_output = config_head->state.output;
-		Monitor *m, *newmon;
+		Monitor *m;
 
+		wlr_output_enable(wlr_output, config_head->state.enabled);
 		if (!config_head->state.enabled) {
 			wl_list_for_each(m, &mons, link) {
 				if (m->wlr_output->name == wlr_output->name) {
-					// make sure that the monitor to clean is focused
-					selmon = m;
-					focusclient(selclient(), focustop(selmon), 1);
-
 					// focus the left monitor (relative to the current focus)
 					focusmon(&ar);
-					closemon(m, wl_container_of(&selmon->link, newmon, link));
+					closemon(m, selmon);
 				}
 			}
 		}
-		wlr_output_enable(wlr_output, config_head->state.enabled);
 
 		if (config_head->state.enabled) {
 			if (config_head->state.mode)
