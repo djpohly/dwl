@@ -704,7 +704,9 @@ cleanupmon(struct wl_listener *listener, void *data)
 
 	updatemons();
 
-	selmon = wl_container_of(mons.next, selmon, link);
+	do // don't switch to disabled mons
+		selmon = wl_container_of(mons.next, selmon, link);
+	while (!selmon->wlr_output->enabled);
 	focusclient(selclient(), focustop(selmon), 1);
 	closemon(m);
 
