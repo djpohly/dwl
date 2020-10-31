@@ -1475,7 +1475,7 @@ outputmgrapplyortest(struct wlr_output_configuration_v1 *config, bool test)
 				if (m->wlr_output->name == wlr_output->name) {
 					// focus the left monitor (relative to the current focus)
 					focusmon(&ar);
-					closemon(m, selmon);
+					closemon(m);
 				}
 			}
 		}
