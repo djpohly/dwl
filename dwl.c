@@ -1092,11 +1092,11 @@ void
 focusmon(const Arg *arg)
 {
 	Client *sel;
-	do {
-		sel = selclient();
+	do
 		selmon = dirtomon(arg->i);
-		focusclient(sel, focustop(selmon), 1);
-	} while (!selmon->wlr_output->enabled);
+	while (!selmon->wlr_output->enabled);
+	sel = selclient();
+	focusclient(sel, focustop(selmon), 1);
 }
 
 void
@@ -1466,19 +1466,8 @@ outputmgrapplyortest(struct wlr_output_configuration_v1 *config, bool test)
 
 	wl_list_for_each(config_head, &config->heads, link) {
 		struct wlr_output *wlr_output = config_head->state.output;
-		Monitor *m;
 
 		wlr_output_enable(wlr_output, config_head->state.enabled);
-		if (!config_head->state.enabled) {
-			wl_list_for_each(m, &mons, link) {
-				if (m->wlr_output->name == wlr_output->name) {
-					// focus the left monitor (relative to the current focus)
-					focusmon(&ar);
-					closemon(m);
-				}
-			}
-		}
-
 		if (config_head->state.enabled) {
 			if (config_head->state.mode)
 				wlr_output_set_mode(wlr_output, config_head->state.mode);
@@ -1492,6 +1481,17 @@ outputmgrapplyortest(struct wlr_output_configuration_v1 *config, bool test)
 					config_head->state.x, config_head->state.y);
 			wlr_output_set_transform(wlr_output, config_head->state.transform);
 			wlr_output_set_scale(wlr_output, config_head->state.scale);
+		} else {
+			Monitor *m;
+			wl_list_for_each(m, &mons, link) {
+				if (m->wlr_output->name == wlr_output->name) {
+					// focus the left monitor (relative to the current focus)
+					m->wlr_output->enabled = !m->wlr_output->enabled;
+					focusmon(&ar);
+					closemon(m);
+					m->wlr_output->enabled = !m->wlr_output->enabled;
+				}
+			}
 		}
 
 		if (test) {
