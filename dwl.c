@@ -706,7 +706,8 @@ closemon(Monitor *m, Monitor *newmon)
 	// move all the clients on a closed monitor to another one
 	Client *c;
 
-	focusclient(selclient(), focustop(dirtomon(-1)), 1);
+	selmon = newmon;
+	focusclient(selclient(), focustop(newmon), 1);
 	wl_list_for_each(c, &clients, link) {
 		if (c->isfloating && c->geom.x > m->m.width)
 			resize(c, c->geom.x - m->w.width, c->geom.y,
