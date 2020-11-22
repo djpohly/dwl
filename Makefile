@@ -53,5 +53,10 @@ dwl: xdg-shell-protocol.o wlr-layer-shell-unstable-v1-protocol.o idle-protocol.o
 clean:
 	rm -f dwl *.o *-protocol.h *-protocol.c
 
+install: dwl
+	mkdir -p $(PREFIX)/bin
+	cp -f dwl $(PREFIX)/bin
+	chmod 755 $(PREFIX)/bin/dwl
+
 .DEFAULT_GOAL=dwl
 .PHONY: clean
