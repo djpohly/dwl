@@ -33,5 +33,10 @@ dwl: xdg-shell-protocol.o
 clean:
 	rm -f dwl *.o xdg-shell-protocol.h xdg-shell-protocol.c
 
+install: dwl
+	mkdir -p $(PREFIX)/bin
+	cp -f dwl $(PREFIX)/bin
+	chmod 755 $(PREFIX)/bin/dwl
+
 .DEFAULT_GOAL=dwl
 .PHONY: clean
