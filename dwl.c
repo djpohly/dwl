@@ -33,6 +33,7 @@
 #include <wlr/types/wlr_screencopy_v1.h>
 #include <wlr/types/wlr_seat.h>
 #include <wlr/types/wlr_viewporter.h>
+#include <wlr/types/wlr_virtual_keyboard_v1.h>
 #include <wlr/types/wlr_xcursor_manager.h>
 #include <wlr/types/wlr_xdg_decoration_v1.h>
 #include <wlr/types/wlr_xdg_output_v1.h>
@@ -275,6 +276,7 @@ static void unmaplayersurfacenotify(struct wl_listener *listener, void *data);
 static void unmapnotify(struct wl_listener *listener, void *data);
 static void updatemons();
 static void view(const Arg *arg);
+static void virtualkeyboard(struct wl_listener *listener, void *data);
 static Client *xytoclient(double x, double y);
 static struct wlr_surface *xytolayersurface(struct wl_list *layer_surfaces,
 		double x, double y, double *sx, double *sy);
@@ -297,6 +299,7 @@ static struct wlr_idle *idle;
 static struct wlr_layer_shell_v1 *layer_shell;
 static struct wlr_xdg_decoration_manager_v1 *xdeco_mgr;
 static struct wlr_output_manager_v1 *output_mgr;
+static struct wlr_virtual_keyboard_manager_v1 *virtual_keyboard_mgr;
 
 static struct wlr_cursor *cursor;
 static struct wlr_xcursor_manager *cursor_mgr;
@@ -319,6 +322,7 @@ static struct wl_listener cursor_frame = {.notify = cursorframe};
 static struct wl_listener cursor_motion = {.notify = motionrelative};
 static struct wl_listener cursor_motion_absolute = {.notify = motionabsolute};
 static struct wl_listener new_input = {.notify = inputdevice};
+static struct wl_listener new_virtual_keyboard = {.notify = virtualkeyboard};
 static struct wl_listener new_output = {.notify = createmon};
 static struct wl_listener new_xdeco = {.notify = createxdeco};
 static struct wl_listener new_xdg_surface = {.notify = createnotify};
@@ -693,6 +697,9 @@ cleanupkeyboard(struct wl_listener *listener, void *data)
 	struct wlr_input_device *device = data;
 	Keyboard *kb = device->data;
 
+	wl_list_remove(&kb->link);
+	wl_list_remove(&kb->modifiers.link);
+	wl_list_remove(&kb->key.link);
 	wl_list_remove(&kb->destroy.link);
 	free(kb);
 }
@@ -2062,6 +2069,9 @@ setup(void)
 	 */
 	wl_list_init(&keyboards);
 	wl_signal_add(&backend->events.new_input, &new_input);
+	virtual_keyboard_mgr = wlr_virtual_keyboard_manager_v1_create(dpy);
+	wl_signal_add(&virtual_keyboard_mgr->events.new_virtual_keyboard,
+			&new_virtual_keyboard);
 	seat = wlr_seat_create(dpy, "seat0");
 	wl_signal_add(&seat->events.request_set_cursor,
 			&request_cursor);
@@ -2285,6 +2295,14 @@ view(const Arg *arg)
 		selmon->tagset[selmon->seltags] = arg->ui & TAGMASK;
 	focusclient(focustop(selmon), 1);
 	arrange(selmon);
+}
+
+void
+virtualkeyboard(struct wl_listener *listener, void *data)
+{
+	struct wlr_virtual_keyboard_v1 *keyboard = data;
+	struct wlr_input_device *device = &keyboard->input_device;
+	createkeyboard(device);
 }
 
 Client *
