@@ -96,6 +96,7 @@ typedef struct {
 	} surface;
 #ifdef XWAYLAND
 	struct wl_listener activate;
+	struct wl_listener configure;
 #endif
 	struct wl_listener commit;
 	struct wl_listener map;
@@ -335,6 +336,7 @@ static struct wl_listener request_set_sel = {.notify = setsel};
 
 #ifdef XWAYLAND
 static void activatex11(struct wl_listener *listener, void *data);
+static void configurex11(struct wl_listener *listener, void *data);
 static void createnotifyx11(struct wl_listener *listener, void *data);
 static Atom getatom(xcb_connection_t *xc, const char *name);
 static void renderindependents(struct wlr_output *output, struct timespec *now);
@@ -2389,6 +2391,15 @@ activatex11(struct wl_listener *listener, void *data)
 }
 
 void
+configurex11(struct wl_listener *listener, void *data)
+{
+	Client *c = wl_container_of(listener, c, configure);
+	struct wlr_xwayland_surface_configure_event *event = data;
+	wlr_xwayland_surface_configure(c->surface.xwayland,
+			event->x, event->y, event->width, event->height);
+}
+
+void
 createnotifyx11(struct wl_listener *listener, void *data)
 {
 	struct wlr_xwayland_surface *xwayland_surface = data;
@@ -2407,6 +2418,8 @@ createnotifyx11(struct wl_listener *listener, void *data)
 	wl_signal_add(&xwayland_surface->events.unmap, &c->unmap);
 	c->activate.notify = activatex11;
 	wl_signal_add(&xwayland_surface->events.request_activate, &c->activate);
+	c->configure.notify = configurex11;
+	wl_signal_add(&xwayland_surface->events.request_configure, &c->configure);
 	c->destroy.notify = destroynotify;
 	wl_signal_add(&xwayland_surface->events.destroy, &c->destroy);
 }
