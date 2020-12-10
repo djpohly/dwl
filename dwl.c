@@ -15,6 +15,7 @@
 #include <wlr/render/wlr_renderer.h>
 #include <wlr/types/wlr_compositor.h>
 #include <wlr/types/wlr_cursor.h>
+#include <wlr/types/wlr_data_control_v1.h>
 #include <wlr/types/wlr_data_device.h>
 #include <wlr/types/wlr_export_dmabuf_v1.h>
 #include <wlr/types/wlr_gamma_control_v1.h>
@@ -1971,6 +1972,7 @@ setup(void)
 	compositor = wlr_compositor_create(dpy, drw);
 	wlr_export_dmabuf_manager_v1_create(dpy);
 	wlr_screencopy_manager_v1_create(dpy);
+	wlr_data_control_manager_v1_create(dpy);
 	wlr_data_device_manager_create(dpy);
 	wlr_gamma_control_manager_v1_create(dpy);
 	wlr_primary_selection_v1_device_manager_create(dpy);
