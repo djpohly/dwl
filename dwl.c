@@ -848,6 +848,7 @@ createmon(struct wl_listener *listener, void *data)
 			break;
 		}
 	}
+	wlr_output_enable_adaptive_sync(wlr_output, true);
 	/* Set up event listeners */
 	m->frame.notify = rendermon;
 	wl_signal_add(&wlr_output->events.frame, &m->frame);
