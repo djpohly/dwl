@@ -1456,7 +1456,6 @@ outputmgrapply(struct wl_listener *listener, void *data)
 	outputmgrapplyortest(config, false);
 }
 
-// apply_output_config
 void
 outputmgrapplyortest(struct wlr_output_configuration_v1 *config, bool test)
 {
@@ -1481,7 +1480,7 @@ outputmgrapplyortest(struct wlr_output_configuration_v1 *config, bool test)
 					config_head->state.x, config_head->state.y);
 			wlr_output_set_transform(wlr_output, config_head->state.transform);
 			wlr_output_set_scale(wlr_output, config_head->state.scale);
-		} else {
+		} else if (wl_list_length(&mons) > 1) {
 			Monitor *m;
 			wl_list_for_each(m, &mons, link) {
 				if (m->wlr_output->name == wlr_output->name) {
