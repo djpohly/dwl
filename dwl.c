@@ -112,10 +112,10 @@ typedef struct {
 	unsigned int tags;
 	int isfloating;
 	uint32_t resize; /* configure serial of a pending resize */
-	int prevx;
-	int prevy;
-	int prevwidth;
-	int prevheight;
+	int oldx;
+	int oldy;
+	int oldwidth;
+	int oldheight;
 	int isfullscreen;
 } Client;
 
@@ -1067,13 +1067,13 @@ setfullscreen(Client *c, int fullscreen)
 
 	// restore previous size instead of arrange to work with floating windows
 	if (fullscreen) {
-		c->prevx = c->geom.x;
-		c->prevy = c->geom.y;
-		c->prevheight = c->geom.height;
-		c->prevwidth = c->geom.width;
+		c->oldx = c->geom.x;
+		c->oldy = c->geom.y;
+		c->oldheight = c->geom.height;
+		c->oldwidth = c->geom.width;
 		resize(c, c->mon->m.x, c->mon->m.y, c->mon->m.width, c->mon->m.height, 0);
 	} else {
-		resize(c, c->prevx, c->prevy, c->prevwidth, c->prevheight, 0);
+		resize(c, c->oldx, c->oldy, c->oldwidth, c->oldheight, 0);
 	}
 }
 
