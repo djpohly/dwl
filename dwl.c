@@ -245,7 +245,7 @@ static void keypress(struct wl_listener *listener, void *data);
 static void keypressmod(struct wl_listener *listener, void *data);
 static void killclient(const Arg *arg);
 static void maplayersurfacenotify(struct wl_listener *listener, void *data);
-static void maprequest(struct wl_listener *listener, void *data);
+static void mapnotify(struct wl_listener *listener, void *data);
 static void monocle(Monitor *m);
 static void motionabsolute(struct wl_listener *listener, void *data);
 static void motionnotify(uint32_t time);
@@ -917,7 +917,7 @@ createnotify(struct wl_listener *listener, void *data)
 	/* Listen to the various events it can emit */
 	c->commit.notify = commitnotify;
 	wl_signal_add(&xdg_surface->surface->events.commit, &c->commit);
-	c->map.notify = maprequest;
+	c->map.notify = mapnotify;
 	wl_signal_add(&xdg_surface->events.map, &c->map);
 	c->unmap.notify = unmapnotify;
 	wl_signal_add(&xdg_surface->events.unmap, &c->unmap);
@@ -1349,7 +1349,7 @@ maplayersurfacenotify(struct wl_listener *listener, void *data)
 }
 
 void
-maprequest(struct wl_listener *listener, void *data)
+mapnotify(struct wl_listener *listener, void *data)
 {
 	/* Called when the surface is mapped, or ready to display on-screen. */
 	Client *c = wl_container_of(listener, c, map);
@@ -2486,7 +2486,7 @@ createnotifyx11(struct wl_listener *listener, void *data)
 	c->bw = borderpx;
 
 	/* Listen to the various events it can emit */
-	c->map.notify = maprequest;
+	c->map.notify = mapnotify;
 	wl_signal_add(&xwayland_surface->events.map, &c->map);
 	c->unmap.notify = unmapnotify;
 	wl_signal_add(&xwayland_surface->events.unmap, &c->unmap);
