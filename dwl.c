@@ -458,7 +458,6 @@ applyrules(Client *c)
 	Monitor *mon = selmon, *m;
 
 	/* rule matching */
-	c->isfloating = 0;
 #ifdef XWAYLAND
 	if (c->type != XDGShell) {
 		updatewindowtype(c);
