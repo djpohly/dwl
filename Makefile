@@ -1,6 +1,6 @@
 include config.mk
 
-CFLAGS += -I. -DWLR_USE_UNSTABLE -std=c99 -Werror=declaration-after-statement
+CFLAGS += -I. -DWLR_USE_UNSTABLE -std=c99
 
 WAYLAND_PROTOCOLS=$(shell pkg-config --variable=pkgdatadir wayland-protocols)
 WAYLAND_SCANNER=$(shell pkg-config --variable=wayland_scanner wayland-scanner)
