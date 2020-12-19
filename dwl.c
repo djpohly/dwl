@@ -278,7 +278,6 @@ static void tag(const Arg *arg);
 static void tagmon(const Arg *arg);
 static void tile(Monitor *m);
 static void togglefloating(const Arg *arg);
-static void togglefullscreen(const Arg *arg);
 static void toggletag(const Arg *arg);
 static void toggleview(const Arg *arg);
 static void unmaplayersurface(LayerSurface *layersurface);
@@ -1051,13 +1050,6 @@ destroyxdeco(struct wl_listener *listener, void *data)
 	wl_list_remove(&d->destroy.link);
 	wl_list_remove(&d->request_mode.link);
 	free(d);
-}
-
-void
-togglefullscreen(const Arg *arg)
-{
-	Client *sel = selclient();
-	setfullscreen(sel, !sel->isfullscreen);
 }
 
 void
