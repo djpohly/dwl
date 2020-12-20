@@ -298,7 +298,7 @@ static void zoom(const Arg *arg);
 static const char broken[] = "broken";
 static struct wl_display *dpy;
 static struct wlr_backend *backend;
-static struct wlr_renderer *drw;
+static struct wlr_renderer *renderer;
 static struct wlr_compositor *compositor;
 
 static struct wlr_xdg_shell *xdg_shell;
@@ -1707,7 +1707,7 @@ render(struct wlr_surface *surface, int sx, int sy, void *data)
 
 	/* This takes our matrix, the texture, and an alpha, and performs the actual
 	 * rendering on the GPU. */
-	wlr_render_texture_with_matrix(drw, texture, matrix, 1);
+	wlr_render_texture_with_matrix(renderer, texture, matrix, 1);
 
 	/* This lets the client know that we've displayed that frame and it can
 	 * prepare another one now if it likes. */
@@ -1744,7 +1744,7 @@ renderclients(Monitor *m, struct timespec *now)
 		const float *color = (c == sel) ? focuscolor : bordercolor;
 		for (int i = 0; i < 4; i++) {
 			scalebox(&borders[i], m->wlr_output->scale);
-			wlr_render_rect(drw, &borders[i], color,
+			wlr_render_rect(renderer, &borders[i], color,
 					m->wlr_output->transform_matrix);
 		}
 
@@ -1808,8 +1808,8 @@ rendermon(struct wl_listener *listener, void *data)
 
 	if (render) {
 		/* Begin the renderer (calls glViewport and some other GL sanity checks) */
-		wlr_renderer_begin(drw, m->wlr_output->width, m->wlr_output->height);
-		wlr_renderer_clear(drw, rootcolor);
+		wlr_renderer_begin(renderer, m->wlr_output->width, m->wlr_output->height);
+		wlr_renderer_clear(renderer, rootcolor);
 
 		renderlayer(&m->layers[ZWLR_LAYER_SHELL_V1_LAYER_BACKGROUND], &now);
 		renderlayer(&m->layers[ZWLR_LAYER_SHELL_V1_LAYER_BOTTOM], &now);
@@ -1830,7 +1830,7 @@ rendermon(struct wl_listener *listener, void *data)
 
 		/* Conclude rendering and swap the buffers, showing the final frame
 		 * on-screen. */
-		wlr_renderer_end(drw);
+		wlr_renderer_end(renderer);
 	}
 
 	wlr_output_commit(m->wlr_output);
@@ -2053,8 +2053,8 @@ setup(void)
 	/* If we don't provide a renderer, autocreate makes a GLES2 renderer for us.
 	 * The renderer is responsible for defining the various pixel formats it
 	 * supports for shared memory, this configures that for clients. */
-	drw = wlr_backend_get_renderer(backend);
-	wlr_renderer_init_wl_display(drw, dpy);
+	renderer = wlr_backend_get_renderer(backend);
+	wlr_renderer_init_wl_display(renderer, dpy);
 
 	/* This creates some hands-off wlroots interfaces. The compositor is
 	 * necessary for clients to allocate surfaces and the data device manager
@@ -2062,7 +2062,7 @@ setup(void)
 	 * to dig your fingers in and play with their behavior if you want. Note that
 	 * the clients cannot set the selection directly without compositor approval,
 	 * see the setsel() function. */
-	compositor = wlr_compositor_create(dpy, drw);
+	compositor = wlr_compositor_create(dpy, renderer);
 	wlr_export_dmabuf_manager_v1_create(dpy);
 	wlr_screencopy_manager_v1_create(dpy);
 	wlr_data_control_manager_v1_create(dpy);
