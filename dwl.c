@@ -1427,11 +1427,14 @@ motionabsolute(struct wl_listener *listener, void *data)
 void
 motionnotify(uint32_t time)
 {
-	wlr_idle_notify_activity(idle, seat);
+	// time is 0 in internal calls meant to restore pointer focus.
+	if (time) {
+		wlr_idle_notify_activity(idle, seat);
 
-	/* Update selmon (even while dragging a window) */
-	if (sloppyfocus)
-		selmon = xytomon(cursor->x, cursor->y);
+		/* Update selmon (even while dragging a window) */
+		if (sloppyfocus)
+			selmon = xytomon(cursor->x, cursor->y);
+	}
 
 	/* If we are currently grabbing the mouse, handle and return */
 	if (cursor_mode == CurMove) {
