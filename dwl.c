@@ -1412,12 +1412,6 @@ motionabsolute(struct wl_listener *listener, void *data)
 void
 motionnotify(uint32_t time)
 {
-	struct timespec now;
-	if (!time) {
-		clock_gettime(CLOCK_MONOTONIC, &now);
-		time = now.tv_sec * 1000 + now.tv_nsec / 1000000;
-	}
-
 	wlr_idle_notify_activity(idle, seat);
 
 	/* Update selmon (even while dragging a window) */
@@ -1608,6 +1602,13 @@ pointerfocus(Client *c, struct wlr_surface *surface, double sx, double sy,
 		return;
 	}
 
+	bool internal_call = !time;
+	if (!time) {
+		struct timespec now;
+		clock_gettime(CLOCK_MONOTONIC, &now);
+		time = now.tv_sec * 1000 + now.tv_nsec / 1000000;
+	}
+
 	/* If surface is already focused, only notify of motion */
 	if (surface == seat->pointer_state.focused_surface) {
 		wlr_seat_pointer_notify_motion(seat, time, sx, sy);
@@ -1626,7 +1627,7 @@ pointerfocus(Client *c, struct wlr_surface *surface, double sx, double sy,
 		return;
 #endif
 
-	if (sloppyfocus)
+	if (sloppyfocus && !internal_call)
 		focusclient(c, false);
 }
 
