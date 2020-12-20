@@ -275,7 +275,6 @@ static void setmfact(const Arg *arg);
 static void setmon(Client *c, Monitor *m, unsigned int newtags);
 static void setup(void);
 static void sigchld(int unused);
-static bool shouldfocusclients();
 static void spawn(const Arg *arg);
 static void tag(const Arg *arg);
 static void tagmon(const Arg *arg);
@@ -1119,9 +1118,15 @@ focusclient(Client *c, bool lift)
 
 	struct wlr_surface *old = seat->keyboard_state.focused_surface;
 
-	/* Nothing else to do? */
 	if (c && WLR_SURFACE(c) == old)
 		return;
+
+	/* Put the new client atop the focus stack and select its monitor */
+	if (c) {
+		wl_list_remove(&c->flink);
+		wl_list_insert(&fstack, &c->flink);
+		selmon = c->mon;
+	}
 
 	/* Deactivate old client if focus is changing */
 	if (old && (!c || WLR_SURFACE(c) != old)) {
@@ -1133,9 +1138,23 @@ focusclient(Client *c, bool lift)
 			wlr_xwayland_surface_activate(
 					wlr_xwayland_surface_from_wlr_surface(old), false);
 #endif
+		/* If an overlay is focused, don't focus or activate the client,
+		 * but only update its position in fstack to render its border with focuscolor
+		 * and focus it after the overlay is closed.
+		 * It's probably pointless to check if old is a layer surface
+		 * since it can't be anything else at this point. */
+		else if (wlr_surface_is_layer_surface(old)) {
+			struct wlr_layer_surface_v1 *wlr_layer_surface =
+				wlr_layer_surface_v1_from_wlr_surface(old);
+
+			if (wlr_layer_surface->mapped && (
+						wlr_layer_surface->current.layer == ZWLR_LAYER_SHELL_V1_LAYER_TOP ||
+						wlr_layer_surface->current.layer == ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY
+						))
+				return;
+		}
 	}
 
-	/* Update wlroots' keyboard focus */
 	if (!c) {
 		/* With no client, all we have left is to clear focus */
 		wlr_seat_keyboard_notify_clear_focus(seat);
@@ -1144,14 +1163,8 @@ focusclient(Client *c, bool lift)
 
 	/* Have a client, so focus its top-level wlr_surface */
 	struct wlr_keyboard *kb = wlr_seat_get_keyboard(seat);
-	if (shouldfocusclients(c->mon))
-		wlr_seat_keyboard_notify_enter(seat, WLR_SURFACE(c),
-				kb->keycodes, kb->num_keycodes, &kb->modifiers);
-
-	/* Put the new client atop the focus stack and select its monitor */
-	wl_list_remove(&c->flink);
-	wl_list_insert(&fstack, &c->flink);
-	selmon = c->mon;
+	wlr_seat_keyboard_notify_enter(seat, WLR_SURFACE(c),
+			kb->keycodes, kb->num_keycodes, &kb->modifiers);
 
 	/* Activate the new client */
 #ifdef XWAYLAND
@@ -2165,22 +2178,6 @@ sigchld(int unused)
 		EBARF("can't install SIGCHLD handler");
 	while (0 < waitpid(-1, NULL, WNOHANG))
 		;
-}
-
-bool
-shouldfocusclients(Monitor *m)
-{
-	LayerSurface *layersurface;
-	uint32_t layers_above_shell[] = {
-		ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY,
-		ZWLR_LAYER_SHELL_V1_LAYER_TOP,
-	};
-	for (size_t i = 0; i < LENGTH(layers_above_shell); ++i)
-		wl_list_for_each(layersurface, &m->layers[layers_above_shell[i]], link)
-			if (layersurface->layer_surface->current.keyboard_interactive &&
-					layersurface->layer_surface->mapped)
-				return false;
-	return true;
 }
 
 void
