@@ -499,7 +499,7 @@ arrange(Monitor *m)
 {
 	if (m->lt[m->sellt]->arrange)
 		m->lt[m->sellt]->arrange(m);
-	/* XXX recheck pointer focus here... or in resize()? */
+	/* TODO recheck pointer focus here... or in resize()? */
 }
 
 void
@@ -671,7 +671,7 @@ buttonpress(struct wl_listener *listener, void *data)
 		break;
 	case WLR_BUTTON_RELEASED:
 		/* If you released any buttons, we exit interactive move/resize mode. */
-		/* XXX should reset to the pointer focus's current setcursor */
+		/* TODO should reset to the pointer focus's current setcursor */
 		if (cursor_mode != CurNormal) {
 			wlr_xcursor_manager_set_cursor_image(cursor_mgr,
 					"left_ptr", cursor);
@@ -1251,13 +1251,13 @@ inputdevice(struct wl_listener *listener, void *data)
 		createpointer(device);
 		break;
 	default:
-		/* XXX handle other input device types */
+		/* TODO handle other input device types */
 		break;
 	}
 	/* We need to let the wlr_seat know what our capabilities are, which is
 	 * communiciated to the client. In dwl we always have a cursor, even if
 	 * there are no pointer devices, so we always include that capability. */
-	/* XXX do we actually require a cursor? */
+	/* TODO do we actually require a cursor? */
 	uint32_t caps = WL_SEAT_CAPABILITY_POINTER;
 	if (!wl_list_empty(&keyboards))
 		caps |= WL_SEAT_CAPABILITY_KEYBOARD;
@@ -1879,7 +1879,7 @@ run(char *startup_cmd)
 	 * cursor position, and set default cursor image */
 	selmon = xytomon(cursor->x, cursor->y);
 
-	/* XXX hack to get cursor to display in its initial location (100, 100)
+	/* TODO hack to get cursor to display in its initial location (100, 100)
 	 * instead of (0, 0) and then jumping.  still may not be fully
 	 * initialized, as the image/coordinates are not transformed for the
 	 * monitor when displayed here */
@@ -1937,7 +1937,7 @@ setcursor(struct wl_listener *listener, void *data)
 	/* This event is raised by the seat when a client provides a cursor image */
 	struct wlr_seat_pointer_request_set_cursor_event *event = data;
 	/* If we're "grabbing" the cursor, don't use the client's image */
-	/* XXX still need to save the provided surface to restore later */
+	/* TODO still need to save the provided surface to restore later */
 	if (cursor_mode != CurNormal)
 		return;
 	/* This can be sent by any client, so we check to make sure this one is
@@ -1966,7 +1966,7 @@ setlayout(const Arg *arg)
 		selmon->sellt ^= 1;
 	if (arg && arg->v)
 		selmon->lt[selmon->sellt] = (Layout *)arg->v;
-	/* XXX change layout symbol? */
+	/* TODO change layout symbol? */
 	arrange(selmon);
 }
 
@@ -1992,7 +1992,7 @@ setmon(Client *c, Monitor *m, unsigned int newtags)
 		return;
 	c->mon = m;
 
-	/* XXX leave/enter is not optimal but works */
+	/* TODO leave/enter is not optimal but works */
 	if (oldmon) {
 		wlr_surface_send_leave(WLR_SURFACE(c), oldmon->wlr_output);
 		arrange(oldmon);
