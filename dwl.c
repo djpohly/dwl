@@ -621,6 +621,8 @@ arrangelayers(Monitor *m)
 				&m->layers[layers_above_shell[i]], link) {
 			if (layersurface->layer_surface->current.keyboard_interactive &&
 					layersurface->layer_surface->mapped) {
+				// Deactivate the focused client.
+				focusclient(NULL, false);
 				wlr_seat_keyboard_notify_enter(seat, layersurface->layer_surface->surface,
 						kb->keycodes, kb->num_keycodes, &kb->modifiers);
 				return;
