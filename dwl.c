@@ -866,20 +866,15 @@ createmon(struct wl_listener *listener, void *data)
 	if (insertmon) {
 		x = insertmon->w.x + insertmon->w.width;
 		wl_list_insert(&insertmon->link, &m->link);
-		fprintf(stderr, "%s inserted in pos %d\n", m->wlr_output->name, m->position);
 	} else {
 		wl_list_insert(&mons, &m->link);
-		fprintf(stderr, "%s defaulting\n", m->wlr_output->name);
 	}
 
 	wlr_output_enable(wlr_output, true);
 	if (!wlr_output_commit(wlr_output))
 		return;
 
-	/* Adds this to the output layout. The add_auto function arranges outputs
-	 * from left-to-right in the order they appear. A more sophisticated
-	 * compositor would let the user configure the arrangement of outputs in the
-	 * layout.
+	/* Adds this to the output layout in the order it was configured in.
 	 *
 	 * The output layout utility automatically adds a wl_output global to the
 	 * display, which Wayland clients can see to find out information about the
@@ -887,11 +882,10 @@ createmon(struct wl_listener *listener, void *data)
 	 */
 	wlr_output_layout_add(output_layout, wlr_output, x, 0);
 	wl_list_for_each_reverse(moni, &mons, link) {
-		/* all monitors that on the right of the new one must be moved */
+		/* All monitors to the right of the new one must be moved */
 		if (moni == m)
 			break;
 		wlr_output_layout_move(output_layout, moni->wlr_output, moni->w.x + m->wlr_output->width, 0);
-		fprintf(stderr, "moved %s to %d", moni->wlr_output->name, moni->w.x + m->wlr_output->width);
 	}
 	sgeom = *wlr_output_layout_get_box(output_layout, NULL);
 
@@ -902,7 +896,7 @@ createmon(struct wl_listener *listener, void *data)
 	/* When adding monitors, the geometries of all monitors must be updated */
 	updatemons();
 	wl_list_for_each(m, &mons, link) {
-		/* the first monitor in the list is the most recently added */
+		/* The first monitor in the list is the most recently added */
 		Client *c;
 		wl_list_for_each(c, &clients, link) {
 			if (c->isfloating)

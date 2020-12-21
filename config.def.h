@@ -24,7 +24,9 @@ static const Layout layouts[] = {
 	{ "[M]",      monocle },
 };
 
-/* monitors */
+/* monitors
+ * The order in which monitors are defined determines their position.
+ * Non-configured monitors are always added to the left. */
 static const MonitorRule monrules[] = {
 	/* name       mfact nmaster scale layout       rotate/reflect */
 	/* example of a HiDPI laptop monitor:
@@ -32,9 +34,6 @@ static const MonitorRule monrules[] = {
 	*/
 	/* defaults */
 	{ NULL,       0.55, 1,      1,    &layouts[0], WL_OUTPUT_TRANSFORM_NORMAL },
-	/* with the outputOder patch, the order in which every monitor is defined
-	 * defines its actual position. Non configured monitor, are always added to
-	 * the left */
 };
 
 /* keyboard */
