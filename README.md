@@ -63,4 +63,5 @@ dwl's IRC channel is #dwl on irc.freenode.net.
 ## Acknowledgements
 
 dwl began by extending the TinyWL example provided (CC0) by the sway/wlroots developers. This was made possible in many cases by looking at how sway accomplished something, then trying to do the same in as suckless a way as possible.
+
 Many thanks to suckless.org and the dwm developers and community for the inspiration, and to Devin J. Pohly for creating dwl.
