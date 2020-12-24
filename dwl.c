@@ -152,6 +152,7 @@ struct Monitor {
 	unsigned int tagset[2];
 	double mfact;
 	int nmaster;
+	Client *fullscreenclient;
 };
 
 typedef struct {
@@ -212,6 +213,7 @@ static void keypress(struct wl_listener *listener, void *data);
 static void keypressmod(struct wl_listener *listener, void *data);
 static void killclient(const Arg *arg);
 static void maprequest(struct wl_listener *listener, void *data);
+static void maximizeclient(Client *c);
 static void monocle(Monitor *m);
 static void motionabsolute(struct wl_listener *listener, void *data);
 static void motionnotify(uint32_t time);
@@ -220,7 +222,6 @@ static void moveresize(const Arg *arg);
 static void pointerfocus(Client *c, struct wlr_surface *surface,
 		double sx, double sy, uint32_t time);
 static void quit(const Arg *arg);
-static void quitallfullscreen();
 static void render(struct wlr_surface *surface, int sx, int sy, void *data);
 static void renderclients(Monitor *m, struct timespec *now);
 static void rendermon(struct wl_listener *listener, void *data);
@@ -380,6 +381,8 @@ arrange(Monitor *m)
 	m->w = m->m;
 	if (m->lt[m->sellt]->arrange)
 		m->lt[m->sellt]->arrange(m);
+	else if (m->fullscreenclient)
+		maximizeclient(m->fullscreenclient);
 	/* XXX recheck pointer focus here... or in resize()? */
 }
 
@@ -589,7 +592,6 @@ createnotify(struct wl_listener *listener, void *data)
 
 	if (xdg_surface->role != WLR_XDG_SURFACE_ROLE_TOPLEVEL)
 		return;
-	quitallfullscreen();
 
 	/* Allocate a Client for this surface */
 	c = xdg_surface->data = calloc(1, sizeof(*c));
@@ -687,17 +689,16 @@ togglefullscreen(const Arg *arg)
 }
 
 void
-quitallfullscreen()
+maximizeclient(Client *c)
 {
-	Client *c;
-	wl_list_for_each(c, &clients, link)
-		if (c->isfullscreen && VISIBLEON(c, selmon))
-			setfullscreen(c, 0);
+	resize(c, c->mon->m.x, c->mon->m.y, c->mon->m.width, c->mon->m.height, 0);
+	/* used for fullscreen clients */
 }
 
 void
 setfullscreen(Client *c, int fullscreen)
 {
+	c->isfullscreen = fullscreen;
 	c->bw = (1 - fullscreen) * borderpx;
 
 #ifdef XWAYLAND
@@ -707,18 +708,20 @@ setfullscreen(Client *c, int fullscreen)
 #endif
 		wlr_xdg_toplevel_set_fullscreen(c->surface.xdg, fullscreen);
 
-	// restore previous size instead of arrange to work with floating windows
 	if (fullscreen) {
-		quitallfullscreen();
 		c->prevx = c->geom.x;
 		c->prevy = c->geom.y;
 		c->prevheight = c->geom.height;
 		c->prevwidth = c->geom.width;
-		resize(c, c->mon->m.x, c->mon->m.y, c->mon->m.width, c->mon->m.height, 0);
+		c->mon->fullscreenclient = c;
+		maximizeclient(c);
 	} else {
+		/* restore previous size instead of arrange for floating windows since
+		 * client positions are set by the user and cannot be recalculated */
 		resize(c, c->prevx, c->prevy, c->prevwidth, c->prevheight, 0);
+		c->mon->fullscreenclient = NULL;
+		arrange(c->mon);
 	}
-	c->isfullscreen = fullscreen;
 }
 
 void
@@ -969,7 +972,7 @@ void
 maprequest(struct wl_listener *listener, void *data)
 {
 	/* Called when the surface is mapped, or ready to display on-screen. */
-	Client *c = wl_container_of(listener, c, map);
+	Client *c = wl_container_of(listener, c, map), *oldfocus = selclient();
 
 #ifdef XWAYLAND
 	if (c->type == X11Unmanaged) {
@@ -1000,6 +1003,14 @@ maprequest(struct wl_listener *listener, void *data)
 
 	/* Set initial monitor, tags, floating status, and focus */
 	applyrules(c);
+
+	if (c->mon->fullscreenclient && c->mon->fullscreenclient == oldfocus
+			&& !c->isfloating && c->mon->lt[c->mon->sellt]->arrange) {
+		maximizeclient(c->mon->fullscreenclient);
+		focusclient(c, c->mon->fullscreenclient, 1);
+		/* give the focus back the fullscreen client on that monitor if exists,
+		 * is focused and the new client isn't floating */
+	}
 }
 
 void
@@ -1010,11 +1021,10 @@ monocle(Monitor *m)
 	wl_list_for_each(c, &clients, link) {
 		if (!VISIBLEON(c, m) || c->isfloating)
 			continue;
-		if (c->isfullscreen) {
-			resize(c, c->mon->m.x, c->mon->m.y, c->mon->m.width, c->mon->m.height, 0);
-			return;
-		}
-		resize(c, m->w.x, m->w.y, m->w.width, m->w.height, 0);
+		if (c->isfullscreen)
+			maximizeclient(c);
+		else
+			resize(c, m->w.x, m->w.y, m->w.width, m->w.height, 0);
 	}
 }
 
@@ -1452,8 +1462,6 @@ setcursor(struct wl_listener *listener, void *data)
 void
 setfloating(Client *c, int floating)
 {
-	if (c->isfloating == floating)
-		return;
 	c->isfloating = floating;
 	arrange(c->mon);
 }
@@ -1723,11 +1731,9 @@ tile(Monitor *m)
 	wl_list_for_each(c, &clients, link) {
 		if (!VISIBLEON(c, m) || c->isfloating)
 			continue;
-		if (c->isfullscreen) {
-			resize(c, c->mon->m.x, c->mon->m.y, c->mon->m.width, c->mon->m.height, 0);
-			return;
-		}
-		if (i < m->nmaster) {
+		if (c->isfullscreen)
+			maximizeclient(c);
+		else if (i < m->nmaster) {
 			h = (m->w.height - my) / (MIN(n, m->nmaster) - i);
 			resize(c, m->w.x, m->w.y + my, mw, h, 0);
 			my += c->geom.height;
@@ -1873,7 +1879,6 @@ createnotifyx11(struct wl_listener *listener, void *data)
 {
 	struct wlr_xwayland_surface *xwayland_surface = data;
 	Client *c;
-	quitallfullscreen();
 
 	/* Allocate a Client for this surface */
 	c = xwayland_surface->data = calloc(1, sizeof(*c));
