@@ -220,6 +220,7 @@ static void moveresize(const Arg *arg);
 static void pointerfocus(Client *c, struct wlr_surface *surface,
 		double sx, double sy, uint32_t time);
 static void quit(const Arg *arg);
+static void quitallfullscreen();
 static void render(struct wlr_surface *surface, int sx, int sy, void *data);
 static void renderclients(Monitor *m, struct timespec *now);
 static void rendermon(struct wl_listener *listener, void *data);
@@ -588,9 +589,7 @@ createnotify(struct wl_listener *listener, void *data)
 
 	if (xdg_surface->role != WLR_XDG_SURFACE_ROLE_TOPLEVEL)
 		return;
-	wl_list_for_each(c, &clients, link)
-		if (c->isfullscreen && VISIBLEON(c, c->mon))
-			setfullscreen(c, 0);
+	quitallfullscreen();
 
 	/* Allocate a Client for this surface */
 	c = xdg_surface->data = calloc(1, sizeof(*c));
@@ -688,9 +687,17 @@ togglefullscreen(const Arg *arg)
 }
 
 void
+quitallfullscreen()
+{
+	Client *c;
+	wl_list_for_each(c, &clients, link)
+		if (c->isfullscreen && VISIBLEON(c, selmon))
+			setfullscreen(c, 0);
+}
+
+void
 setfullscreen(Client *c, int fullscreen)
 {
-	c->isfullscreen = fullscreen;
 	c->bw = (1 - fullscreen) * borderpx;
 
 #ifdef XWAYLAND
@@ -702,6 +709,7 @@ setfullscreen(Client *c, int fullscreen)
 
 	// restore previous size instead of arrange to work with floating windows
 	if (fullscreen) {
+		quitallfullscreen();
 		c->prevx = c->geom.x;
 		c->prevy = c->geom.y;
 		c->prevheight = c->geom.height;
@@ -710,6 +718,7 @@ setfullscreen(Client *c, int fullscreen)
 	} else {
 		resize(c, c->prevx, c->prevy, c->prevwidth, c->prevheight, 0);
 	}
+	c->isfullscreen = fullscreen;
 }
 
 void
@@ -1864,9 +1873,7 @@ createnotifyx11(struct wl_listener *listener, void *data)
 {
 	struct wlr_xwayland_surface *xwayland_surface = data;
 	Client *c;
-	wl_list_for_each(c, &clients, link)
-		if (c->isfullscreen && VISIBLEON(c, c->mon))
-			setfullscreen(c, 0);
+	quitallfullscreen();
 
 	/* Allocate a Client for this surface */
 	c = xwayland_surface->data = calloc(1, sizeof(*c));
