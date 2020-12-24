@@ -41,6 +41,11 @@ static const struct xkb_rule_names xkb_rules = {
 	.options = "ctrl:nocaps",
 	*/
 };
+
+/* Trackpad */
+int tap_to_click = 1;
+int natural_scrolling = 1;
+
 static const int repeat_rate = 25;
 static const int repeat_delay = 600;
 
