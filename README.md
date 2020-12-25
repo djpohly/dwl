@@ -76,5 +76,5 @@ dwl began by extending the TinyWL example provided (CC0) by the sway/wlroots dev
 Many thanks to suckless.org and the dwm developers and community for the inspiration, and to the various contributors to the project, including:
 
 - Alexander Courtis for the XWayland implementation
-- Guido Cella for the layer-shell protocol implementation and for helping to keep the project running
-- Stivvo for output management and fullscreen support
+- Guido Cella for the layer-shell protocol implementation, patch maintenance, and for helping to keep the project running
+- Stivvo for output management and fullscreen support, and patch maintenance
