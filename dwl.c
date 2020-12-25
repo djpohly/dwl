@@ -20,6 +20,7 @@
 #include <wlr/types/wlr_export_dmabuf_v1.h>
 #include <wlr/types/wlr_gamma_control_v1.h>
 #include <wlr/types/wlr_input_device.h>
+#include <wlr/types/wlr_layer_shell_v1.h>
 #include <wlr/types/wlr_keyboard.h>
 #include <wlr/types/wlr_matrix.h>
 #include <wlr/types/wlr_output.h>
@@ -131,6 +132,19 @@ typedef struct {
 } Keyboard;
 
 typedef struct {
+	struct wlr_layer_surface_v1 *layer_surface;
+	struct wl_list link;
+
+	struct wl_listener destroy;
+	struct wl_listener map;
+	struct wl_listener unmap;
+	struct wl_listener surface_commit;
+
+	struct wlr_box geo;
+	enum zwlr_layer_shell_v1_layer layer;
+} LayerSurface;
+
+typedef struct {
 	const char *symbol;
 	void (*arrange)(Monitor *);
 } Layout;
@@ -142,6 +156,7 @@ struct Monitor {
 	struct wl_listener destroy;
 	struct wlr_box m;      /* monitor area, layout-relative */
 	struct wlr_box w;      /* window area, layout-relative */
+	struct wl_list layers[4]; // LayerSurface::link
 	const Layout *lt[2];
 	unsigned int seltags;
 	unsigned int sellt;
@@ -177,21 +192,30 @@ struct render_data {
 
 /* function declarations */
 static void applybounds(Client *c, struct wlr_box *bbox);
+static void applyexclusive(struct wlr_box *usable_area, uint32_t anchor,
+		int32_t exclusive, int32_t margin_top, int32_t margin_right,
+		int32_t margin_bottom, int32_t margin_left);
 static void applyrules(Client *c);
 static void arrange(Monitor *m);
+static void arrangelayer(Monitor *m, struct wl_list *list,
+		struct wlr_box *usable_area, bool exclusive);
+static void arrangelayers(Monitor *m);
 static void axisnotify(struct wl_listener *listener, void *data);
 static void buttonpress(struct wl_listener *listener, void *data);
 static void chvt(const Arg *arg);
 static void cleanup(void);
 static void cleanupkeyboard(struct wl_listener *listener, void *data);
 static void cleanupmon(struct wl_listener *listener, void *data);
+static void commitlayersurfacenotify(struct wl_listener *listener, void *data);
 static void commitnotify(struct wl_listener *listener, void *data);
 static void createkeyboard(struct wlr_input_device *device);
 static void createmon(struct wl_listener *listener, void *data);
 static void createnotify(struct wl_listener *listener, void *data);
+static void createlayersurface(struct wl_listener *listener, void *data);
 static void createpointer(struct wlr_input_device *device);
 static void createxdeco(struct wl_listener *listener, void *data);
 static void cursorframe(struct wl_listener *listener, void *data);
+static void destroylayersurfacenotify(struct wl_listener *listener, void *data);
 static void destroynotify(struct wl_listener *listener, void *data);
 static void destroyxdeco(struct wl_listener *listener, void *data);
 static Monitor *dirtomon(int dir);
@@ -206,6 +230,7 @@ static int keybinding(uint32_t mods, xkb_keysym_t sym);
 static void keypress(struct wl_listener *listener, void *data);
 static void keypressmod(struct wl_listener *listener, void *data);
 static void killclient(const Arg *arg);
+static void maplayersurfacenotify(struct wl_listener *listener, void *data);
 static void maprequest(struct wl_listener *listener, void *data);
 static void monocle(Monitor *m);
 static void motionabsolute(struct wl_listener *listener, void *data);
@@ -217,6 +242,7 @@ static void pointerfocus(Client *c, struct wlr_surface *surface,
 static void quit(const Arg *arg);
 static void render(struct wlr_surface *surface, int sx, int sy, void *data);
 static void renderclients(Monitor *m, struct timespec *now);
+static void renderlayer(struct wl_list *layer_surfaces, struct timespec *now);
 static void rendermon(struct wl_listener *listener, void *data);
 static void resize(Client *c, int x, int y, int w, int h, int interact);
 static void run(char *startup_cmd);
@@ -231,6 +257,7 @@ static void setmfact(const Arg *arg);
 static void setmon(Client *c, Monitor *m, unsigned int newtags);
 static void setup(void);
 static void sigchld(int unused);
+static bool shouldfocusclients();
 static void spawn(const Arg *arg);
 static void tag(const Arg *arg);
 static void tagmon(const Arg *arg);
@@ -238,9 +265,14 @@ static void tile(Monitor *m);
 static void togglefloating(const Arg *arg);
 static void toggletag(const Arg *arg);
 static void toggleview(const Arg *arg);
+static void unmaplayersurface(LayerSurface *layersurface);
+static void unmaplayersurfacenotify(struct wl_listener *listener, void *data);
 static void unmapnotify(struct wl_listener *listener, void *data);
+static void updatemons();
 static void view(const Arg *arg);
 static Client *xytoclient(double x, double y);
+static struct wlr_surface *xytolayersurface(struct wl_list *layer_surfaces,
+		double x, double y, double *sx, double *sy);
 static Monitor *xytomon(double x, double y);
 static void zoom(const Arg *arg);
 
@@ -256,6 +288,7 @@ static struct wl_list clients; /* tiling order */
 static struct wl_list fstack;  /* focus order */
 static struct wl_list stack;   /* stacking z-order */
 static struct wl_list independents;
+static struct wlr_layer_shell_v1 *layer_shell;
 static struct wlr_xdg_decoration_manager_v1 *xdeco_mgr;
 
 static struct wlr_cursor *cursor;
@@ -282,6 +315,7 @@ static struct wl_listener new_input = {.notify = inputdevice};
 static struct wl_listener new_output = {.notify = createmon};
 static struct wl_listener new_xdeco = {.notify = createxdeco};
 static struct wl_listener new_xdg_surface = {.notify = createnotify};
+static struct wl_listener new_layer_shell_surface = {.notify = createlayersurface};
 static struct wl_listener request_cursor = {.notify = setcursor};
 static struct wl_listener request_set_psel = {.notify = setpsel};
 static struct wl_listener request_set_sel = {.notify = setsel};
@@ -322,6 +356,71 @@ applybounds(Client *c, struct wlr_box *bbox)
 		c->geom.x = bbox->x;
 	if (c->geom.y + c->geom.height + 2 * c->bw <= bbox->y)
 		c->geom.y = bbox->y;
+}
+
+void
+applyexclusive(struct wlr_box *usable_area,
+		uint32_t anchor, int32_t exclusive,
+		int32_t margin_top, int32_t margin_right,
+		int32_t margin_bottom, int32_t margin_left) {
+	struct {
+		uint32_t singular_anchor;
+		uint32_t anchor_triplet;
+		int *positive_axis;
+		int *negative_axis;
+		int margin;
+	} edges[4];
+
+	if (exclusive <= 0)
+		return;
+
+	// Top
+	edges[0].singular_anchor = ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP;
+	edges[0].anchor_triplet =
+		ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT |
+		ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT |
+		ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP;
+	edges[0].positive_axis = &usable_area->y;
+	edges[0].negative_axis = &usable_area->height;
+	edges[0].margin = margin_top;
+	// Bottom
+	edges[1].singular_anchor = ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM;
+	edges[1].anchor_triplet =
+		ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT |
+		ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT |
+		ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM;
+	edges[1].positive_axis = NULL;
+	edges[1].negative_axis = &usable_area->height;
+	edges[1].margin = margin_bottom;
+	// Left
+	edges[2].singular_anchor = ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT;
+	edges[2].anchor_triplet =
+		ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT |
+		ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP |
+		ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM;
+	edges[2].positive_axis = &usable_area->x;
+	edges[2].negative_axis = &usable_area->width;
+	edges[2].margin = margin_left;
+	// Right
+	edges[3].singular_anchor = ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT;
+	edges[3].anchor_triplet =
+		ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT |
+		ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP |
+		ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM;
+	edges[3].positive_axis = NULL;
+	edges[3].negative_axis = &usable_area->width;
+	edges[3].margin = margin_right;
+
+	for (size_t i = 0; i < LENGTH(edges); ++i) {
+		if ((anchor == edges[i].singular_anchor || anchor == edges[i].anchor_triplet)
+				&& exclusive + edges[i].margin > 0) {
+			if (edges[i].positive_axis)
+				*edges[i].positive_axis += exclusive + edges[i].margin;
+			if (edges[i].negative_axis)
+				*edges[i].negative_axis -= exclusive + edges[i].margin;
+			break;
+		}
+	}
 }
 
 void
@@ -367,12 +466,136 @@ applyrules(Client *c)
 void
 arrange(Monitor *m)
 {
-	/* Get effective monitor geometry to use for window area */
-	m->m = *wlr_output_layout_get_box(output_layout, m->wlr_output);
-	m->w = m->m;
 	if (m->lt[m->sellt]->arrange)
 		m->lt[m->sellt]->arrange(m);
 	/* XXX recheck pointer focus here... or in resize()? */
+}
+
+void
+arrangelayer(Monitor *m, struct wl_list *list, struct wlr_box *usable_area, bool exclusive)
+{
+	LayerSurface *layersurface;
+	struct wlr_box full_area = m->m;
+
+	wl_list_for_each(layersurface, list, link) {
+		struct wlr_layer_surface_v1 *wlr_layer_surface = layersurface->layer_surface;
+		struct wlr_layer_surface_v1_state *state = &wlr_layer_surface->current;
+		struct wlr_box bounds;
+		struct wlr_box box = {
+			.width = state->desired_width,
+			.height = state->desired_height
+		};
+		const uint32_t both_horiz = ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT
+			| ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT;
+		const uint32_t both_vert = ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP
+			| ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM;
+
+		if (exclusive != (state->exclusive_zone > 0))
+			continue;
+
+		bounds = state->exclusive_zone == -1 ? full_area : *usable_area;
+
+		// Horizontal axis
+		if ((state->anchor & both_horiz) && box.width == 0) {
+			box.x = bounds.x;
+			box.width = bounds.width;
+		} else if ((state->anchor & ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT)) {
+			box.x = bounds.x;
+		} else if ((state->anchor & ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT)) {
+			box.x = bounds.x + (bounds.width - box.width);
+		} else {
+			box.x = bounds.x + ((bounds.width / 2) - (box.width / 2));
+		}
+		// Vertical axis
+		if ((state->anchor & both_vert) && box.height == 0) {
+			box.y = bounds.y;
+			box.height = bounds.height;
+		} else if ((state->anchor & ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP)) {
+			box.y = bounds.y;
+		} else if ((state->anchor & ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM)) {
+			box.y = bounds.y + (bounds.height - box.height);
+		} else {
+			box.y = bounds.y + ((bounds.height / 2) - (box.height / 2));
+		}
+		// Margin
+		if ((state->anchor & both_horiz) == both_horiz) {
+			box.x += state->margin.left;
+			box.width -= state->margin.left + state->margin.right;
+		} else if ((state->anchor & ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT)) {
+			box.x += state->margin.left;
+		} else if ((state->anchor & ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT)) {
+			box.x -= state->margin.right;
+		}
+		if ((state->anchor & both_vert) == both_vert) {
+			box.y += state->margin.top;
+			box.height -= state->margin.top + state->margin.bottom;
+		} else if ((state->anchor & ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP)) {
+			box.y += state->margin.top;
+		} else if ((state->anchor & ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM)) {
+			box.y -= state->margin.bottom;
+		}
+		if (box.width < 0 || box.height < 0) {
+			wlr_layer_surface_v1_close(wlr_layer_surface);
+			continue;
+		}
+		layersurface->geo = box;
+
+		applyexclusive(usable_area, state->anchor, state->exclusive_zone,
+				state->margin.top, state->margin.right,
+				state->margin.bottom, state->margin.left);
+		wlr_layer_surface_v1_configure(wlr_layer_surface, box.width, box.height);
+	}
+}
+
+void
+arrangelayers(Monitor *m)
+{
+	struct wlr_box usable_area = m->m;
+	uint32_t layers_above_shell[] = {
+		ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY,
+		ZWLR_LAYER_SHELL_V1_LAYER_TOP,
+	};
+	size_t nlayers = LENGTH(layers_above_shell);
+	LayerSurface *layersurface;
+	struct wlr_keyboard *kb = wlr_seat_get_keyboard(seat);
+
+	// Arrange exclusive surfaces from top->bottom
+	arrangelayer(m, &m->layers[ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY],
+			&usable_area, true);
+	arrangelayer(m, &m->layers[ZWLR_LAYER_SHELL_V1_LAYER_TOP],
+			&usable_area, true);
+	arrangelayer(m, &m->layers[ZWLR_LAYER_SHELL_V1_LAYER_BOTTOM],
+			&usable_area, true);
+	arrangelayer(m, &m->layers[ZWLR_LAYER_SHELL_V1_LAYER_BACKGROUND],
+			&usable_area, true);
+
+	if (memcmp(&usable_area, &m->w, sizeof(struct wlr_box))) {
+		m->w = usable_area;
+		arrange(m);
+	}
+
+	// Arrange non-exlusive surfaces from top->bottom
+	arrangelayer(m, &m->layers[ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY],
+			&usable_area, false);
+	arrangelayer(m, &m->layers[ZWLR_LAYER_SHELL_V1_LAYER_TOP],
+			&usable_area, false);
+	arrangelayer(m, &m->layers[ZWLR_LAYER_SHELL_V1_LAYER_BOTTOM],
+			&usable_area, false);
+	arrangelayer(m, &m->layers[ZWLR_LAYER_SHELL_V1_LAYER_BACKGROUND],
+			&usable_area, false);
+
+	// Find topmost keyboard interactive layer, if such a layer exists
+	for (size_t i = 0; i < nlayers; ++i) {
+		wl_list_for_each_reverse(layersurface,
+				&m->layers[layers_above_shell[i]], link) {
+			if (layersurface->layer_surface->current.keyboard_interactive &&
+					layersurface->layer_surface->mapped) {
+				wlr_seat_keyboard_notify_enter(seat, layersurface->layer_surface->surface,
+						kb->keycodes, kb->num_keycodes, &kb->modifiers);
+				return;
+			}
+		}
+	}
 }
 
 void
@@ -470,6 +693,30 @@ cleanupmon(struct wl_listener *listener, void *data)
 
 	wl_list_remove(&m->destroy.link);
 	free(m);
+
+	updatemons();
+}
+
+void
+commitlayersurfacenotify(struct wl_listener *listener, void *data)
+{
+	LayerSurface *layersurface = wl_container_of(listener, layersurface, surface_commit);
+	struct wlr_layer_surface_v1 *wlr_layer_surface = layersurface->layer_surface;
+	struct wlr_output *wlr_output = wlr_layer_surface->output;
+	Monitor *m;
+
+	if (!wlr_output)
+		return;
+
+	m = wlr_output->data;
+	arrangelayers(m);
+
+	if (layersurface->layer != wlr_layer_surface->current.layer) {
+		wl_list_remove(&layersurface->link);
+		wl_list_insert(&m->layers[wlr_layer_surface->current.layer],
+			&layersurface->link);
+		layersurface->layer = wlr_layer_surface->current.layer;
+	}
 }
 
 void
@@ -524,6 +771,7 @@ createmon(struct wl_listener *listener, void *data)
 	struct wlr_output *wlr_output = data;
 	Monitor *m;
 	const MonitorRule *r;
+	size_t nlayers = LENGTH(m->layers);
 
 	/* The mode is a tuple of (width, height, refresh rate), and each
 	 * monitor supports only a specific set of modes. We just pick the
@@ -569,6 +817,12 @@ createmon(struct wl_listener *listener, void *data)
 	 */
 	wlr_output_layout_add_auto(output_layout, wlr_output);
 	sgeom = *wlr_output_layout_get_box(output_layout, NULL);
+
+	for (size_t i = 0; i < nlayers; ++i)
+		wl_list_init(&m->layers[i]);
+
+	/* When adding monitors, the geometries of all monitors must be updated */
+	updatemons();
 }
 
 void
@@ -600,6 +854,46 @@ createnotify(struct wl_listener *listener, void *data)
 	wl_signal_add(&xdg_surface->events.unmap, &c->unmap);
 	c->destroy.notify = destroynotify;
 	wl_signal_add(&xdg_surface->events.destroy, &c->destroy);
+}
+
+void
+createlayersurface(struct wl_listener *listener, void *data)
+{
+	struct wlr_layer_surface_v1 *wlr_layer_surface = data;
+	LayerSurface *layersurface;
+	Monitor *m;
+	struct wlr_layer_surface_v1_state old_state;
+
+	if (!wlr_layer_surface->output) {
+		wlr_layer_surface->output = selmon->wlr_output;
+	}
+
+	layersurface = calloc(1, sizeof(LayerSurface));
+
+	layersurface->surface_commit.notify = commitlayersurfacenotify;
+	wl_signal_add(&wlr_layer_surface->surface->events.commit,
+		&layersurface->surface_commit);
+	layersurface->destroy.notify = destroylayersurfacenotify;
+	wl_signal_add(&wlr_layer_surface->events.destroy, &layersurface->destroy);
+	layersurface->map.notify = maplayersurfacenotify;
+	wl_signal_add(&wlr_layer_surface->events.map, &layersurface->map);
+	layersurface->unmap.notify = unmaplayersurfacenotify;
+	wl_signal_add(&wlr_layer_surface->events.unmap, &layersurface->unmap);
+
+	layersurface->layer_surface = wlr_layer_surface;
+	wlr_layer_surface->data = layersurface;
+
+	m = wlr_layer_surface->output->data;
+
+	wl_list_insert(&m->layers[wlr_layer_surface->client_pending.layer],
+			&layersurface->link);
+
+	// Temporarily set the layer's current state to client_pending
+	// so that we can easily arrange it
+	old_state = wlr_layer_surface->current;
+	wlr_layer_surface->current = wlr_layer_surface->client_pending;
+	arrangelayers(m);
+	wlr_layer_surface->current = old_state;
 }
 
 void
@@ -645,6 +939,28 @@ cursorframe(struct wl_listener *listener, void *data)
 	 * same time, in which case a frame event won't be sent in between. */
 	/* Notify the client with pointer focus of the frame event. */
 	wlr_seat_pointer_notify_frame(seat);
+}
+
+void
+destroylayersurfacenotify(struct wl_listener *listener, void *data)
+{
+	LayerSurface *layersurface = wl_container_of(listener, layersurface, destroy);
+	Monitor *m;
+
+	if (layersurface->layer_surface->mapped)
+		unmaplayersurface(layersurface);
+	wl_list_remove(&layersurface->link);
+	wl_list_remove(&layersurface->destroy.link);
+	wl_list_remove(&layersurface->map.link);
+	wl_list_remove(&layersurface->unmap.link);
+	wl_list_remove(&layersurface->surface_commit.link);
+	if (layersurface->layer_surface->output) {
+		m = layersurface->layer_surface->output->data;
+		if (m)
+			arrangelayers(m);
+		layersurface->layer_surface->output = NULL;
+	}
+	free(layersurface);
 }
 
 void
@@ -724,8 +1040,9 @@ focusclient(Client *old, Client *c, int lift)
 	}
 
 	/* Have a client, so focus its top-level wlr_surface */
-	wlr_seat_keyboard_notify_enter(seat, WLR_SURFACE(c),
-			kb->keycodes, kb->num_keycodes, &kb->modifiers);
+	if (shouldfocusclients(c->mon))
+		wlr_seat_keyboard_notify_enter(seat, WLR_SURFACE(c),
+				kb->keycodes, kb->num_keycodes, &kb->modifiers);
 
 	/* Put the new client atop the focus stack and select its monitor */
 	wl_list_remove(&c->flink);
@@ -913,6 +1230,14 @@ killclient(const Arg *arg)
 }
 
 void
+maplayersurfacenotify(struct wl_listener *listener, void *data)
+{
+	LayerSurface *layersurface = wl_container_of(listener, layersurface, map);
+	wlr_surface_send_enter(layersurface->layer_surface->surface, layersurface->layer_surface->output);
+	motionnotify(0);
+}
+
+void
 maprequest(struct wl_listener *listener, void *data)
 {
 	/* Called when the surface is mapped, or ready to display on-screen. */
@@ -980,7 +1305,12 @@ motionnotify(uint32_t time)
 {
 	double sx = 0, sy = 0;
 	struct wlr_surface *surface = NULL;
-	Client *c;
+	Client *c = NULL;
+	struct timespec now;
+	if (!time) {
+		clock_gettime(CLOCK_MONOTONIC, &now);
+		time = now.tv_sec * 1000 + now.tv_nsec / 1000000;
+	}
 
 	/* Update selmon (even while dragging a window) */
 	if (sloppyfocus)
@@ -999,17 +1329,23 @@ motionnotify(uint32_t time)
 		return;
 	}
 
+	if ((surface = xytolayersurface(&selmon->layers[ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY],
+					cursor->x, cursor->y, &sx, &sy)))
+		;
+	else if ((surface = xytolayersurface(&selmon->layers[ZWLR_LAYER_SHELL_V1_LAYER_TOP],
+					cursor->x, cursor->y, &sx, &sy)))
+		;
 #ifdef XWAYLAND
 	/* Find an independent under the pointer and send the event along. */
-	if ((c = xytoindependent(cursor->x, cursor->y))) {
+	else if ((c = xytoindependent(cursor->x, cursor->y))) {
 		surface = wlr_surface_surface_at(c->surface.xwayland->surface,
 				cursor->x - c->surface.xwayland->x - c->bw,
 				cursor->y - c->surface.xwayland->y - c->bw, &sx, &sy);
 
 	/* Otherwise, find the client under the pointer and send the event along. */
-	} else
+	}
 #endif
-	if ((c = xytoclient(cursor->x, cursor->y))) {
+	else if ((c = xytoclient(cursor->x, cursor->y))) {
 #ifdef XWAYLAND
 		if (c->type != XDGShell)
 			surface = wlr_surface_surface_at(c->surface.xwayland->surface,
@@ -1021,6 +1357,13 @@ motionnotify(uint32_t time)
 					cursor->x - c->geom.x - c->bw,
 					cursor->y - c->geom.y - c->bw, &sx, &sy);
 	}
+	else if ((surface = xytolayersurface(&selmon->layers[ZWLR_LAYER_SHELL_V1_LAYER_BOTTOM],
+					cursor->x, cursor->y, &sx, &sy)))
+		;
+	else
+		surface = xytolayersurface(&selmon->layers[ZWLR_LAYER_SHELL_V1_LAYER_BACKGROUND],
+					cursor->x, cursor->y, &sx, &sy);
+
 	/* If there's no client surface under the cursor, set the cursor image to a
 	 * default. This is what makes the cursor image appear when you move it
 	 * off of a client or over its border. */
@@ -1097,6 +1440,9 @@ pointerfocus(Client *c, struct wlr_surface *surface, double sx, double sy,
 	/* Otherwise, let the client know that the mouse cursor has entered one
 	 * of its surfaces, and make keyboard focus follow if desired. */
 	wlr_seat_pointer_notify_enter(seat, surface, sx, sy);
+
+	if (!c)
+		return;
 
 #if XWAYLAND
 	if (c->type == X11Unmanaged)
@@ -1226,6 +1572,22 @@ renderclients(Monitor *m, struct timespec *now)
 }
 
 void
+renderlayer(struct wl_list *layer_surfaces, struct timespec *now)
+{
+	struct render_data rdata;
+	LayerSurface *layersurface;
+	wl_list_for_each(layersurface, layer_surfaces, link) {
+		rdata.output = layersurface->layer_surface->output;
+		rdata.when = now;
+		rdata.x = layersurface->geo.x;
+		rdata.y = layersurface->geo.y;
+
+		wlr_surface_for_each_surface(layersurface->layer_surface->surface,
+				render, &rdata);
+	}
+}
+
+void
 rendermon(struct wl_listener *listener, void *data)
 {
 	Client *c;
@@ -1255,10 +1617,14 @@ rendermon(struct wl_listener *listener, void *data)
 		wlr_renderer_begin(drw, m->wlr_output->width, m->wlr_output->height);
 		wlr_renderer_clear(drw, rootcolor);
 
+		renderlayer(&m->layers[ZWLR_LAYER_SHELL_V1_LAYER_BACKGROUND], &now);
+		renderlayer(&m->layers[ZWLR_LAYER_SHELL_V1_LAYER_BOTTOM], &now);
 		renderclients(m, &now);
 #ifdef XWAYLAND
 		renderindependents(m->wlr_output, &now);
 #endif
+		renderlayer(&m->layers[ZWLR_LAYER_SHELL_V1_LAYER_TOP], &now);
+		renderlayer(&m->layers[ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY], &now);
 
 		/* Hardware cursors are rendered by the GPU on a separate plane, and can be
 		 * moved around without re-rendering what's beneath them - which is more
@@ -1532,6 +1898,10 @@ setup(void)
 	wl_list_init(&fstack);
 	wl_list_init(&stack);
 	wl_list_init(&independents);
+
+	layer_shell = wlr_layer_shell_v1_create(dpy);
+	wl_signal_add(&layer_shell->events.new_surface, &new_layer_shell_surface);
+
 	xdg_shell = wlr_xdg_shell_create(dpy);
 	wl_signal_add(&xdg_shell->events.new_surface, &new_xdg_surface);
 
@@ -1611,6 +1981,22 @@ sigchld(int unused)
 		EBARF("can't install SIGCHLD handler");
 	while (0 < waitpid(-1, NULL, WNOHANG))
 		;
+}
+
+bool
+shouldfocusclients(Monitor *m)
+{
+	LayerSurface *layersurface;
+	uint32_t layers_above_shell[] = {
+		ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY,
+		ZWLR_LAYER_SHELL_V1_LAYER_TOP,
+	};
+	for (size_t i = 0; i < LENGTH(layers_above_shell); ++i)
+		wl_list_for_each(layersurface, &m->layers[layers_above_shell[i]], link)
+			if (layersurface->layer_surface->current.keyboard_interactive &&
+					layersurface->layer_surface->mapped)
+				return false;
+	return true;
 }
 
 void
@@ -1715,6 +2101,23 @@ toggleview(const Arg *arg)
 }
 
 void
+unmaplayersurface(LayerSurface *layersurface)
+{
+	layersurface->layer_surface->mapped = false;
+	if (layersurface->layer_surface->surface ==
+			seat->keyboard_state.focused_surface)
+		focusclient(NULL, selclient(), 1);
+	motionnotify(0);
+}
+
+void
+unmaplayersurfacenotify(struct wl_listener *listener, void *data)
+{
+	LayerSurface *layersurface = wl_container_of(listener, layersurface, unmap);
+	unmaplayersurface(layersurface);
+}
+
+void
 unmapnotify(struct wl_listener *listener, void *data)
 {
 	/* Called when the surface is unmapped, and should no longer be shown. */
@@ -1727,6 +2130,20 @@ unmapnotify(struct wl_listener *listener, void *data)
 	setmon(c, NULL, 0);
 	wl_list_remove(&c->flink);
 	wl_list_remove(&c->slink);
+}
+
+void
+updatemons()
+{
+	Monitor *m;
+	wl_list_for_each(m, &mons, link) {
+		/* Get the effective monitor geometry to use for surfaces */
+		m->m = m->w = *wlr_output_layout_get_box(output_layout, m->wlr_output);
+		/* Calculate the effective monitor geometry to use for clients */
+		arrangelayers(m);
+		/* Don't move clients to the left output when plugging monitors */
+		arrange(m);
+	}
 }
 
 void
@@ -1751,6 +2168,27 @@ xytoclient(double x, double y)
 	wl_list_for_each(c, &stack, slink)
 		if (VISIBLEON(c, c->mon) && wlr_box_contains_point(&c->geom, x, y))
 			return c;
+	return NULL;
+}
+
+struct wlr_surface *
+xytolayersurface(struct wl_list *layer_surfaces, double x, double y,
+		double *sx, double *sy)
+{
+	LayerSurface *layersurface;
+	wl_list_for_each_reverse(layersurface, layer_surfaces, link) {
+		struct wlr_surface *sub;
+		if (!layersurface->layer_surface->mapped)
+			continue;
+		sub = wlr_layer_surface_v1_surface_at(
+				layersurface->layer_surface,
+				x - layersurface->geo.x,
+				y - layersurface->geo.y,
+				sx, sy);
+		if (sub)
+			return sub;
+
+	}
 	return NULL;
 }
 

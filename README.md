@@ -63,7 +63,6 @@ dwl is a work in progress, and it has not yet reached its feature goals in a num
 - XWayland support is new and could use testing
 - Urgent/attention/focus-request ([not yet supported](https://gitlab.freedesktop.org/wayland/wayland-protocols/-/merge_requests/9) by xdg-shell protocol)
 - Statusbar support (built-in or external)
-- layer-shell
 - Damage tracking
 - Fullscreen/fixed windows (or whatever the Wayland analogues are)
 
