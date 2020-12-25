@@ -1,5 +1,5 @@
 /* appearance */
-static const int sloppyfocus        = 1;  /* focus follows mouse */
+static const bool sloppyfocus       = true;  /* focus follows mouse */
 static const unsigned int borderpx  = 1;  /* border pixel of windows */
 static const float rootcolor[]      = {0.3, 0.3, 0.3, 1.0};
 static const float bordercolor[]    = {0.5, 0.5, 0.5, 1.0};
@@ -24,7 +24,9 @@ static const Layout layouts[] = {
 	{ "[M]",      monocle },
 };
 
-/* monitors */
+/* monitors
+ * The order in which monitors are defined determines their position.
+ * Non-configured monitors are always added to the left. */
 static const MonitorRule monrules[] = {
 	/* name       mfact nmaster scale layout       rotate/reflect */
 	/* example of a HiDPI laptop monitor:
@@ -42,12 +44,12 @@ static const struct xkb_rule_names xkb_rules = {
 	*/
 };
 
-/* Trackpad */
-int tap_to_click = 1;
-int natural_scrolling = 1;
-
 static const int repeat_rate = 25;
 static const int repeat_delay = 600;
+
+/* Trackpad */
+static const bool tap_to_click = 1;
+static const bool natural_scrolling = 1;
 
 #define MODKEY WLR_MODIFIER_ALT
 #define TAGKEYS(KEY,SKEY,TAG) \
