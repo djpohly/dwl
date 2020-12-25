@@ -1004,12 +1004,14 @@ maprequest(struct wl_listener *listener, void *data)
 	/* Set initial monitor, tags, floating status, and focus */
 	applyrules(c);
 
-	if (oldfocus && oldfocus->isfullscreen && oldfocus->mon == c->mon
-			&& !c->isfloating && c->mon->lt[c->mon->sellt]->arrange) {
+	if (oldfocus && oldfocus->isfullscreen &&
+			oldfocus->mon == c->mon && oldfocus->tags == c->tags &&
+			!c->isfloating && c->mon->lt[c->mon->sellt]->arrange) {
 		maximizeclient(oldfocus);
 		focusclient(c, oldfocus, 1);
-		/* give the focus back the fullscreen client on the new client's monitor
-		 * if exists, was focused and the new client isn't floating */
+		/* If a fullscreen client on the same monitor and tag as the new client
+		 * was previously focused and the new client isn't floating, give it
+		 * back focus and size */
 	}
 }
 
