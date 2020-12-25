@@ -2540,13 +2540,13 @@ configurex11(struct wl_listener *listener, void *data)
 void
 createnotifyx11(struct wl_listener *listener, void *data)
 {
+	struct wlr_xwayland_surface *xwayland_surface = data;
 	Client *c;
 	wl_list_for_each(c, &clients, link)
 		if (c->isfullscreen && VISIBLEON(c, c->mon))
 			setfullscreen(c, 0);
 
 	/* Allocate a Client for this surface */
-	struct wlr_xwayland_surface *xwayland_surface = data;
 	c = xwayland_surface->data = calloc(1, sizeof(*c));
 	c->surface.xwayland = xwayland_surface;
 	c->type = xwayland_surface->override_redirect ? X11Unmanaged : X11Managed;
@@ -2586,26 +2586,23 @@ void
 renderindependents(struct wlr_output *output, struct timespec *now)
 {
 	Client *c;
+	struct render_data rdata;
+	struct wlr_box geom;
 
 	wl_list_for_each_reverse(c, &independents, link) {
-		struct wlr_box geom = {
-			.x = c->surface.xwayland->x,
-			.y = c->surface.xwayland->y,
-			.width = c->surface.xwayland->width,
-			.height = c->surface.xwayland->height,
-		};
+		geom.x = c->surface.xwayland->x;
+		geom.y = c->surface.xwayland->y;
+		geom.width = c->surface.xwayland->width;
+		geom.height = c->surface.xwayland->height;
 
 		/* Only render visible clients which show on this output */
 		if (!wlr_output_layout_intersects(output_layout, output, &geom))
 			continue;
 
-		struct render_data rdata = {
-			.output = output,
-			.when = now,
-			.x = c->surface.xwayland->x,
-			.y = c->surface.xwayland->y,
-		};
-
+		rdata.output = output;
+		rdata.when = now;
+		rdata.x = c->surface.xwayland->x;
+		rdata.y = c->surface.xwayland->y;
 		wlr_surface_for_each_surface(c->surface.xwayland->surface, render, &rdata);
 	}
 }
@@ -2624,6 +2621,7 @@ updatewindowtype(Client *c)
 void
 xwaylandready(struct wl_listener *listener, void *data)
 {
+	struct wlr_xcursor *xcursor;
 	xcb_connection_t *xc = xcb_connect(xwayland->display_name, NULL);
 	int err = xcb_connection_has_error(xc);
 	if (err) {
@@ -2642,7 +2640,7 @@ xwaylandready(struct wl_listener *listener, void *data)
 	wlr_xwayland_set_seat(xwayland, seat);
 
 	/* Set the default XWayland cursor to match the rest of dwl. */
-	struct wlr_xcursor *xcursor = wlr_xcursor_manager_get_xcursor(cursor_mgr, "left_ptr", 1);
+	xcursor = wlr_xcursor_manager_get_xcursor(cursor_mgr, "left_ptr", 1);
 	wlr_xwayland_set_cursor(xwayland,
 			xcursor->images[0]->buffer, xcursor->images[0]->width * 4,
 			xcursor->images[0]->width, xcursor->images[0]->height,
