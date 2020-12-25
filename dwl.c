@@ -157,6 +157,14 @@ typedef struct {
 } LayerSurface;
 
 typedef struct {
+	uint32_t singular_anchor;
+	uint32_t anchor_triplet;
+	int *positive_axis;
+	int *negative_axis;
+	int margin;
+} Edge;
+
+typedef struct {
 	const char *symbol;
 	void (*arrange)(Monitor *);
 } Layout;
@@ -396,61 +404,46 @@ applyexclusive(struct wlr_box *usable_area,
 		uint32_t anchor, int32_t exclusive,
 		int32_t margin_top, int32_t margin_right,
 		int32_t margin_bottom, int32_t margin_left) {
+	Edge edges[4];
+
 	if (exclusive <= 0)
 		return;
 
-	struct {
-		uint32_t singular_anchor;
-		uint32_t anchor_triplet;
-		int *positive_axis;
-		int *negative_axis;
-		int margin;
-	} edges[] = {
-		// Top
-		{
-			.singular_anchor = ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP,
-			.anchor_triplet =
-				ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT |
-				ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT |
-				ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP,
-			.positive_axis = &usable_area->y,
-			.negative_axis = &usable_area->height,
-			.margin = margin_top,
-		},
-		// Bottom
-		{
-			.singular_anchor = ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM,
-			.anchor_triplet =
-				ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT |
-				ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT |
-				ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM,
-			.positive_axis = NULL,
-			.negative_axis = &usable_area->height,
-			.margin = margin_bottom,
-		},
-		// Left
-		{
-			.singular_anchor = ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT,
-			.anchor_triplet =
-				ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT |
-				ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP |
-				ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM,
-			.positive_axis = &usable_area->x,
-			.negative_axis = &usable_area->width,
-			.margin = margin_left,
-		},
-		// Right
-		{
-			.singular_anchor = ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT,
-			.anchor_triplet =
-				ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT |
-				ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP |
-				ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM,
-			.positive_axis = NULL,
-			.negative_axis = &usable_area->width,
-			.margin = margin_right,
-		},
-	};
+	// Top
+	edges[0].singular_anchor = ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP;
+	edges[0].anchor_triplet = ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT |
+		ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT |
+		ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP;
+	edges[0].positive_axis = &usable_area->y;
+	edges[0].negative_axis = &usable_area->height;
+	edges[0].margin = margin_top;
+
+	// Bottom
+	edges[1].singular_anchor = ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM;
+	edges[1].anchor_triplet = ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT |
+		ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT |
+		ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM;
+	edges[1].positive_axis = NULL;
+	edges[1].negative_axis = &usable_area->height;
+	edges[1].margin = margin_bottom;
+
+	// Left
+	edges[2].singular_anchor = ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT;
+	edges[2].anchor_triplet = ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT |
+		ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP |
+		ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM;
+	edges[2].positive_axis = &usable_area->x;
+	edges[2].negative_axis = &usable_area->width;
+	edges[2].margin = margin_left;
+
+	// Right
+	edges[3].singular_anchor = ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT;
+	edges[3].anchor_triplet = ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT |
+		ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP |
+		ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM;
+	edges[3].positive_axis = NULL;
+	edges[3].negative_axis = &usable_area->width;
+	edges[3].margin = margin_right;
 
 	for (size_t i = 0; i < LENGTH(edges); ++i) {
 		if ((anchor == edges[i].singular_anchor || anchor == edges[i].anchor_triplet)
@@ -469,6 +462,9 @@ applyrules(Client *c)
 {
 	/* rule matching */
 	const char *appid, *title;
+	unsigned int i, newtags = 0;
+	const Rule *r;
+	Monitor *mon = selmon, *m;
 #ifdef XWAYLAND
 	if (c->type != XDGShell) {
 		updatewindowtype(c);
@@ -485,9 +481,6 @@ applyrules(Client *c)
 	if (!title)
 		title = broken;
 
-	unsigned int i, newtags = 0;
-	const Rule *r;
-	Monitor *mon = selmon, *m;
 	for (r = rules; r < END(rules); r++) {
 		if ((!r->title || strstr(title, r->title))
 				&& (!r->id || strstr(appid, r->id))) {
@@ -521,20 +514,22 @@ arrangelayer(Monitor *m, struct wl_list *list, struct wlr_box *usable_area, int 
 	wl_list_for_each(layersurface, list, link) {
 		struct wlr_layer_surface_v1 *wlr_layer_surface = layersurface->layer_surface;
 		struct wlr_layer_surface_v1_state *state = &wlr_layer_surface->current;
+		struct wlr_box bounds;
 		struct wlr_box box = {
 			.width = state->desired_width,
 			.height = state->desired_height
 		};
+		const uint32_t both_horiz = ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT
+			| ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT;
+		const uint32_t both_vert = ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP
+			| ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM;
 
 		if (exclusive != (state->exclusive_zone > 0))
 			continue;
 
-		struct wlr_box bounds = state->exclusive_zone == -1 ?
-			full_area : *usable_area;
+		bounds = state->exclusive_zone == -1 ? full_area : *usable_area;
 
 		// Horizontal axis
-		const uint32_t both_horiz = ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT
-			| ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT;
 		if ((state->anchor & both_horiz) && box.width == 0) {
 			box.x = bounds.x;
 			box.width = bounds.width;
@@ -546,8 +541,6 @@ arrangelayer(Monitor *m, struct wl_list *list, struct wlr_box *usable_area, int 
 			box.x = bounds.x + ((bounds.width / 2) - (box.width / 2));
 		}
 		// Vertical axis
-		const uint32_t both_vert = ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP
-			| ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM;
 		if ((state->anchor & both_vert) && box.height == 0) {
 			box.y = bounds.y;
 			box.height = bounds.height;
@@ -592,6 +585,13 @@ void
 arrangelayers(Monitor *m)
 {
 	struct wlr_box usable_area = m->m;
+	uint32_t layers_above_shell[] = {
+		ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY,
+		ZWLR_LAYER_SHELL_V1_LAYER_TOP,
+	};
+	size_t nlayers = LENGTH(layers_above_shell);
+	LayerSurface *layersurface;
+	struct wlr_keyboard *kb = wlr_seat_get_keyboard(seat);
 
 	// Arrange exclusive surfaces from top->bottom
 	arrangelayer(m, &m->layers[ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY],
@@ -619,13 +619,6 @@ arrangelayers(Monitor *m)
 			&usable_area, 0);
 
 	// Find topmost keyboard interactive layer, if such a layer exists
-	uint32_t layers_above_shell[] = {
-		ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY,
-		ZWLR_LAYER_SHELL_V1_LAYER_TOP,
-	};
-	size_t nlayers = LENGTH(layers_above_shell);
-	LayerSurface *layersurface;
-	struct wlr_keyboard *kb = wlr_seat_get_keyboard(seat);
 	for (size_t i = 0; i < nlayers; ++i) {
 		wl_list_for_each_reverse(layersurface,
 				&m->layers[layers_above_shell[i]], link) {
@@ -658,19 +651,21 @@ void
 buttonpress(struct wl_listener *listener, void *data)
 {
 	struct wlr_event_pointer_button *event = data;
+	struct wlr_keyboard *keyboard;
+	uint32_t mods;
+	Client *c;
+	const Button *b;
 
 	wlr_idle_notify_activity(idle, seat);
 
 	switch (event->state) {
 	case WLR_BUTTON_PRESSED:;
 		/* Change focus if the button was _pressed_ over a client */
-		Client *c;
 		if ((c = xytoclient(cursor->x, cursor->y)))
 			focusclient(c, 1);
 
-		struct wlr_keyboard* keyboard = wlr_seat_get_keyboard(seat);
-		uint32_t mods = wlr_keyboard_get_modifiers(keyboard);
-		const Button *b;
+		keyboard = wlr_seat_get_keyboard(seat);
+		mods = wlr_keyboard_get_modifiers(keyboard);
 		for (b = buttons; b < END(buttons); b++) {
 			if (CLEANMASK(mods) == CLEANMASK(b->mod) &&
 					event->button == b->button && b->func) {
@@ -737,6 +732,7 @@ cleanupmon(struct wl_listener *listener, void *data)
 {
 	struct wlr_output *wlr_output = data;
 	Monitor *m = wlr_output->data;
+	int nmons, i = 0;
 
 	wl_list_remove(&m->destroy.link);
 	wl_list_remove(&m->frame.link);
@@ -744,7 +740,7 @@ cleanupmon(struct wl_listener *listener, void *data)
 	wlr_output_layout_remove(output_layout, m->wlr_output);
 	updatemons();
 
-	int nmons = wl_list_length(&mons), i = 0;
+	nmons = wl_list_length(&mons);
 	do // don't switch to disabled mons
 		selmon = wl_container_of(mons.prev, selmon, link);
 	while (!selmon->wlr_output->enabled && i++ < nmons);
@@ -774,11 +770,12 @@ commitlayersurfacenotify(struct wl_listener *listener, void *data)
 	LayerSurface *layersurface = wl_container_of(listener, layersurface, surface_commit);
 	struct wlr_layer_surface_v1 *wlr_layer_surface = layersurface->layer_surface;
 	struct wlr_output *wlr_output = wlr_layer_surface->output;
+	Monitor *m;
 
 	if (!wlr_output)
 		return;
 
-	Monitor *m = wlr_output->data;
+	m = wlr_output->data;
 	arrangelayers(m);
 
 	if (layersurface->layer != wlr_layer_surface->current.layer) {
@@ -802,12 +799,14 @@ commitnotify(struct wl_listener *listener, void *data)
 void
 createkeyboard(struct wlr_input_device *device)
 {
+	struct xkb_context *context;
+	struct xkb_keymap *keymap;
 	Keyboard *kb = device->data = calloc(1, sizeof(*kb));
 	kb->device = device;
 
 	/* Prepare an XKB keymap and assign it to the keyboard. */
-	struct xkb_context *context = xkb_context_new(XKB_CONTEXT_NO_FLAGS);
-	struct xkb_keymap *keymap = xkb_map_new_from_names(context, &xkb_rules,
+	context = xkb_context_new(XKB_CONTEXT_NO_FLAGS);
+	keymap = xkb_map_new_from_names(context, &xkb_rules,
 		XKB_KEYMAP_COMPILE_NO_FLAGS);
 
 	wlr_keyboard_set_keymap(device->keyboard, keymap);
@@ -835,6 +834,11 @@ createmon(struct wl_listener *listener, void *data)
 	/* This event is raised by the backend when a new output (aka a display or
 	 * monitor) becomes available. */
 	struct wlr_output *wlr_output = data;
+	Monitor *m;
+	const MonitorRule *r;
+	size_t nlayers;
+	Monitor *moni, *insertmon = NULL;
+	int x = 0;
 
 	/* The mode is a tuple of (width, height, refresh rate), and each
 	 * monitor supports only a specific set of modes. We just pick the
@@ -843,11 +847,11 @@ createmon(struct wl_listener *listener, void *data)
 	wlr_output_set_mode(wlr_output, wlr_output_preferred_mode(wlr_output));
 
 	/* Allocates and configures monitor state using configured rules */
-	Monitor *m = wlr_output->data = calloc(1, sizeof(*m));
+	m = wlr_output->data = calloc(1, sizeof(*m));
 	m->wlr_output = wlr_output;
 	m->tagset[0] = m->tagset[1] = 1;
 	m->position = -1;
-	for (const MonitorRule *r = monrules; r < END(monrules); r++) {
+	for (r = monrules; r < END(monrules); r++) {
 		if (!r->name || strstr(wlr_output->name, r->name)) {
 			m->mfact = r->mfact;
 			m->nmaster = r->nmaster;
@@ -867,8 +871,6 @@ createmon(struct wl_listener *listener, void *data)
 	m->destroy.notify = cleanupmon;
 	wl_signal_add(&wlr_output->events.destroy, &m->destroy);
 
-	Monitor *moni, *insertmon = NULL;
-	int x = 0;
 	wl_list_for_each(moni, &mons, link)
 		if (m->position > moni->position)
 			insertmon = moni;
@@ -898,7 +900,7 @@ createmon(struct wl_listener *listener, void *data)
 	}
 	sgeom = *wlr_output_layout_get_box(output_layout, NULL);
 
-	size_t nlayers = LENGTH(m->layers);
+	nlayers = LENGTH(m->layers);
 	for (size_t i = 0; i < nlayers; ++i)
 		wl_list_init(&m->layers[i]);
 
@@ -958,13 +960,15 @@ void
 createlayersurface(struct wl_listener *listener, void *data)
 {
 	struct wlr_layer_surface_v1 *wlr_layer_surface = data;
+	LayerSurface *layersurface;
+	Monitor *m;
+	struct wlr_layer_surface_v1_state old_state;
 
 	if (!wlr_layer_surface->output) {
 		wlr_layer_surface->output = selmon->wlr_output;
 	}
 
-	LayerSurface *layersurface = calloc(1, sizeof(LayerSurface));
-
+	layersurface = calloc(1, sizeof(LayerSurface));
 	layersurface->surface_commit.notify = commitlayersurfacenotify;
 	wl_signal_add(&wlr_layer_surface->surface->events.commit,
 		&layersurface->surface_commit);
@@ -978,14 +982,13 @@ createlayersurface(struct wl_listener *listener, void *data)
 	layersurface->layer_surface = wlr_layer_surface;
 	wlr_layer_surface->data = layersurface;
 
-	Monitor *m = wlr_layer_surface->output->data;
-
+	m = wlr_layer_surface->output->data;
 	wl_list_insert(&m->layers[wlr_layer_surface->client_pending.layer],
 			&layersurface->link);
 
 	// Temporarily set the layer's current state to client_pending
 	// so that we can easily arrange it
-	struct wlr_layer_surface_v1_state old_state = wlr_layer_surface->current;
+	old_state = wlr_layer_surface->current;
 	wlr_layer_surface->current = wlr_layer_surface->client_pending;
 	arrangelayers(m);
 	wlr_layer_surface->current = old_state;
@@ -1156,13 +1159,14 @@ dirtomon(int dir)
 void
 focusclient(Client *c, int lift)
 {
+	struct wlr_surface *old = seat->keyboard_state.focused_surface;
+	struct wlr_keyboard *kb;
+
 	/* Raise client in stacking order if requested */
 	if (c && lift) {
 		wl_list_remove(&c->slink);
 		wl_list_insert(&stack, &c->slink);
 	}
-
-	struct wlr_surface *old = seat->keyboard_state.focused_surface;
 
 	if (c && WLR_SURFACE(c) == old)
 		return;
@@ -1208,7 +1212,7 @@ focusclient(Client *c, int lift)
 	}
 
 	/* Have a client, so focus its top-level wlr_surface */
-	struct wlr_keyboard *kb = wlr_seat_get_keyboard(seat);
+	kb = wlr_seat_get_keyboard(seat);
 	wlr_seat_keyboard_notify_enter(seat, WLR_SURFACE(c),
 			kb->keycodes, kb->num_keycodes, &kb->modifiers);
 
@@ -1287,6 +1291,8 @@ inputdevice(struct wl_listener *listener, void *data)
 	/* This event is raised by the backend when a new input device becomes
 	 * available. */
 	struct wlr_input_device *device = data;
+	uint32_t caps;
+
 	switch (device->type) {
 	case WLR_INPUT_DEVICE_KEYBOARD:
 		createkeyboard(device);
@@ -1298,11 +1304,12 @@ inputdevice(struct wl_listener *listener, void *data)
 		/* TODO handle other input device types */
 		break;
 	}
+
 	/* We need to let the wlr_seat know what our capabilities are, which is
 	 * communiciated to the client. In dwl we always have a cursor, even if
 	 * there are no pointer devices, so we always include that capability. */
 	/* TODO do we actually require a cursor? */
-	uint32_t caps = WL_SEAT_CAPABILITY_POINTER;
+	caps = WL_SEAT_CAPABILITY_POINTER;
 	if (!wl_list_empty(&keyboards))
 		caps |= WL_SEAT_CAPABILITY_KEYBOARD;
 	wlr_seat_set_capabilities(seat, caps);
@@ -1479,6 +1486,10 @@ motionabsolute(struct wl_listener *listener, void *data)
 void
 motionnotify(uint32_t time)
 {
+	double sx = 0, sy = 0;
+	struct wlr_surface *surface = NULL;
+	Client *c = NULL;
+
 	// time is 0 in internal calls meant to restore pointer focus.
 	if (time) {
 		wlr_idle_notify_activity(idle, seat);
@@ -1501,9 +1512,6 @@ motionnotify(uint32_t time)
 		return;
 	}
 
-	struct wlr_surface *surface = NULL;
-	double sx = 0, sy = 0;
-	Client *c = NULL;
 	if ((surface = xytolayersurface(&selmon->layers[ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY],
 					cursor->x, cursor->y, &sx, &sy)))
 		;
@@ -1628,8 +1636,7 @@ outputmgrapplyortest(struct wlr_output_configuration_v1 *config, int test)
 				if (m->wlr_output->name == wlr_output->name) {
 					// focus the left monitor (relative to the current focus)
 					m->wlr_output->enabled = !m->wlr_output->enabled;
-					Arg ar = {.i = -1};
-					focusmon(&ar);
+					focusmon(&(Arg) {.i = -1});
 					closemon(m);
 					m->wlr_output->enabled = !m->wlr_output->enabled;
 				}
@@ -1662,6 +1669,9 @@ void
 pointerfocus(Client *c, struct wlr_surface *surface, double sx, double sy,
 		uint32_t time)
 {
+	struct timespec now;
+	int internal_call = !time;
+
 	/* Use top level surface if nothing more specific given */
 	if (c && !surface)
 		surface = WLR_SURFACE(c);
@@ -1672,9 +1682,7 @@ pointerfocus(Client *c, struct wlr_surface *surface, double sx, double sy,
 		return;
 	}
 
-	int internal_call = !time;
-	if (!time) {
-		struct timespec now;
+	if (internal_call) {
 		clock_gettime(CLOCK_MONOTONIC, &now);
 		time = now.tv_sec * 1000 + now.tv_nsec / 1000000;
 	}
@@ -1713,6 +1721,10 @@ render(struct wlr_surface *surface, int sx, int sy, void *data)
 	/* This function is called for every surface that needs to be rendered. */
 	struct render_data *rdata = data;
 	struct wlr_output *output = rdata->output;
+	double ox = 0, oy = 0;
+	struct wlr_box obox;
+	float matrix[9];
+	enum wl_output_transform transform;
 
 	/* We first obtain a wlr_texture, which is a GPU resource. wlroots
 	 * automatically handles negotiating these with the client. The underlying
@@ -1727,17 +1739,14 @@ render(struct wlr_surface *surface, int sx, int sy, void *data)
 	 * one next to the other, both 1080p, a client on the rightmost display might
 	 * have layout coordinates of 2000,100. We need to translate that to
 	 * output-local coordinates, or (2000 - 1920). */
-	double ox = 0, oy = 0;
 	wlr_output_layout_output_coords(output_layout, output, &ox, &oy);
 
 	/* We also have to apply the scale factor for HiDPI outputs. This is only
 	 * part of the puzzle, dwl does not fully support HiDPI. */
-	struct wlr_box obox = {
-		.x = ox + rdata->x + sx,
-		.y = oy + rdata->y + sy,
-		.width = surface->current.width,
-		.height = surface->current.height,
-	};
+	obox.x = ox + rdata->x + sx;
+	obox.y = oy + rdata->y + sy;
+	obox.width = surface->current.width;
+	obox.height = surface->current.height;
 	scalebox(&obox, output->scale);
 
 	/*
@@ -1751,9 +1760,7 @@ render(struct wlr_surface *surface, int sx, int sy, void *data)
 	 * Naturally you can do this any way you like, for example to make a 3D
 	 * compositor.
 	 */
-	float matrix[9];
-	enum wl_output_transform transform = wlr_output_transform_invert(
-			surface->current.transform);
+	transform = wlr_output_transform_invert(surface->current.transform);
 	wlr_matrix_project_box(matrix, &obox, transform, 0,
 		output->transform_matrix);
 
@@ -1843,6 +1850,9 @@ renderlayer(struct wl_list *layer_surfaces, struct timespec *now)
 void
 rendermon(struct wl_listener *listener, void *data)
 {
+	Client *c;
+	int render = 1;
+
 	/* This function is called every time an output is ready to display a frame,
 	 * generally at the output's refresh rate (e.g. 60Hz). */
 	Monitor *m = wl_container_of(listener, m, frame);
@@ -1851,8 +1861,6 @@ rendermon(struct wl_listener *listener, void *data)
 	clock_gettime(CLOCK_MONOTONIC, &now);
 
 	/* Do not render if any XDG clients have an outstanding resize. */
-	Client *c;
-	int render = 1;
 	wl_list_for_each(c, &stack, slink) {
 		if (c->resize) {
 			wlr_surface_send_frame_done(WLR_SURFACE(c), &now);
@@ -1902,11 +1910,11 @@ resize(Client *c, int x, int y, int w, int h, int interact)
 	 * compositor, you'd wait for the client to prepare a buffer at
 	 * the new size, then commit any movement that was prepared.
 	 */
+	struct wlr_box *bbox = interact ? &sgeom : &c->mon->w;
 	c->geom.x = x;
 	c->geom.y = y;
 	c->geom.width = w;
 	c->geom.height = h;
-	struct wlr_box *bbox = interact ? &sgeom : &c->mon->w;
 	applybounds(c, bbox);
 	/* wlroots makes this a no-op if size hasn't changed */
 #ifdef XWAYLAND
@@ -1923,6 +1931,8 @@ resize(Client *c, int x, int y, int w, int h, int interact)
 void
 run(char *startup_cmd)
 {
+	pid_t startup_pid = -1;
+
 	/* Add a Unix socket to the Wayland display. */
 	const char *socket = wl_display_add_socket_auto(dpy);
 	if (!socket)
@@ -1948,9 +1958,8 @@ run(char *startup_cmd)
 	 * startup command if requested. */
 	setenv("WAYLAND_DISPLAY", socket, 1);
 
-	pid_t startup_pid = -1;
 	if (startup_cmd) {
-		pid_t startup_pid = fork();
+		startup_pid = fork();
 		if (startup_pid < 0)
 			EBARF("startup: fork");
 		if (startup_pid == 0) {
@@ -2030,9 +2039,11 @@ setlayout(const Arg *arg)
 void
 setmfact(const Arg *arg)
 {
+	float f;
+
 	if (!arg || !selmon->lt[selmon->sellt]->arrange)
 		return;
-	float f = arg->f < 1.0 ? arg->f + selmon->mfact : arg->f - 1.0;
+	f = arg->f < 1.0 ? arg->f + selmon->mfact : arg->f - 1.0;
 	if (f < 0.1 || f > 0.9)
 		return;
 	selmon->mfact = f;
@@ -2333,10 +2344,11 @@ togglefloating(const Arg *arg)
 void
 toggletag(const Arg *arg)
 {
+	unsigned int newtags;
 	Client *sel = selclient();
 	if (!sel)
 		return;
-	unsigned int newtags = sel->tags ^ (arg->ui & TAGMASK);
+	newtags = sel->tags ^ (arg->ui & TAGMASK);
 	if (newtags) {
 		sel->tags = newtags;
 		focusclient(focustop(selmon), 1);
