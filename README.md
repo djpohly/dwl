@@ -18,14 +18,14 @@ dwl is not meant to provide every feature under the sun. Instead, like dwm, it s
 - XWayland support as provided by wlroots
 - Zero flickering - Wayland users naturally expect that "every frame is perfect"
 
-Features yet to be implemented are:
+Features yet to be implemented (possibly as patches) are:
 
-- Write a dwl-status protocol that bars can implement to show tags. You can already use Waybar or yambar, but without tag information
+- Communication from the compositor to status bars.  One possibility is to create a dwl-status protocol that bars can implement to be notified of compositor information. You can already use Waybar or yambar, but without tag information
 - Implement the input-inhibitor protocol to support screen lockers
-- Implement the idle-inhibit protocol which the lets application such as mpv disable idle monitoring, and distribute it as a patch
+- Implement the idle-inhibit protocol which lets applications such as mpv disable idle monitoring
 - Layer shell popups (used by Waybar)
 - Basic yes/no damage tracking to avoid needless redraws
-- More in-depth damage region tracking (this should be worth it according to https://mozillagfx.wordpress.com/2019/10/22/dramatically-reduced-power-usage-in-firefox-70-on-macos-with-core-animation/)
+- More in-depth damage region tracking ([which may improve power usage](https://mozillagfx.wordpress.com/2019/10/22/dramatically-reduced-power-usage-in-firefox-70-on-macos-with-core-animation/))
 - Implement the text-input and input-method protocols to support IME once ibus implements input-method v2 (see https://github.com/ibus/ibus/pull/2256 and https://github.com/djpohly/dwl/pull/12)
 - Implement urgent/attention/focus-request once it's part of the xdg-shell protocol (https://gitlab.freedesktop.org/wayland/wayland-protocols/-/merge_requests/9)
 
