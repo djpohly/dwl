@@ -4,7 +4,7 @@ dwl is a compact, hackable compositor for Wayland based on [wlroots](https://git
 
 - Easy to understand, hack on, and extend with patches
 - One C source file (or a very small number) configurable via `config.h`
-- Limited to a maximum number of SLOC (to be determined)
+- Limited to 2000 SLOC to promote hackability
 - Tied to as few external dependencies as possible
 
 
