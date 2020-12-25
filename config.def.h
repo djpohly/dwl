@@ -1,5 +1,5 @@
 /* appearance */
-static const bool sloppyfocus       = true;  /* focus follows mouse */
+static const int sloppyfocus        = 1;  /* focus follows mouse */
 static const unsigned int borderpx  = 1;  /* border pixel of windows */
 static const float rootcolor[]      = {0.3, 0.3, 0.3, 1.0};
 static const float bordercolor[]    = {0.5, 0.5, 0.5, 1.0};
@@ -48,8 +48,8 @@ static const int repeat_rate = 25;
 static const int repeat_delay = 600;
 
 /* Trackpad */
-static const bool tap_to_click = 1;
-static const bool natural_scrolling = 1;
+static const int tap_to_click = 1;
+static const int natural_scrolling = 1;
 
 #define MODKEY WLR_MODIFIER_ALT
 #define TAGKEYS(KEY,SKEY,TAG) \
