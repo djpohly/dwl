@@ -404,47 +404,44 @@ applyexclusive(struct wlr_box *usable_area,
 		uint32_t anchor, int32_t exclusive,
 		int32_t margin_top, int32_t margin_right,
 		int32_t margin_bottom, int32_t margin_left) {
-	Edge edges[4];
-
-	if (exclusive <= 0)
-		return;
-
-	// Top
-	edges[0].singular_anchor = ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP;
-	edges[0].anchor_triplet = ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT |
-		ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT |
-		ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP;
-	edges[0].positive_axis = &usable_area->y;
-	edges[0].negative_axis = &usable_area->height;
-	edges[0].margin = margin_top;
-
-	// Bottom
-	edges[1].singular_anchor = ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM;
-	edges[1].anchor_triplet = ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT |
-		ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT |
-		ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM;
-	edges[1].positive_axis = NULL;
-	edges[1].negative_axis = &usable_area->height;
-	edges[1].margin = margin_bottom;
-
-	// Left
-	edges[2].singular_anchor = ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT;
-	edges[2].anchor_triplet = ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT |
-		ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP |
-		ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM;
-	edges[2].positive_axis = &usable_area->x;
-	edges[2].negative_axis = &usable_area->width;
-	edges[2].margin = margin_left;
-
-	// Right
-	edges[3].singular_anchor = ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT;
-	edges[3].anchor_triplet = ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT |
-		ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP |
-		ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM;
-	edges[3].positive_axis = NULL;
-	edges[3].negative_axis = &usable_area->width;
-	edges[3].margin = margin_right;
-
+	Edge edges[] = {
+		{ // Top
+			.singular_anchor = ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP,
+			.anchor_triplet = ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT |
+				ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT |
+				ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP,
+			.positive_axis = &usable_area->y,
+			.negative_axis = &usable_area->height,
+			.margin = margin_top,
+		},
+		{ // Bottom
+			.singular_anchor = ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM,
+			.anchor_triplet = ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT |
+				ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT |
+				ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM,
+			.positive_axis = NULL,
+			.negative_axis = &usable_area->height,
+			.margin = margin_bottom,
+		},
+		{ // Left
+			.singular_anchor = ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT,
+			.anchor_triplet = ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT |
+				ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP |
+				ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM,
+			.positive_axis = &usable_area->x,
+			.negative_axis = &usable_area->width,
+			.margin = margin_left,
+		},
+		{ // Right
+			.singular_anchor = ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT,
+			.anchor_triplet = ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT |
+				ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP |
+				ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM,
+			.positive_axis = NULL,
+			.negative_axis = &usable_area->width,
+			.margin = margin_right,
+		}
+	};
 	for (size_t i = 0; i < LENGTH(edges); ++i) {
 		if ((anchor == edges[i].singular_anchor || anchor == edges[i].anchor_triplet)
 				&& exclusive + edges[i].margin > 0) {
@@ -574,9 +571,10 @@ arrangelayer(Monitor *m, struct wl_list *list, struct wlr_box *usable_area, int 
 		}
 		layersurface->geo = box;
 
-		applyexclusive(usable_area, state->anchor, state->exclusive_zone,
-				state->margin.top, state->margin.right,
-				state->margin.bottom, state->margin.left);
+		if (state->exclusive_zone > 0)
+			applyexclusive(usable_area, state->anchor, state->exclusive_zone,
+					state->margin.top, state->margin.right,
+					state->margin.bottom, state->margin.left);
 		wlr_layer_surface_v1_configure(wlr_layer_surface, box.width, box.height);
 	}
 }
