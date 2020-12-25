@@ -152,7 +152,7 @@ struct Monitor {
 	unsigned int tagset[2];
 	double mfact;
 	int nmaster;
-	Client *fullscreenclient;
+	Client *focus;
 };
 
 typedef struct {
@@ -381,8 +381,8 @@ arrange(Monitor *m)
 	m->w = m->m;
 	if (m->lt[m->sellt]->arrange)
 		m->lt[m->sellt]->arrange(m);
-	else if (m->fullscreenclient)
-		maximizeclient(m->fullscreenclient);
+	else if (m->focus && m->focus->isfullscreen)
+		maximizeclient(m->focus);
 	/* XXX recheck pointer focus here... or in resize()? */
 }
 
@@ -713,13 +713,11 @@ setfullscreen(Client *c, int fullscreen)
 		c->prevy = c->geom.y;
 		c->prevheight = c->geom.height;
 		c->prevwidth = c->geom.width;
-		c->mon->fullscreenclient = c;
 		maximizeclient(c);
 	} else {
 		/* restore previous size instead of arrange for floating windows since
 		 * client positions are set by the user and cannot be recalculated */
 		resize(c, c->prevx, c->prevy, c->prevwidth, c->prevheight, 0);
-		c->mon->fullscreenclient = NULL;
 		arrange(c->mon);
 	}
 }
@@ -787,6 +785,7 @@ focusclient(Client *old, Client *c, int lift)
 	wl_list_remove(&c->flink);
 	wl_list_insert(&fstack, &c->flink);
 	selmon = c->mon;
+	c->mon->focus = c;
 
 	/* Activate the new client */
 #ifdef XWAYLAND
@@ -803,6 +802,7 @@ focusmon(const Arg *arg)
 	Client *sel = selclient();
 
 	selmon = dirtomon(arg->i);
+	selmon->focus = sel;
 	focusclient(sel, focustop(selmon), 1);
 }
 
@@ -972,7 +972,7 @@ void
 maprequest(struct wl_listener *listener, void *data)
 {
 	/* Called when the surface is mapped, or ready to display on-screen. */
-	Client *c = wl_container_of(listener, c, map), *oldfocus = selclient();
+	Client *c = wl_container_of(listener, c, map), *oldfocus = selmon->focus;
 
 #ifdef XWAYLAND
 	if (c->type == X11Unmanaged) {
@@ -1004,12 +1004,12 @@ maprequest(struct wl_listener *listener, void *data)
 	/* Set initial monitor, tags, floating status, and focus */
 	applyrules(c);
 
-	if (c->mon->fullscreenclient && c->mon->fullscreenclient == oldfocus
+	if (oldfocus && oldfocus->isfullscreen && oldfocus->mon == c->mon
 			&& !c->isfloating && c->mon->lt[c->mon->sellt]->arrange) {
-		maximizeclient(c->mon->fullscreenclient);
-		focusclient(c, c->mon->fullscreenclient, 1);
-		/* give the focus back the fullscreen client on that monitor if exists,
-		 * is focused and the new client isn't floating */
+		maximizeclient(oldfocus);
+		focusclient(c, oldfocus, 1);
+		/* give the focus back the fullscreen client on the new client's monitor
+		 * if exists, was focused and the new client isn't floating */
 	}
 }
 
@@ -1241,7 +1241,7 @@ render(struct wlr_surface *surface, int sx, int sy, void *data)
 void
 renderclients(Monitor *m, struct timespec *now)
 {
-	Client *c, *sel = selclient();
+	Client *c;
 	const float *color;
 	double ox, oy;
 	int i, w, h;
@@ -1272,7 +1272,7 @@ renderclients(Monitor *m, struct timespec *now)
 			};
 
 			/* Draw window borders */
-			color = (c == sel) ? focuscolor : bordercolor;
+			color = (c == m->focus) ? focuscolor : bordercolor;
 			for (i = 0; i < 4; i++) {
 				scalebox(&borders[i], m->wlr_output->scale);
 				wlr_render_rect(drw, &borders[i], color,
