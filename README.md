@@ -75,3 +75,4 @@ Many thanks to suckless.org and the dwm developers and community for the inspira
 
 - Alexander Courtis for the XWayland implementation
 - Guido Cella for the layer-shell protocol implementation and for helping to keep the project running
+- Stivvo for output management and fullscreen support
