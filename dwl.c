@@ -53,7 +53,7 @@
 #define LENGTH(X)               (sizeof X / sizeof X[0])
 #define END(A)                  ((A) + LENGTH(A))
 #define TAGMASK                 ((1 << LENGTH(tags)) - 1)
-#define ROUND(X)                ((X)>=0?(long)((X)+0.5):(long)((X)-0.5))
+#define ROUND(X)                ((int)((X)+0.5))
 #ifdef XWAYLAND
 #define WLR_SURFACE(C)          ((C)->type != XDGShell ? (C)->surface.xwayland->surface : (C)->surface.xdg->surface)
 #else
