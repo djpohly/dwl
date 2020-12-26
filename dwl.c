@@ -1733,9 +1733,11 @@ tile(Monitor *m)
 	wl_list_for_each(c, &clients, link) {
 		if (!VISIBLEON(c, m) || c->isfloating)
 			continue;
-		if (c->isfullscreen)
+		if (c->isfullscreen) {
 			maximizeclient(c);
-		else if (i < m->nmaster) {
+			continue;
+		}
+		if (i < m->nmaster) {
 			h = (m->w.height - my) / (MIN(n, m->nmaster) - i);
 			resize(c, m->w.x, m->w.y + my, mw, h, 0);
 			my += c->geom.height;
