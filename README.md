@@ -60,12 +60,6 @@ Note: Wayland requires a valid `XDG_RUNTIME_DIR`, which is usually set up by a s
 
 You can find a [list of Wayland applications on the sway wiki](https://github.com/swaywm/sway/wiki/i3-Migration-Guide).
 
-dwl is a work in progress, and it has not yet reached its feature goals in a number of ways:
-
-- A window's texture is scaled for its "home" monitor only (noticeable when window sits across a monitor boundary)
-- Urgent/attention/focus-request ([not yet supported](https://gitlab.freedesktop.org/wayland/wayland-protocols/-/merge_requests/9) by xdg-shell protocol)
-- Damage tracking
-
 ## IRC channel
 
 dwl's IRC channel is #dwl on irc.freenode.net.
