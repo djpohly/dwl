@@ -58,6 +58,7 @@
 #define END(A)                  ((A) + LENGTH(A))
 #define TAGMASK                 ((1 << LENGTH(tags)) - 1)
 #define ROUND(X)                ((int)((X)+0.5))
+#define LISTEN(E, L, H)         wl_signal_add((E), ((L)->notify = (H), (L)))
 
 /* enums */
 enum { CurNormal, CurMove, CurResize }; /* cursor */
@@ -795,12 +796,9 @@ createkeyboard(struct wlr_input_device *device)
 	wlr_keyboard_set_repeat_info(device->keyboard, repeat_rate, repeat_delay);
 
 	/* Here we set up listeners for keyboard events. */
-	kb->modifiers.notify = keypressmod;
-	wl_signal_add(&device->keyboard->events.modifiers, &kb->modifiers);
-	kb->key.notify = keypress;
-	wl_signal_add(&device->keyboard->events.key, &kb->key);
-	kb->destroy.notify = cleanupkeyboard;
-	wl_signal_add(&device->events.destroy, &kb->destroy);
+	LISTEN(&device->keyboard->events.modifiers, &kb->modifiers, keypressmod);
+	LISTEN(&device->keyboard->events.key, &kb->key, keypress);
+	LISTEN(&device->events.destroy, &kb->destroy, cleanupkeyboard);
 
 	wlr_seat_set_keyboard(seat, device);
 
@@ -846,10 +844,8 @@ createmon(struct wl_listener *listener, void *data)
 	}
 	wlr_output_enable_adaptive_sync(wlr_output, 1);
 	/* Set up event listeners */
-	m->frame.notify = rendermon;
-	wl_signal_add(&wlr_output->events.frame, &m->frame);
-	m->destroy.notify = cleanupmon;
-	wl_signal_add(&wlr_output->events.destroy, &m->destroy);
+	LISTEN(&wlr_output->events.frame, &m->frame, rendermon);
+	LISTEN(&wlr_output->events.destroy, &m->destroy, cleanupmon);
 
 	wl_list_for_each(moni, &mons, link)
 		if (m->position > moni->position)
@@ -921,18 +917,12 @@ createnotify(struct wl_listener *listener, void *data)
 	wlr_xdg_toplevel_set_tiled(c->surface.xdg, WLR_EDGE_TOP |
 			WLR_EDGE_BOTTOM | WLR_EDGE_LEFT | WLR_EDGE_RIGHT);
 
-	/* Listen to the various events it can emit */
-	c->commit.notify = commitnotify;
-	wl_signal_add(&xdg_surface->surface->events.commit, &c->commit);
-	c->map.notify = mapnotify;
-	wl_signal_add(&xdg_surface->events.map, &c->map);
-	c->unmap.notify = unmapnotify;
-	wl_signal_add(&xdg_surface->events.unmap, &c->unmap);
-	c->destroy.notify = destroynotify;
-	wl_signal_add(&xdg_surface->events.destroy, &c->destroy);
-
-	c->fullscreen.notify = fullscreennotify;
-	wl_signal_add(&xdg_surface->toplevel->events.request_fullscreen, &c->fullscreen);
+	LISTEN(&xdg_surface->surface->events.commit, &c->commit, commitnotify);
+	LISTEN(&xdg_surface->events.map, &c->map, mapnotify);
+	LISTEN(&xdg_surface->events.unmap, &c->unmap, unmapnotify);
+	LISTEN(&xdg_surface->events.destroy, &c->destroy, destroynotify);
+	LISTEN(&xdg_surface->toplevel->events.request_fullscreen, &c->fullscreen,
+			fullscreennotify);
 	c->isfullscreen = 0;
 }
 
@@ -949,15 +939,14 @@ createlayersurface(struct wl_listener *listener, void *data)
 	}
 
 	layersurface = calloc(1, sizeof(LayerSurface));
-	layersurface->surface_commit.notify = commitlayersurfacenotify;
-	wl_signal_add(&wlr_layer_surface->surface->events.commit,
-		&layersurface->surface_commit);
-	layersurface->destroy.notify = destroylayersurfacenotify;
-	wl_signal_add(&wlr_layer_surface->events.destroy, &layersurface->destroy);
-	layersurface->map.notify = maplayersurfacenotify;
-	wl_signal_add(&wlr_layer_surface->events.map, &layersurface->map);
-	layersurface->unmap.notify = unmaplayersurfacenotify;
-	wl_signal_add(&wlr_layer_surface->events.unmap, &layersurface->unmap);
+	LISTEN(&wlr_layer_surface->surface->events.commit,
+		&layersurface->surface_commit, commitlayersurfacenotify);
+	LISTEN(&wlr_layer_surface->events.destroy, &layersurface->destroy,
+			destroylayersurfacenotify);
+	LISTEN(&wlr_layer_surface->events.map, &layersurface->map,
+			maplayersurfacenotify);
+	LISTEN(&wlr_layer_surface->events.unmap, &layersurface->unmap,
+			unmaplayersurfacenotify);
 
 	layersurface->layer_surface = wlr_layer_surface;
 	wlr_layer_surface->data = layersurface;
@@ -1001,10 +990,8 @@ createxdeco(struct wl_listener *listener, void *data)
 	struct wlr_xdg_toplevel_decoration_v1 *wlr_deco = data;
 	Decoration *d = wlr_deco->data = calloc(1, sizeof(*d));
 
-	wl_signal_add(&wlr_deco->events.request_mode, &d->request_mode);
-	d->request_mode.notify = getxdecomode;
-	wl_signal_add(&wlr_deco->events.destroy, &d->destroy);
-	d->destroy.notify = destroyxdeco;
+	LISTEN(&wlr_deco->events.request_mode, &d->request_mode, getxdecomode);
+	LISTEN(&wlr_deco->events.destroy, &d->destroy, destroyxdeco);
 
 	getxdecomode(&d->request_mode, wlr_deco);
 }
@@ -2117,8 +2104,7 @@ setup(void)
 	 * And more comments are sprinkled throughout the notify functions above.
 	 */
 	wl_signal_add(&cursor->events.motion, &cursor_motion);
-	wl_signal_add(&cursor->events.motion_absolute,
-			&cursor_motion_absolute);
+	wl_signal_add(&cursor->events.motion_absolute, &cursor_motion_absolute);
 	wl_signal_add(&cursor->events.button, &cursor_button);
 	wl_signal_add(&cursor->events.axis, &cursor_axis);
 	wl_signal_add(&cursor->events.frame, &cursor_frame);
@@ -2472,22 +2458,18 @@ createnotifyx11(struct wl_listener *listener, void *data)
 	c->surface.xwayland = xwayland_surface;
 	c->type = xwayland_surface->override_redirect ? X11Unmanaged : X11Managed;
 	c->bw = borderpx;
+	c->isfullscreen = 0;
 
 	/* Listen to the various events it can emit */
-	c->map.notify = mapnotify;
-	wl_signal_add(&xwayland_surface->events.map, &c->map);
-	c->unmap.notify = unmapnotify;
-	wl_signal_add(&xwayland_surface->events.unmap, &c->unmap);
-	c->activate.notify = activatex11;
-	wl_signal_add(&xwayland_surface->events.request_activate, &c->activate);
-	c->configure.notify = configurex11;
-	wl_signal_add(&xwayland_surface->events.request_configure, &c->configure);
-	c->destroy.notify = destroynotify;
-	wl_signal_add(&xwayland_surface->events.destroy, &c->destroy);
-
-	c->fullscreen.notify = fullscreennotify;
-	wl_signal_add(&xwayland_surface->events.request_fullscreen, &c->fullscreen);
-	c->isfullscreen = 0;
+	LISTEN(&xwayland_surface->events.map, &c->map, mapnotify);
+	LISTEN(&xwayland_surface->events.unmap, &c->unmap, unmapnotify);
+	LISTEN(&xwayland_surface->events.request_activate, &c->activate,
+			activatex11);
+	LISTEN(&xwayland_surface->events.request_configure, &c->configure,
+			configurex11);
+	LISTEN(&xwayland_surface->events.destroy, &c->destroy, destroynotify);
+	LISTEN(&xwayland_surface->events.request_fullscreen, &c->fullscreen,
+			fullscreennotify);
 }
 
 Atom
