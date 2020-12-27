@@ -2148,13 +2148,11 @@ setup(void)
 		 */
 		xcursor_mgr = wlr_xcursor_manager_create(NULL, 24);
 		wlr_xcursor_manager_load(xcursor_mgr, 1);
-		xcursor = wlr_xcursor_manager_get_xcursor(xcursor_mgr, "left_ptr", 1);
-		if (xcursor) {
+		if ((xcursor = wlr_xcursor_manager_get_xcursor(xcursor_mgr, "left_ptr", 1)))
 			wlr_xwayland_set_cursor(xwayland,
 					xcursor->images[0]->buffer, xcursor->images[0]->width * 4,
 					xcursor->images[0]->width, xcursor->images[0]->height,
 					xcursor->images[0]->hotspot_x, xcursor->images[0]->hotspot_y);
-		}
 
 		setenv("DISPLAY", xwayland->display_name, 1);
 	} else {
@@ -2532,11 +2530,11 @@ xwaylandready(struct wl_listener *listener, void *data)
 	wlr_xwayland_set_seat(xwayland, seat);
 
 	/* Set the default XWayland cursor to match the rest of dwl. */
-	xcursor = wlr_xcursor_manager_get_xcursor(cursor_mgr, "left_ptr", 1);
-	wlr_xwayland_set_cursor(xwayland,
-			xcursor->images[0]->buffer, xcursor->images[0]->width * 4,
-			xcursor->images[0]->width, xcursor->images[0]->height,
-			xcursor->images[0]->hotspot_x, xcursor->images[0]->hotspot_y);
+	if ((xcursor = wlr_xcursor_manager_get_xcursor(cursor_mgr, "left_ptr", 1)))
+		wlr_xwayland_set_cursor(xwayland,
+				xcursor->images[0]->buffer, xcursor->images[0]->width * 4,
+				xcursor->images[0]->width, xcursor->images[0]->height,
+				xcursor->images[0]->hotspot_x, xcursor->images[0]->hotspot_y);
 
 	xcb_disconnect(xc);
 }
