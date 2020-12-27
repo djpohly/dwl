@@ -18,9 +18,10 @@ dwl is not meant to provide every feature under the sun. Instead, like dwm, it s
 - XWayland support as provided by wlroots
 - Zero flickering - Wayland users naturally expect that "every frame is perfect"
 
-Features yet to be implemented (possibly as patches) are:
+Features under consideration (possibly as patches) are:
 
-- Communication from the compositor to status bars.  One possibility is to create a dwl-status protocol that bars can implement to be notified of compositor information. You can already use Waybar or yambar, but without tag information
+- Protocols made trivial by wlroots
+- Communication from the compositor to status bars.  A straightforward possibility would be to use stdout or a provided file descriptor.
 - Implement the input-inhibitor protocol to support screen lockers
 - Implement the idle-inhibit protocol which lets applications such as mpv disable idle monitoring
 - Layer shell popups (used by Waybar)
