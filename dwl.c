@@ -688,11 +688,13 @@ cleanup(void)
 	wlr_xwayland_destroy(xwayland);
 #endif
 	wl_display_destroy_clients(dpy);
-	wl_display_destroy(dpy);
 
+	wlr_backend_destroy(backend);
 	wlr_xcursor_manager_destroy(cursor_mgr);
 	wlr_cursor_destroy(cursor);
 	wlr_output_layout_destroy(output_layout);
+	wlr_seat_destroy(seat);
+	wl_display_destroy(dpy);
 }
 
 void
