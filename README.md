@@ -47,7 +47,7 @@ All configuration is done by editing `config.h` and recompiling, in the same man
 
 ## Running dwl
 
-dwl can be run as-is, with no arguments. In an existing Wayland, this will open a window to act as a virtual display. When run from a TTY, the Wayland server will take over the entire virtual terminal. Clients started by dwl will have `WAYLAND_DISPLAY` set in their environment, and other clients can be started from outside the session by setting this variable accordingly.
+dwl can be run as-is, with no arguments. In an existing Wayland or X11 session, this will open a window to act as a virtual display. When run from a TTY, the Wayland server will take over the entire virtual terminal. Clients started by dwl will have `WAYLAND_DISPLAY` set in their environment, and other clients can be started from outside the session by setting this variable accordingly.
 
 You can also specify a startup program using the `-s` option. The argument to this option will be run at startup as a shell command (using `sh -c`) and can serve a similar function to `.xinitrc`: starting a service manager or other startup applications. Unlike `.xinitrc`, the display server will not shut down when this process terminates. Instead, as dwl is shutting down, it will send this process a SIGTERM and wait for it to terminate (if it hasn't already). This makes it ideal not only for initialization but also for execing into a user-level service manager like s6 or `systemd --user`.
 
