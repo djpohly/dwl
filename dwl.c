@@ -235,7 +235,7 @@ static void cursorframe(struct wl_listener *listener, void *data);
 static void destroylayersurfacenotify(struct wl_listener *listener, void *data);
 static void destroynotify(struct wl_listener *listener, void *data);
 static void destroyxdeco(struct wl_listener *listener, void *data);
-static Monitor *dirtomon(int dir);
+static Monitor *dirtomon(enum wlr_direction dir);
 static void focusclient(Client *c, int lift);
 static void focusmon(const Arg *arg);
 static void focusstack(const Arg *arg);
@@ -1096,19 +1096,17 @@ fullscreennotify(struct wl_listener *listener, void *data)
 }
 
 Monitor *
-dirtomon(int dir)
+dirtomon(enum wlr_direction dir)
 {
-	Monitor *m;
-
-	if (dir > 0) {
-		if (selmon->link.next == &mons)
-			return wl_container_of(mons.next, m, link);
-		return wl_container_of(selmon->link.next, m, link);
-	} else {
-		if (selmon->link.prev == &mons)
-			return wl_container_of(mons.prev, m, link);
-		return wl_container_of(selmon->link.prev, m, link);
-	}
+	struct wlr_output *next;
+	if ((next = wlr_output_layout_adjacent_output(output_layout,
+			dir, selmon->wlr_output, selmon->m.x, selmon->m.y)))
+		return next->data;
+	if ((next = wlr_output_layout_farthest_output(output_layout,
+			dir ^ (WLR_DIRECTION_LEFT|WLR_DIRECTION_RIGHT),
+			selmon->wlr_output, selmon->m.x, selmon->m.y)))
+		return next->data;
+	return selmon;
 }
 
 void
