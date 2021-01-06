@@ -186,6 +186,8 @@ typedef struct {
 	float scale;
 	const Layout *lt;
 	enum wl_output_transform rr;
+	int x;
+	int y;
 } MonitorRule;
 
 typedef struct {
@@ -814,11 +816,9 @@ createmon(struct wl_listener *listener, void *data)
 	/* This event is raised by the backend when a new output (aka a display or
 	 * monitor) becomes available. */
 	struct wlr_output *wlr_output = data;
-	Monitor *m;
 	const MonitorRule *r;
 	size_t nlayers;
-	Monitor *moni, *insertmon = NULL;
-	int x = 0;
+	Monitor *m, *moni, *insertmon = NULL;
 
 	/* The mode is a tuple of (width, height, refresh rate), and each
 	 * monitor supports only a specific set of modes. We just pick the
@@ -851,12 +851,11 @@ createmon(struct wl_listener *listener, void *data)
 	wl_list_for_each(moni, &mons, link)
 		if (m->position > moni->position)
 			insertmon = moni;
-	if (insertmon) {
-		x = insertmon->w.x + insertmon->w.width;
+
+	if (insertmon) /* insertmon is the leftmost monitor to m */
 		wl_list_insert(&insertmon->link, &m->link);
-	} else {
+	else
 		wl_list_insert(&mons, &m->link);
-	}
 
 	wlr_output_enable(wlr_output, 1);
 	if (!wlr_output_commit(wlr_output))
@@ -868,13 +867,7 @@ createmon(struct wl_listener *listener, void *data)
 	 * display, which Wayland clients can see to find out information about the
 	 * output (such as DPI, scale factor, manufacturer, etc).
 	 */
-	wlr_output_layout_add(output_layout, wlr_output, x, 0);
-	wl_list_for_each_reverse(moni, &mons, link) {
-		/* All monitors to the right of the new one must be moved */
-		if (moni == m)
-			break;
-		wlr_output_layout_move(output_layout, moni->wlr_output, moni->w.x + m->wlr_output->width, 0);
-	}
+	wlr_output_layout_add(output_layout, wlr_output, r->x, r->y);
 	sgeom = *wlr_output_layout_get_box(output_layout, NULL);
 
 	nlayers = LENGTH(m->layers);
