@@ -188,6 +188,9 @@ typedef struct {
 	enum wl_output_transform rr;
 	int x;
 	int y;
+	int w;
+	int h;
+	int refresh;
 } MonitorRule;
 
 typedef struct {
@@ -277,6 +280,7 @@ static void setfloating(Client *c, int floating);
 static void setfullscreen(Client *c, int fullscreen);
 static void setlayout(const Arg *arg);
 static void setmfact(const Arg *arg);
+static void setmode(struct wlr_output *output, int width, int height, int refresh);
 static void setmon(Client *c, Monitor *m, unsigned int newtags);
 static void setup(void);
 static void sigchld(int unused);
@@ -820,12 +824,6 @@ createmon(struct wl_listener *listener, void *data)
 	size_t nlayers;
 	Monitor *m, *moni, *insertmon = NULL;
 
-	/* The mode is a tuple of (width, height, refresh rate), and each
-	 * monitor supports only a specific set of modes. We just pick the
-	 * monitor's preferred mode; a more sophisticated compositor would let
-	 * the user configure it. */
-	wlr_output_set_mode(wlr_output, wlr_output_preferred_mode(wlr_output));
-
 	/* Allocates and configures monitor state using configured rules */
 	m = wlr_output->data = calloc(1, sizeof(*m));
 	m->wlr_output = wlr_output;
@@ -833,6 +831,7 @@ createmon(struct wl_listener *listener, void *data)
 	m->position = -1;
 	for (r = monrules; r < END(monrules); r++) {
 		if (!r->name || strstr(wlr_output->name, r->name)) {
+			setmode(wlr_output, r->w, r->h, r->refresh);
 			m->mfact = r->mfact;
 			m->nmaster = r->nmaster;
 			wlr_output_set_scale(wlr_output, r->scale);
@@ -1949,6 +1948,43 @@ setmfact(const Arg *arg)
 		return;
 	selmon->mfact = f;
 	arrange(selmon);
+}
+
+void
+setmode(struct wlr_output *output, int w, int h, int refresh) {
+	struct wlr_output_mode *mode, *best = NULL;
+
+	/* If the monitor has no custom configuration, use preferred mode */
+	if (!w || !h || !refresh) {
+		wlr_output_set_mode(output, wlr_output_preferred_mode(output));
+		return;
+	}
+
+	/* If the monitor lists no modes, attempt a custom mode */
+	if (wl_list_empty(&output->modes)) {
+		wlr_output_set_custom_mode(output, w, h, refresh);
+		return;
+	}
+					
+	/* Loop through the monitor's modes use if exact match */
+	wl_list_for_each(mode, &output->modes, link) {
+		if (mode->width == w && mode->height == h) {
+			if(mode->refresh == refresh) {
+				wlr_output_set_mode(output, mode);
+				best = mode;
+				break;
+			}
+			best = mode;
+		}
+	}
+
+	/* Fallback to trying a custom mode if resolution has no matches */
+	if (NULL == best) {
+		wlr_output_set_custom_mode(output, w, h, refresh);
+		return;
+	}
+
+	wlr_output_set_mode(output, best);
 }
 
 void

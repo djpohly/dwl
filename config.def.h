@@ -28,9 +28,9 @@ static const Layout layouts[] = {
  * The order in which monitors are defined determines their position.
  * Non-configured monitors are always added to the left. */
 static const MonitorRule monrules[] = {
-	/* name       mfact nmaster scale layout       rotate/reflect x y */
+	/* name       mfact nmaster scale layout       rotate/reflect              x  y  w     h     rate */
 	/* example of a HiDPI laptop monitor:
-	{ "eDP-1",    0.5,  1,      2,    &layouts[0], WL_OUTPUT_TRANSFORM_NORMAL, 0, 0 },
+	{ "eDP-1",    0.5,  1,      2,    &layouts[0], WL_OUTPUT_TRANSFORM_NORMAL, 0, 0, 1920, 1080, 60000 },
 	*/
 	/* the order in which monitors are defined here affects the order in which
 	 * focusmon and tagmon cycle trough the monitors */
