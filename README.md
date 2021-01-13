@@ -41,6 +41,12 @@ dwl has only two dependencies: wlroots-git and wayland-protocols. Simply install
 
 To enable XWayland, you should also install xorg-xwayland and uncomment its flag in `config.mk`.
 
+### Nix
+
+If `config.mk` has the xwayland flag, set `enableXWayland` to `true` in `default.nix`.
+
+Run `nix-shell --pure` to enter the shell, and then `make` to build dwl.
+
 ## Configuration
 
 All configuration is done by editing `config.h` and recompiling, in the same manner as dwm. There is no way to separately restart the window manager in Wayland without restarting the entire display server, so any changes will take effect the next time dwl is executed.
