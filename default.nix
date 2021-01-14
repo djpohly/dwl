@@ -1,8 +1,8 @@
 { pkgs ? import <nixpkgs> { } }:
 let
   enableXWayland = false;
-  version = "4f80fab337f10b4ad2043b834606540895b8df36";
-  sha256 = "0zsfglyfmzsxf6vkdv999z49v66pwcyffb0pn824ciafwna2408r";
+  version = "dc61f471da1a1c9264167635c286b6dcb37b3d6f";
+  sha256 = "0k31chpc4facn7n7kmk0s5wp7vj7mpapwk4as6pjhi1rq37g34lf";
 
   wlroots-git = pkgs.wlroots.overrideAttrs (old: {
     version = version;
