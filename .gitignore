@@ -3,3 +3,4 @@ dwl
 *-protocol.c
 *-protocol.h
 .ccls-cache
+config.h
