@@ -319,8 +319,10 @@ static struct wlr_virtual_keyboard_manager_v1 *virtual_keyboard_mgr;
 
 static struct wlr_cursor *cursor;
 static struct wlr_xcursor_manager *cursor_mgr;
+#ifdef XWAYLAND
 static struct wlr_xcursor *xcursor;
 static struct wlr_xcursor_manager *xcursor_mgr;
+#endif
 
 static struct wlr_seat *seat;
 static struct wl_list keyboards;
@@ -2504,8 +2506,8 @@ xwaylandready(struct wl_listener *listener, void *data)
 	 * not detect that window type. */
 	netatom[NetWMWindowTypeDialog] = getatom(xc, "_NET_WM_WINDOW_TYPE_DIALOG");
 	netatom[NetWMWindowTypeSplash] = getatom(xc, "_NET_WM_WINDOW_TYPE_SPLASH");
-	netatom[NetWMWindowTypeUtility] = getatom(xc, "_NET_WM_WINDOW_TYPE_TOOLBAR");
-	netatom[NetWMWindowTypeToolbar] = getatom(xc, "_NET_WM_WINDOW_TYPE_UTILITY");
+	netatom[NetWMWindowTypeToolbar] = getatom(xc, "_NET_WM_WINDOW_TYPE_TOOLBAR");
+	netatom[NetWMWindowTypeUtility] = getatom(xc, "_NET_WM_WINDOW_TYPE_UTILITY");
 
 	/* assign the one and only seat */
 	wlr_xwayland_set_seat(xwayland, seat);
