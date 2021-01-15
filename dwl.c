@@ -176,7 +176,6 @@ struct Monitor {
 	double mfact;
 	int nmaster;
 	Client *fullscreenclient;
-	int position;
 };
 
 typedef struct {
@@ -235,7 +234,7 @@ static void cursorframe(struct wl_listener *listener, void *data);
 static void destroylayersurfacenotify(struct wl_listener *listener, void *data);
 static void destroynotify(struct wl_listener *listener, void *data);
 static void destroyxdeco(struct wl_listener *listener, void *data);
-static Monitor *dirtomon(int dir);
+static Monitor *dirtomon(enum wlr_direction dir);
 static void focusclient(Client *c, int lift);
 static void focusmon(const Arg *arg);
 static void focusstack(const Arg *arg);
@@ -830,7 +829,6 @@ createmon(struct wl_listener *listener, void *data)
 	m = wlr_output->data = calloc(1, sizeof(*m));
 	m->wlr_output = wlr_output;
 	m->tagset[0] = m->tagset[1] = 1;
-	m->position = -1;
 	for (r = monrules; r < END(monrules); r++) {
 		if (!r->name || strstr(wlr_output->name, r->name)) {
 			m->mfact = r->mfact;
@@ -839,7 +837,6 @@ createmon(struct wl_listener *listener, void *data)
 			wlr_xcursor_manager_load(cursor_mgr, r->scale);
 			m->lt[0] = m->lt[1] = r->lt;
 			wlr_output_set_transform(wlr_output, r->rr);
-			m->position = r - monrules;
 			break;
 		}
 	}
@@ -848,15 +845,7 @@ createmon(struct wl_listener *listener, void *data)
 	LISTEN(&wlr_output->events.frame, &m->frame, rendermon);
 	LISTEN(&wlr_output->events.destroy, &m->destroy, cleanupmon);
 
-	wl_list_for_each(moni, &mons, link)
-		if (m->position > moni->position)
-			insertmon = moni;
-
-	if (insertmon) /* insertmon is the leftmost monitor to m */
-		wl_list_insert(&insertmon->link, &m->link);
-	else
-		wl_list_insert(&mons, &m->link);
-
+	wl_list_insert(&mons, &m->link);
 	wlr_output_enable(wlr_output, 1);
 	if (!wlr_output_commit(wlr_output))
 		return;
@@ -1096,19 +1085,17 @@ fullscreennotify(struct wl_listener *listener, void *data)
 }
 
 Monitor *
-dirtomon(int dir)
+dirtomon(enum wlr_direction dir)
 {
-	Monitor *m;
-
-	if (dir > 0) {
-		if (selmon->link.next == &mons)
-			return wl_container_of(mons.next, m, link);
-		return wl_container_of(selmon->link.next, m, link);
-	} else {
-		if (selmon->link.prev == &mons)
-			return wl_container_of(mons.prev, m, link);
-		return wl_container_of(selmon->link.prev, m, link);
-	}
+	struct wlr_output *next;
+	if ((next = wlr_output_layout_adjacent_output(output_layout,
+			dir, selmon->wlr_output, selmon->m.x, selmon->m.y)))
+		return next->data;
+	if ((next = wlr_output_layout_farthest_output(output_layout,
+			dir ^ (WLR_DIRECTION_LEFT|WLR_DIRECTION_RIGHT),
+			selmon->wlr_output, selmon->m.x, selmon->m.y)))
+		return next->data;
+	return selmon;
 }
 
 void
