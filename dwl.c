@@ -26,6 +26,7 @@
 #include <wlr/types/wlr_keyboard.h>
 #include <wlr/types/wlr_matrix.h>
 #include <wlr/types/wlr_output.h>
+#include <wlr/types/wlr_output_damage.h>
 #include <wlr/types/wlr_output_layout.h>
 #include <wlr/types/wlr_output_management_v1.h>
 #include <wlr/types/wlr_pointer.h>
@@ -176,6 +177,7 @@ struct Monitor {
 	double mfact;
 	int nmaster;
 	Client *fullscreenclient;
+	struct wlr_output_damage *damage;
 };
 
 typedef struct {
@@ -779,6 +781,10 @@ commitnotify(struct wl_listener *listener, void *data)
 	/* mark a pending resize as completed */
 	if (c->resize && c->resize <= c->surface.xdg->configure_serial)
 		c->resize = 0;
+
+	// Damage the whole screen
+	if (c->mon)
+		wlr_output_damage_add_whole(c->mon->damage);
 }
 
 void
@@ -823,6 +829,7 @@ createmon(struct wl_listener *listener, void *data)
 	/* Initialize monitor state using configured rules */
 	for (size_t i = 0; i < LENGTH(m->layers); i++)
 		wl_list_init(&m->layers[i]);
+	m->damage = wlr_output_damage_create(wlr_output);
 	m->tagset[0] = m->tagset[1] = 1;
 	for (r = monrules; r < END(monrules); r++) {
 		if (!r->name || strstr(wlr_output->name, r->name)) {
@@ -1760,7 +1767,14 @@ rendermon(struct wl_listener *listener, void *data)
 	if (!wlr_output_attach_render(m->wlr_output, NULL))
 		return;
 
-	if (render) {
+	bool needs_frame;
+	pixman_region32_t damage;
+	pixman_region32_init(&damage);
+	if (!wlr_output_damage_attach_render(m->damage, &needs_frame, &damage)) {
+		BARF("Cannot make damage output current");
+	}
+
+	if (render && needs_frame) {
 		/* Begin the renderer (calls glViewport and some other GL sanity checks) */
 		wlr_renderer_begin(drw, m->wlr_output->width, m->wlr_output->height);
 		wlr_renderer_clear(drw, rootcolor);
@@ -1785,7 +1799,13 @@ rendermon(struct wl_listener *listener, void *data)
 		/* Conclude rendering and swap the buffers, showing the final frame
 		 * on-screen. */
 		wlr_renderer_end(drw);
+
+		wlr_output_set_damage(m->wlr_output, &m->damage->current);
+	} else {
+		wlr_output_rollback(m->wlr_output);
 	}
+
+	pixman_region32_fini(&damage);
 
 	wlr_output_commit(m->wlr_output);
 }
