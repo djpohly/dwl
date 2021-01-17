@@ -147,6 +147,7 @@ typedef struct {
 
 	struct wlr_box geo;
 	enum zwlr_layer_shell_v1_layer layer;
+	Monitor *mon;
 } LayerSurface;
 
 typedef struct {
@@ -771,6 +772,10 @@ commitlayersurfacenotify(struct wl_listener *listener, void *data)
 			&layersurface->link);
 		layersurface->layer = wlr_layer_surface->current.layer;
 	}
+
+	// Damage the whole screen
+	if (selmon)
+		wlr_output_damage_add_whole(selmon->damage);
 }
 
 void
@@ -1020,6 +1025,11 @@ destroynotify(struct wl_listener *listener, void *data)
 {
 	/* Called when the surface is destroyed and should never be shown again. */
 	Client *c = wl_container_of(listener, c, destroy);
+
+	// Damage the whole screen
+	if (c->mon)
+		wlr_output_damage_add_whole(c->mon->damage);
+
 	wl_list_remove(&c->map.link);
 	wl_list_remove(&c->unmap.link);
 	wl_list_remove(&c->destroy.link);
@@ -1361,6 +1371,10 @@ mapnotify(struct wl_listener *listener, void *data)
 
 	/* Set initial monitor, tags, floating status, and focus */
 	applyrules(c);
+
+
+	// Damage the whole screen
+	wlr_output_damage_add_whole(c->mon->damage);
 
 	if (c->mon->fullscreenclient && c->mon->fullscreenclient == oldfocus
 			&& !c->isfloating && c->mon->lt[c->mon->sellt]->arrange) {
@@ -1964,6 +1978,7 @@ setmon(Client *c, Monitor *m, unsigned int newtags)
 	if (oldmon) {
 		wlr_surface_send_leave(client_surface(c), oldmon->wlr_output);
 		arrange(oldmon);
+		wlr_output_damage_add_whole(oldmon->damage);
 	}
 	if (m) {
 		/* Make sure window actually overlaps with the monitor */
@@ -1971,6 +1986,7 @@ setmon(Client *c, Monitor *m, unsigned int newtags)
 		wlr_surface_send_enter(client_surface(c), m->wlr_output);
 		c->tags = newtags ? newtags : m->tagset[m->seltags]; /* assign tags of target monitor */
 		arrange(m);
+		wlr_output_damage_add_whole(m->damage);
 	}
 	focusclient(focustop(selmon), 1);
 }
@@ -2289,6 +2305,11 @@ unmapnotify(struct wl_listener *listener, void *data)
 {
 	/* Called when the surface is unmapped, and should no longer be shown. */
 	Client *c = wl_container_of(listener, c, unmap);
+
+	// Damage the whole screen
+	if (c->mon)
+		wlr_output_damage_add_whole(c->mon->damage);
+
 	wl_list_remove(&c->link);
 	if (client_is_unmanaged(c))
 		return;
