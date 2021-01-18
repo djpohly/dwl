@@ -1512,6 +1512,12 @@ outputmgrapply(struct wl_listener *listener, void *data)
 void
 outputmgrapplyortest(struct wlr_output_configuration_v1 *config, int test)
 {
+	/*
+	 * Called when a client such as wlr-randr requests a change in output
+	 * configuration.  This is only one way that the layout can be changed,
+	 * so any Monitor information should be updated by updatemons() after an
+	 * output_layout.change event, not here.
+	 */
 	struct wlr_output_configuration_head_v1 *config_head;
 	int ok = 1;
 
@@ -2275,6 +2281,13 @@ unmapnotify(struct wl_listener *listener, void *data)
 void
 updatemons(struct wl_listener *listener, void *data)
 {
+	/*
+	 * Called whenever the output layout changes: adding or removing a
+	 * monitor, changing an output's mode or position, etc.  This is where
+	 * the change officially happens and we update geometry, window
+	 * positions, focus, and the stored configuration in wlroots'
+	 * output-manager implementation.
+	 */
 	struct wlr_output_configuration_v1 *config =
 		wlr_output_configuration_v1_create();
 	Monitor *m;
