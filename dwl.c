@@ -818,18 +818,12 @@ createmon(struct wl_listener *listener, void *data)
 	 * monitor) becomes available. */
 	struct wlr_output *wlr_output = data;
 	const MonitorRule *r;
-	size_t nlayers;
-	Monitor *m, *moni, *insertmon = NULL;
-
-	/* The mode is a tuple of (width, height, refresh rate), and each
-	 * monitor supports only a specific set of modes. We just pick the
-	 * monitor's preferred mode; a more sophisticated compositor would let
-	 * the user configure it. */
-	wlr_output_set_mode(wlr_output, wlr_output_preferred_mode(wlr_output));
-
-	/* Allocates and configures monitor state using configured rules */
-	m = wlr_output->data = calloc(1, sizeof(*m));
+	Monitor *m = wlr_output->data = calloc(1, sizeof(*m));
 	m->wlr_output = wlr_output;
+
+	/* Initialize monitor state using configured rules */
+	for (size_t i = 0; i < LENGTH(m->layers); ++i)
+		wl_list_init(&m->layers[i]);
 	m->tagset[0] = m->tagset[1] = 1;
 	for (r = monrules; r < END(monrules); r++) {
 		if (!r->name || strstr(wlr_output->name, r->name)) {
@@ -842,7 +836,14 @@ createmon(struct wl_listener *listener, void *data)
 			break;
 		}
 	}
+
+	/* The mode is a tuple of (width, height, refresh rate), and each
+	 * monitor supports only a specific set of modes. We just pick the
+	 * monitor's preferred mode; a more sophisticated compositor would let
+	 * the user configure it. */
+	wlr_output_set_mode(wlr_output, wlr_output_preferred_mode(wlr_output));
 	wlr_output_enable_adaptive_sync(wlr_output, 1);
+
 	/* Set up event listeners */
 	LISTEN(&wlr_output->events.frame, &m->frame, rendermon);
 	LISTEN(&wlr_output->events.destroy, &m->destroy, cleanupmon);
@@ -860,10 +861,6 @@ createmon(struct wl_listener *listener, void *data)
 	 */
 	wlr_output_layout_add(output_layout, wlr_output, r->x, r->y);
 	sgeom = *wlr_output_layout_get_box(output_layout, NULL);
-
-	nlayers = LENGTH(m->layers);
-	for (size_t i = 0; i < nlayers; ++i)
-		wl_list_init(&m->layers[i]);
 
 	/* When adding monitors, the geometries of all monitors must be updated */
 	updatemons();
