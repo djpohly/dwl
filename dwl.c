@@ -437,7 +437,7 @@ applyexclusive(struct wlr_box *usable_area,
 			.margin = margin_right,
 		}
 	};
-	for (size_t i = 0; i < LENGTH(edges); ++i) {
+	for (size_t i = 0; i < LENGTH(edges); i++) {
 		if ((anchor == edges[i].singular_anchor || anchor == edges[i].anchor_triplet)
 				&& exclusive + edges[i].margin > 0) {
 			if (edges[i].positive_axis)
@@ -602,7 +602,7 @@ arrangelayers(Monitor *m)
 			&usable_area, 0);
 
 	// Find topmost keyboard interactive layer, if such a layer exists
-	for (size_t i = 0; i < LENGTH(layers_above_shell); ++i) {
+	for (size_t i = 0; i < LENGTH(layers_above_shell); i++) {
 		wl_list_for_each_reverse(layersurface,
 				&m->layers[layers_above_shell[i]], link) {
 			if (layersurface->layer_surface->current.keyboard_interactive &&
@@ -821,7 +821,7 @@ createmon(struct wl_listener *listener, void *data)
 	m->wlr_output = wlr_output;
 
 	/* Initialize monitor state using configured rules */
-	for (size_t i = 0; i < LENGTH(m->layers); ++i)
+	for (size_t i = 0; i < LENGTH(m->layers); i++)
 		wl_list_init(&m->layers[i]);
 	m->tagset[0] = m->tagset[1] = 1;
 	for (r = monrules; r < END(monrules); r++) {
