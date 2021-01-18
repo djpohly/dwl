@@ -290,7 +290,7 @@ static void toggleview(const Arg *arg);
 static void unmaplayersurface(LayerSurface *layersurface);
 static void unmaplayersurfacenotify(struct wl_listener *listener, void *data);
 static void unmapnotify(struct wl_listener *listener, void *data);
-static void updatemons();
+static void updatemons(struct wl_listener *listener, void *data);
 static void view(const Arg *arg);
 static void virtualkeyboard(struct wl_listener *listener, void *data);
 static Client *xytoclient(double x, double y);
@@ -341,6 +341,7 @@ static struct wl_listener cursor_button = {.notify = buttonpress};
 static struct wl_listener cursor_frame = {.notify = cursorframe};
 static struct wl_listener cursor_motion = {.notify = motionrelative};
 static struct wl_listener cursor_motion_absolute = {.notify = motionabsolute};
+static struct wl_listener layout_change = {.notify = updatemons};
 static struct wl_listener new_input = {.notify = inputdevice};
 static struct wl_listener new_virtual_keyboard = {.notify = virtualkeyboard};
 static struct wl_listener new_output = {.notify = createmon};
@@ -723,7 +724,6 @@ cleanupmon(struct wl_listener *listener, void *data)
 	wl_list_remove(&m->frame.link);
 	wl_list_remove(&m->link);
 	wlr_output_layout_remove(output_layout, m->wlr_output);
-	updatemons();
 
 	nmons = wl_list_length(&mons);
 	do // don't switch to disabled mons
@@ -862,7 +862,6 @@ createmon(struct wl_listener *listener, void *data)
 	sgeom = *wlr_output_layout_get_box(output_layout, NULL);
 
 	/* When adding monitors, the geometries of all monitors must be updated */
-	updatemons();
 	wl_list_for_each(m, &mons, link) {
 		/* The first monitor in the list is the most recently added */
 		Client *c;
@@ -1552,11 +1551,9 @@ outputmgrapplyortest(struct wlr_output_configuration_v1 *config, int test)
 		} else
 			ok &= wlr_output_commit(wlr_output);
 	}
-	if (ok) {
+	if (ok)
 		wlr_output_configuration_v1_send_succeeded(config);
-		if (!test)
-			updatemons();
-	} else
+	else
 		wlr_output_configuration_v1_send_failed(config);
 	wlr_output_configuration_v1_destroy(config);
 }
@@ -2027,6 +2024,7 @@ setup(void)
 	/* Creates an output layout, which a wlroots utility for working with an
 	 * arrangement of screens in a physical layout. */
 	output_layout = wlr_output_layout_create();
+	wl_signal_add(&output_layout->events.change, &layout_change);
 	wlr_xdg_output_manager_v1_create(dpy, output_layout);
 
 	/* Configure a listener to be notified when new outputs are available on the
@@ -2283,7 +2281,7 @@ unmapnotify(struct wl_listener *listener, void *data)
 }
 
 void
-updatemons()
+updatemons(struct wl_listener *listener, void *data)
 {
 	struct wlr_output_configuration_v1 *config =
 		wlr_output_configuration_v1_create();
