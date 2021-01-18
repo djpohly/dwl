@@ -1532,17 +1532,6 @@ outputmgrapplyortest(struct wlr_output_configuration_v1 *config, int test)
 					config_head->state.x, config_head->state.y);
 			wlr_output_set_transform(wlr_output, config_head->state.transform);
 			wlr_output_set_scale(wlr_output, config_head->state.scale);
-		} else if (wl_list_length(&mons) > 1) {
-			Monitor *m;
-			wl_list_for_each(m, &mons, link) {
-				if (m->wlr_output->name == wlr_output->name) {
-					// focus the left monitor (relative to the current focus)
-					m->wlr_output->enabled = !m->wlr_output->enabled;
-					focusmon(&(Arg) {.i = -1});
-					closemon(m);
-					m->wlr_output->enabled = !m->wlr_output->enabled;
-				}
-			}
 		}
 
 		if (!(ok = wlr_output_test(wlr_output)))
@@ -2293,6 +2282,9 @@ updatemons(struct wl_listener *listener, void *data)
 	wl_list_for_each(m, &mons, link) {
 		struct wlr_output_configuration_head_v1 *config_head =
 			wlr_output_configuration_head_v1_create(config, m->wlr_output);
+
+		/* TODO: move clients off disabled monitors */
+		/* TODO: move focus if selmon is disabled */
 
 		/* Get the effective monitor geometry to use for surfaces */
 		m->m = m->w = *wlr_output_layout_get_box(output_layout, m->wlr_output);
