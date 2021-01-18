@@ -573,7 +573,6 @@ arrangelayers(Monitor *m)
 		ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY,
 		ZWLR_LAYER_SHELL_V1_LAYER_TOP,
 	};
-	size_t nlayers = LENGTH(layers_above_shell);
 	LayerSurface *layersurface;
 	struct wlr_keyboard *kb = wlr_seat_get_keyboard(seat);
 
@@ -603,7 +602,7 @@ arrangelayers(Monitor *m)
 			&usable_area, 0);
 
 	// Find topmost keyboard interactive layer, if such a layer exists
-	for (size_t i = 0; i < nlayers; ++i) {
+	for (size_t i = 0; i < LENGTH(layers_above_shell); ++i) {
 		wl_list_for_each_reverse(layersurface,
 				&m->layers[layers_above_shell[i]], link) {
 			if (layersurface->layer_surface->current.keyboard_interactive &&
