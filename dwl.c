@@ -1545,11 +1545,14 @@ outputmgrapplyortest(struct wlr_output_configuration_v1 *config, int test)
 			}
 		}
 
-		if (test) {
-			ok &= wlr_output_test(wlr_output);
-			wlr_output_rollback(wlr_output);
-		} else
-			ok &= wlr_output_commit(wlr_output);
+		if (!(ok = wlr_output_test(wlr_output)))
+			break;
+	}
+	wl_list_for_each(config_head, &config->heads, link) {
+		if (ok && !test)
+			wlr_output_commit(config_head->state.output);
+		else
+			wlr_output_rollback(config_head->state.output);
 	}
 	if (ok)
 		wlr_output_configuration_v1_send_succeeded(config);
