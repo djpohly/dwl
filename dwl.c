@@ -774,8 +774,7 @@ commitlayersurfacenotify(struct wl_listener *listener, void *data)
 	}
 
 	// Damage the whole screen
-	if (selmon)
-		wlr_output_damage_add_whole(selmon->damage);
+	wlr_output_damage_add_whole(m->damage);
 }
 
 void
@@ -1372,7 +1371,6 @@ mapnotify(struct wl_listener *listener, void *data)
 	/* Set initial monitor, tags, floating status, and focus */
 	applyrules(c);
 
-
 	// Damage the whole screen
 	wlr_output_damage_add_whole(c->mon->damage);
 
@@ -1777,16 +1775,11 @@ rendermon(struct wl_listener *listener, void *data)
 		}
 	}
 
-	/* wlr_output_attach_render makes the OpenGL context current. */
-	if (!wlr_output_attach_render(m->wlr_output, NULL))
-		return;
-
 	bool needs_frame;
 	pixman_region32_t damage;
 	pixman_region32_init(&damage);
-	if (!wlr_output_damage_attach_render(m->damage, &needs_frame, &damage)) {
-		BARF("Cannot make damage output current");
-	}
+	if (!wlr_output_damage_attach_render(m->damage, &needs_frame, &damage))
+		return;
 
 	if (render && needs_frame) {
 		/* Begin the renderer (calls glViewport and some other GL sanity checks) */
