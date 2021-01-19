@@ -26,6 +26,7 @@
 #include <wlr/types/wlr_keyboard.h>
 #include <wlr/types/wlr_matrix.h>
 #include <wlr/types/wlr_output.h>
+#include <wlr/types/wlr_output_damage.h>
 #include <wlr/types/wlr_output_layout.h>
 #include <wlr/types/wlr_output_management_v1.h>
 #include <wlr/types/wlr_pointer.h>
@@ -146,6 +147,7 @@ typedef struct {
 
 	struct wlr_box geo;
 	enum zwlr_layer_shell_v1_layer layer;
+	Monitor *mon;
 } LayerSurface;
 
 typedef struct {
@@ -176,7 +178,7 @@ struct Monitor {
 	double mfact;
 	int nmaster;
 	Client *fullscreenclient;
-	int isdamaged;
+	struct wlr_output_damage *damage;
 };
 
 typedef struct {
@@ -771,7 +773,8 @@ commitlayersurfacenotify(struct wl_listener *listener, void *data)
 		layersurface->layer = wlr_layer_surface->current.layer;
 	}
 
-	m->isdamaged = true;
+	// Damage the whole screen
+	wlr_output_damage_add_whole(m->damage);
 }
 
 void
@@ -783,8 +786,9 @@ commitnotify(struct wl_listener *listener, void *data)
 	if (c->resize && c->resize <= c->surface.xdg->configure_serial)
 		c->resize = 0;
 
+	// Damage the whole screen
 	if (c->mon)
-		c->mon->isdamaged = true;
+		wlr_output_damage_add_whole(c->mon->damage);
 }
 
 void
@@ -829,7 +833,7 @@ createmon(struct wl_listener *listener, void *data)
 	/* Initialize monitor state using configured rules */
 	for (size_t i = 0; i < LENGTH(m->layers); i++)
 		wl_list_init(&m->layers[i]);
-	m->isdamaged = 1;
+	m->damage = wlr_output_damage_create(wlr_output);
 	m->tagset[0] = m->tagset[1] = 1;
 	for (r = monrules; r < END(monrules); r++) {
 		if (!r->name || strstr(wlr_output->name, r->name)) {
@@ -1021,8 +1025,9 @@ destroynotify(struct wl_listener *listener, void *data)
 	/* Called when the surface is destroyed and should never be shown again. */
 	Client *c = wl_container_of(listener, c, destroy);
 
+	// Damage the whole screen
 	if (c->mon)
-		c->mon->isdamaged = true;
+		wlr_output_damage_add_whole(c->mon->damage);
 
 	wl_list_remove(&c->map.link);
 	wl_list_remove(&c->unmap.link);
@@ -1366,7 +1371,8 @@ mapnotify(struct wl_listener *listener, void *data)
 	/* Set initial monitor, tags, floating status, and focus */
 	applyrules(c);
 
-	c->mon->isdamaged = true;
+	// Damage the whole screen
+	wlr_output_damage_add_whole(c->mon->damage);
 
 	if (c->mon->fullscreenclient && c->mon->fullscreenclient == oldfocus
 			&& !c->isfloating && c->mon->lt[c->mon->sellt]->arrange) {
@@ -1769,14 +1775,13 @@ rendermon(struct wl_listener *listener, void *data)
 		}
 	}
 
-	/* wlr_output_attach_render makes the OpenGL context current. */
-	if (!wlr_output_attach_render(m->wlr_output, NULL))
+	bool needs_frame;
+	pixman_region32_t damage;
+	pixman_region32_init(&damage);
+	if (!wlr_output_damage_attach_render(m->damage, &needs_frame, &damage))
 		return;
 
-	// We must render the monitor twice, once for each buffer, each time damage occurs
-	if (render && (m->isdamaged > -1)) {
-		m->isdamaged--;
-
+	if (render && needs_frame) {
 		/* Begin the renderer (calls glViewport and some other GL sanity checks) */
 		wlr_renderer_begin(drw, m->wlr_output->width, m->wlr_output->height);
 		wlr_renderer_clear(drw, rootcolor);
@@ -1801,7 +1806,13 @@ rendermon(struct wl_listener *listener, void *data)
 		/* Conclude rendering and swap the buffers, showing the final frame
 		 * on-screen. */
 		wlr_renderer_end(drw);
+
+		wlr_output_set_damage(m->wlr_output, &m->damage->current);
+	} else {
+		wlr_output_rollback(m->wlr_output);
 	}
+
+	pixman_region32_fini(&damage);
 
 	wlr_output_commit(m->wlr_output);
 }
@@ -1960,7 +1971,7 @@ setmon(Client *c, Monitor *m, unsigned int newtags)
 	if (oldmon) {
 		wlr_surface_send_leave(client_surface(c), oldmon->wlr_output);
 		arrange(oldmon);
-		oldmon->isdamaged = true;
+		wlr_output_damage_add_whole(oldmon->damage);
 	}
 	if (m) {
 		/* Make sure window actually overlaps with the monitor */
@@ -1968,7 +1979,7 @@ setmon(Client *c, Monitor *m, unsigned int newtags)
 		wlr_surface_send_enter(client_surface(c), m->wlr_output);
 		c->tags = newtags ? newtags : m->tagset[m->seltags]; /* assign tags of target monitor */
 		arrange(m);
-		m->isdamaged = true;
+		wlr_output_damage_add_whole(m->damage);
 	}
 	focusclient(focustop(selmon), 1);
 }
@@ -2288,7 +2299,9 @@ unmapnotify(struct wl_listener *listener, void *data)
 	/* Called when the surface is unmapped, and should no longer be shown. */
 	Client *c = wl_container_of(listener, c, unmap);
 
-	c->mon->isdamaged = true;
+	// Damage the whole screen
+	if (c->mon)
+		wlr_output_damage_add_whole(c->mon->damage);
 
 	wl_list_remove(&c->link);
 	if (client_is_unmanaged(c))
