@@ -1758,7 +1758,7 @@ void
 rendermon(struct wl_listener *listener, void *data)
 {
 	Client *c;
-	int render = 1;
+	int render;
 	bool needs_frame;
 	pixman_region32_t damage;
 
@@ -1769,51 +1769,51 @@ rendermon(struct wl_listener *listener, void *data)
 	struct timespec now;
 	clock_gettime(CLOCK_MONOTONIC, &now);
 
-	/* Do not render if any XDG clients have an outstanding resize. */
+	/* If there is any XDG client which is awaiting resize, request a new
+	 * frame from that client, and do not render anything new until there
+	 * are no pending resizes remaining. */
 	wl_list_for_each(c, &stack, slink) {
 		if (c->resize) {
 			wlr_surface_send_frame_done(client_surface(c), &now);
-			render = 0;
+			return;
 		}
 	}
 
+	/* Do not render if no new frame is needed */
 	pixman_region32_init(&damage);
-	if (!wlr_output_damage_attach_render(m->damage, &needs_frame, &damage))
-		return;
-
-	if (render && needs_frame) {
-		/* Begin the renderer (calls glViewport and some other GL sanity checks) */
-		wlr_renderer_begin(drw, m->wlr_output->width, m->wlr_output->height);
-		wlr_renderer_clear(drw, rootcolor);
-
-		renderlayer(&m->layers[ZWLR_LAYER_SHELL_V1_LAYER_BACKGROUND], &now);
-		renderlayer(&m->layers[ZWLR_LAYER_SHELL_V1_LAYER_BOTTOM], &now);
-		renderclients(m, &now);
-#ifdef XWAYLAND
-		renderindependents(m->wlr_output, &now);
-#endif
-		renderlayer(&m->layers[ZWLR_LAYER_SHELL_V1_LAYER_TOP], &now);
-		renderlayer(&m->layers[ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY], &now);
-
-		/* Hardware cursors are rendered by the GPU on a separate plane, and can be
-		 * moved around without re-rendering what's beneath them - which is more
-		 * efficient. However, not all hardware supports hardware cursors. For this
-		 * reason, wlroots provides a software fallback, which we ask it to render
-		 * here. wlr_cursor handles configuring hardware vs software cursors for you,
-		 * and this function is a no-op when hardware cursors are in use. */
-		wlr_output_render_software_cursors(m->wlr_output, NULL);
-
-		/* Conclude rendering and swap the buffers, showing the final frame
-		 * on-screen. */
-		wlr_renderer_end(drw);
-
-		wlr_output_set_damage(m->wlr_output, &m->damage->current);
-	} else {
+	render = wlr_output_damage_attach_render(m->damage, &needs_frame, &damage);
+	pixman_region32_fini(&damage);
+	if (!render || !needs_frame) {
+		/* Rollback is needed because attach_render is double-buffered */
 		wlr_output_rollback(m->wlr_output);
+		return;
 	}
 
-	pixman_region32_fini(&damage);
+	/* Begin the renderer (calls glViewport and some other GL sanity checks) */
+	wlr_renderer_begin(drw, m->wlr_output->width, m->wlr_output->height);
+	wlr_renderer_clear(drw, rootcolor);
 
+	renderlayer(&m->layers[ZWLR_LAYER_SHELL_V1_LAYER_BACKGROUND], &now);
+	renderlayer(&m->layers[ZWLR_LAYER_SHELL_V1_LAYER_BOTTOM], &now);
+	renderclients(m, &now);
+#ifdef XWAYLAND
+	renderindependents(m->wlr_output, &now);
+#endif
+	renderlayer(&m->layers[ZWLR_LAYER_SHELL_V1_LAYER_TOP], &now);
+	renderlayer(&m->layers[ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY], &now);
+
+	/* Hardware cursors are rendered by the GPU on a separate plane, and can be
+	 * moved around without re-rendering what's beneath them - which is more
+	 * efficient. However, not all hardware supports hardware cursors. For this
+	 * reason, wlroots provides a software fallback, which we ask it to render
+	 * here. wlr_cursor handles configuring hardware vs software cursors for you,
+	 * and this function is a no-op when hardware cursors are in use. */
+	wlr_output_render_software_cursors(m->wlr_output, NULL);
+
+	/* Conclude rendering and swap the buffers, showing the final frame
+	 * on-screen. */
+	wlr_renderer_end(drw);
+	wlr_output_set_damage(m->wlr_output, &m->damage->current);
 	wlr_output_commit(m->wlr_output);
 }
 
