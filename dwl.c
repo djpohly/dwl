@@ -1759,6 +1759,8 @@ rendermon(struct wl_listener *listener, void *data)
 {
 	Client *c;
 	int render = 1;
+	bool needs_frame;
+	pixman_region32_t damage;
 
 	/* This function is called every time an output is ready to display a frame,
 	 * generally at the output's refresh rate (e.g. 60Hz). */
@@ -1775,8 +1777,6 @@ rendermon(struct wl_listener *listener, void *data)
 		}
 	}
 
-	bool needs_frame;
-	pixman_region32_t damage;
 	pixman_region32_init(&damage);
 	if (!wlr_output_damage_attach_render(m->damage, &needs_frame, &damage))
 		return;
