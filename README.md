@@ -45,6 +45,8 @@ To enable XWayland, you should also install xorg-xwayland and uncomment its flag
 
 All configuration is done by editing `config.h` and recompiling, in the same manner as dwm. There is no way to separately restart the window manager in Wayland without restarting the entire display server, so any changes will take effect the next time dwl is executed.
 
+As in the dwm community, we encourage users to share patches they have created.  Check out the [patches page on our wiki](https://github.com/djpohly/dwl/wiki/Patches)!
+
 ## Running dwl
 
 dwl can be run as-is, with no arguments. In an existing Wayland or X11 session, this will open a window to act as a virtual display. When run from a TTY, the Wayland server will take over the entire virtual terminal. Clients started by dwl will have `WAYLAND_DISPLAY` set in their environment, and other clients can be started from outside the session by setting this variable accordingly.
