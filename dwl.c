@@ -280,6 +280,7 @@ static void setmon(Client *c, Monitor *m, unsigned int newtags);
 static void setup(void);
 static void sigchld(int unused);
 static void spawn(const Arg *arg);
+static void statusbar(void);
 static void tag(const Arg *arg);
 static void tagmon(const Arg *arg);
 static void tile(Monitor *m);
@@ -1116,6 +1117,7 @@ focusclient(Client *c, int lift)
 		wl_list_insert(&fstack, &c->flink);
 		selmon = c->mon;
 	}
+    statusbar();
 
 	/* Deactivate old client if focus is changing */
 	if (old && (!c || client_surface(c) != old)) {
@@ -1914,6 +1916,7 @@ setlayout(const Arg *arg)
 		selmon->lt[selmon->sellt] = (Layout *)arg->v;
 	/* TODO change layout symbol? */
 	arrange(selmon);
+    statusbar();
 }
 
 /* arg > 1.0 will set mfact absolutely */
@@ -2153,6 +2156,39 @@ spawn(const Arg *arg)
 		execvp(((char **)arg->v)[0], (char **)arg->v);
 		EBARF("dwl: execvp %s failed", ((char **)arg->v)[0]);
 	}
+}
+
+void
+statusbar(void)
+{
+	Monitor *m = NULL;
+	Client *c = NULL;
+	FILE *taginfo;
+	const char *title;
+	char fname[30]="";
+	unsigned int activetags;
+
+	//Add WAYLAND_DISPLAY to filename so each session has a predictable file
+	snprintf(fname, 30, "/tmp/dwltags-%s", getenv("WAYLAND_DISPLAY"));
+
+	if (!(taginfo = fopen(fname, "w")))
+		return;
+
+	wl_list_for_each(m, &mons, link) {
+		activetags=0;
+		wl_list_for_each(c, &clients, link) {
+			if (c->mon == m)
+				activetags |= c->tags;
+		}
+		if (focustop(m))
+			fprintf(taginfo, "%s\n", client_get_title(focustop(m)));
+		else
+			fprintf(taginfo, "\n");
+
+		fprintf(taginfo, "%u %u %u %s\n", m == selmon,
+				activetags, m->tagset[m->seltags], selmon->lt[selmon->sellt]->symbol);
+	}
+	fclose (taginfo);
 }
 
 void
