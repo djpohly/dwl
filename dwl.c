@@ -2200,6 +2200,7 @@ tag(const Arg *arg)
 		focusclient(focustop(selmon), 1);
 		arrange(selmon);
 	}
+    statusbar();
 }
 
 void
@@ -2269,6 +2270,7 @@ toggletag(const Arg *arg)
 		focusclient(focustop(selmon), 1);
 		arrange(selmon);
 	}
+    statusbar();
 }
 
 void
@@ -2281,6 +2283,7 @@ toggleview(const Arg *arg)
 		focusclient(focustop(selmon), 1);
 		arrange(selmon);
 	}
+    statusbar();
 }
 
 void
@@ -2361,6 +2364,7 @@ view(const Arg *arg)
 		selmon->tagset[selmon->seltags] = arg->ui & TAGMASK;
 	focusclient(focustop(selmon), 1);
 	arrange(selmon);
+    statusbar();
 }
 
 void
