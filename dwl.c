@@ -2164,7 +2164,6 @@ statusbar(void)
 	Monitor *m = NULL;
 	Client *c = NULL;
 	FILE *taginfo;
-	const char *title;
 	char fname[30]="";
 	unsigned int activetags;
 
