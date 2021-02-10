@@ -175,7 +175,6 @@ struct Monitor {
 	unsigned int tagset[2];
 	double mfact;
 	int nmaster;
-	Client *focus;
 };
 
 typedef struct {
@@ -884,9 +883,6 @@ createnotify(struct wl_listener *listener, void *data)
 
 	if (xdg_surface->role != WLR_XDG_SURFACE_ROLE_TOPLEVEL)
 		return;
-	wl_list_for_each(c, &clients, link)
-		if (c->isfullscreen && VISIBLEON(c, c->mon))
-			setfullscreen(c, 0);
 
 	/* Allocate a Client for this surface */
 	c = xdg_surface->data = calloc(1, sizeof(*c));
@@ -1333,7 +1329,7 @@ void
 mapnotify(struct wl_listener *listener, void *data)
 {
 	/* Called when the surface is mapped, or ready to display on-screen. */
-	Client *c = wl_container_of(listener, c, map), *oldfocus = selmon->focus;
+	Client *c = wl_container_of(listener, c, map);
 
 	if (client_is_unmanaged(c)) {
 		/* Insert this independent into independents lists. */
@@ -1352,16 +1348,6 @@ mapnotify(struct wl_listener *listener, void *data)
 
 	/* Set initial monitor, tags, floating status, and focus */
 	applyrules(c);
-
-	if (oldfocus && oldfocus->isfullscreen &&
-			oldfocus->mon == c->mon && oldfocus->tags == c->tags &&
-			!c->isfloating && c->mon->lt[c->mon->sellt]->arrange) {
-		maximizeclient(oldfocus);
-		focusclient(c, 1);
-		/* If a fullscreen client on the same monitor and tag as the new client
-		 * was previously focused and the new client isn't floating, give it
-		 * back focus and size */
-	}
 }
 
 void
@@ -1700,7 +1686,7 @@ renderclients(Monitor *m, struct timespec *now)
 			};
 
 			/* Draw window borders */
-			color = (c == selmon->focus) ? focuscolor : bordercolor;
+			color = (c->surface.xdg->toplevel->current.activated) ? focuscolor : bordercolor;
 			for (i = 0; i < 4; i++) {
 				scalebox(&borders[i], m->wlr_output->scale);
 				wlr_render_rect(drw, &borders[i], color,
