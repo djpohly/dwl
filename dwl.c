@@ -248,7 +248,6 @@ static void keypressmod(struct wl_listener *listener, void *data);
 static void killclient(const Arg *arg);
 static void maplayersurfacenotify(struct wl_listener *listener, void *data);
 static void mapnotify(struct wl_listener *listener, void *data);
-static void maximizeclient(Client *c);
 static void monocle(Monitor *m);
 static void motionabsolute(struct wl_listener *listener, void *data);
 static void motionnotify(uint32_t time);
@@ -483,8 +482,6 @@ arrange(Monitor *m)
 {
 	if (m->lt[m->sellt]->arrange)
 		m->lt[m->sellt]->arrange(m);
-	else if (m->focus && m->focus->isfullscreen)
-		maximizeclient(m->focus);
 	/* TODO recheck pointer focus here... or in resize()? */
 }
 
@@ -1041,13 +1038,6 @@ togglefullscreen(const Arg *arg)
 }
 
 void
-maximizeclient(Client *c)
-{
-	resize(c, c->mon->m.x, c->mon->m.y, c->mon->m.width, c->mon->m.height, 0);
-	/* used for fullscreen clients */
-}
-
-void
 setfullscreen(Client *c, int fullscreen)
 {
 	c->isfullscreen = fullscreen;
@@ -1059,7 +1049,7 @@ setfullscreen(Client *c, int fullscreen)
 		c->prevy = c->geom.y;
 		c->prevheight = c->geom.height;
 		c->prevwidth = c->geom.width;
-		maximizeclient(c);
+		resize(c, c->mon->m.x, c->mon->m.y, c->mon->m.width, c->mon->m.height, 0);
 	} else {
 		/* restore previous size instead of arrange for floating windows since
 		 * client positions are set by the user and cannot be recalculated */
@@ -1356,12 +1346,9 @@ monocle(Monitor *m)
 	Client *c;
 
 	wl_list_for_each(c, &clients, link) {
-		if (!VISIBLEON(c, m) || c->isfloating)
+		if (!VISIBLEON(c, m) || c->isfloating || c->isfullscreen)
 			continue;
-		if (c->isfullscreen)
-			maximizeclient(c);
-		else
-			resize(c, m->w.x, m->w.y, m->w.width, m->w.height, 0);
+		resize(c, m->w.x, m->w.y, m->w.width, m->w.height, 0);
 	}
 }
 
@@ -2179,12 +2166,8 @@ tile(Monitor *m)
 		mw = m->w.width;
 	i = my = ty = 0;
 	wl_list_for_each(c, &clients, link) {
-		if (!VISIBLEON(c, m) || c->isfloating)
+		if (!VISIBLEON(c, m) || c->isfloating || c->isfullscreen)
 			continue;
-		if (c->isfullscreen) {
-			maximizeclient(c);
-			continue;
-		}
 		if (i < m->nmaster) {
 			h = (m->w.height - my) / (MIN(n, m->nmaster) - i);
 			resize(c, m->w.x, m->w.y + my, mw, h, 0);
