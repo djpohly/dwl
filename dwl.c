@@ -1357,7 +1357,7 @@ mapnotify(struct wl_listener *listener, void *data)
 			oldfocus->mon == c->mon && oldfocus->tags == c->tags &&
 			!c->isfloating && c->mon->lt[c->mon->sellt]->arrange) {
 		maximizeclient(oldfocus);
-		focusclient(c, oldfocus, 1);
+		focusclient(c, 1);
 		/* If a fullscreen client on the same monitor and tag as the new client
 		 * was previously focused and the new client isn't floating, give it
 		 * back focus and size */
