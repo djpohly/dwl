@@ -37,7 +37,7 @@ Feature *non-goals* include:
 
 ## Building dwl
 
-dwl has only two dependencies: wlroots-git and wayland-protocols. Simply install these and run `make`.
+dwl has only two dependencies: wlroots 0.12 and wayland-protocols. Simply install these and run `make`.
 
 To enable XWayland, you should also install xorg-xwayland and uncomment its flag in `config.mk`.
 
