@@ -1034,7 +1034,8 @@ void
 togglefullscreen(const Arg *arg)
 {
 	Client *sel = selclient();
-	setfullscreen(sel, !sel->isfullscreen);
+	if (sel)
+		setfullscreen(sel, !sel->isfullscreen);
 }
 
 void
