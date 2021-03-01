@@ -1117,7 +1117,7 @@ focusclient(Client *c, int lift)
 		wl_list_insert(&fstack, &c->flink);
 		selmon = c->mon;
 	}
-    statusbar();
+	statusbar();
 
 	/* Deactivate old client if focus is changing */
 	if (old && (!c || client_surface(c) != old)) {
@@ -1916,7 +1916,7 @@ setlayout(const Arg *arg)
 		selmon->lt[selmon->sellt] = (Layout *)arg->v;
 	/* TODO change layout symbol? */
 	arrange(selmon);
-    statusbar();
+	statusbar();
 }
 
 /* arg > 1.0 will set mfact absolutely */
@@ -2192,7 +2192,7 @@ tag(const Arg *arg)
 		focusclient(focustop(selmon), 1);
 		arrange(selmon);
 	}
-    statusbar();
+	statusbar();
 }
 
 void
@@ -2262,7 +2262,7 @@ toggletag(const Arg *arg)
 		focusclient(focustop(selmon), 1);
 		arrange(selmon);
 	}
-    statusbar();
+	statusbar();
 }
 
 void
@@ -2275,7 +2275,7 @@ toggleview(const Arg *arg)
 		focusclient(focustop(selmon), 1);
 		arrange(selmon);
 	}
-    statusbar();
+	statusbar();
 }
 
 void
@@ -2356,7 +2356,7 @@ view(const Arg *arg)
 		selmon->tagset[selmon->seltags] = arg->ui & TAGMASK;
 	focusclient(focustop(selmon), 1);
 	arrange(selmon);
-    statusbar();
+	statusbar();
 }
 
 void
