@@ -2163,15 +2163,7 @@ statusbar(void)
 {
 	Monitor *m = NULL;
 	Client *c = NULL;
-	FILE *taginfo;
-	char fname[30]="";
 	unsigned int activetags;
-
-	//Add WAYLAND_DISPLAY to filename so each session has a predictable file
-	snprintf(fname, 30, "/tmp/dwltags-%s", getenv("WAYLAND_DISPLAY"));
-
-	if (!(taginfo = fopen(fname, "w")))
-		return;
 
 	wl_list_for_each(m, &mons, link) {
 		activetags=0;
@@ -2180,15 +2172,15 @@ statusbar(void)
 				activetags |= c->tags;
 		}
 		if (focustop(m))
-			fprintf(taginfo, "%s title %s\n", m->wlr_output->name, client_get_title(focustop(m)));
+			fprintf(stdout, "%s title %s\n", m->wlr_output->name, client_get_title(focustop(m)));
 		else
-			fprintf(taginfo, "%s title \n", m->wlr_output->name);
+			fprintf(stdout, "%s title \n", m->wlr_output->name);
 
-		fprintf(taginfo, "%s selmon %u\n", m->wlr_output->name, m == selmon);
-		fprintf(taginfo, "%s tags %u %u\n", m->wlr_output->name, activetags, m->tagset[m->seltags]);
-		fprintf(taginfo, "%s layout %s\n", m->wlr_output->name, m->lt[m->sellt]->symbol);
+		fprintf(stdout, "%s selmon %u\n", m->wlr_output->name, m == selmon);
+		fprintf(stdout, "%s tags %u %u\n", m->wlr_output->name, activetags, m->tagset[m->seltags]);
+		fprintf(stdout, "%s layout %s\n", m->wlr_output->name, m->lt[m->sellt]->symbol);
 	}
-	fclose (taginfo);
+	fflush(stdout);
 }
 
 void
