@@ -49,7 +49,7 @@ static const int repeat_delay = 600;
 
 /* Trackpad */
 static const int tap_to_click = 1;
-static const int natural_scrolling = 1;
+static const int natural_scrolling = 0;
 
 #define MODKEY WLR_MODIFIER_ALT
 #define TAGKEYS(KEY,SKEY,TAG) \
