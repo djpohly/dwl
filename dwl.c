@@ -2180,12 +2180,13 @@ statusbar(void)
 				activetags |= c->tags;
 		}
 		if (focustop(m))
-			fprintf(taginfo, "%s\n", client_get_title(focustop(m)));
+			fprintf(taginfo, "%s title %s\n", m->wlr_output->name, client_get_title(focustop(m)));
 		else
-			fprintf(taginfo, "\n");
+			fprintf(taginfo, "%s title \n", m->wlr_output->name);
 
-		fprintf(taginfo, "%u %u %u %s\n", m == selmon,
-				activetags, m->tagset[m->seltags], selmon->lt[selmon->sellt]->symbol);
+		fprintf(taginfo, "%s selmon %u\n", m->wlr_output->name, m == selmon);
+		fprintf(taginfo, "%s tags %u %u\n", m->wlr_output->name, activetags, m->tagset[m->seltags]);
+		fprintf(taginfo, "%s layout %s\n", m->wlr_output->name, m->lt[m->sellt]->symbol);
 	}
 	fclose (taginfo);
 }
