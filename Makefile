@@ -49,6 +49,8 @@ config.h: | config.def.h
 
 dwl.o: config.h client.h xdg-shell-protocol.h wlr-layer-shell-unstable-v1-protocol.h idle-protocol.h
 
+dwl.o: push.c
+
 dwl: xdg-shell-protocol.o wlr-layer-shell-unstable-v1-protocol.o idle-protocol.o
 
 clean:
