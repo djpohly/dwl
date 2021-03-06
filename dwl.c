@@ -1846,6 +1846,7 @@ run(char *startup_cmd)
 		if (startup_pid < 0)
 			EBARF("startup: fork");
 		if (startup_pid == 0) {
+			dup2(STDERR_FILENO, STDOUT_FILENO);
 			execl("/bin/sh", "/bin/sh", "-c", startup_cmd, NULL);
 			EBARF("startup: execl");
 		}
@@ -2152,6 +2153,7 @@ void
 spawn(const Arg *arg)
 {
 	if (fork() == 0) {
+		dup2(STDERR_FILENO, STDOUT_FILENO);
 		setsid();
 		execvp(((char **)arg->v)[0], (char **)arg->v);
 		EBARF("dwl: execvp %s failed", ((char **)arg->v)[0]);
