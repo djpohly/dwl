@@ -11,7 +11,7 @@ dwl is a compact, hackable compositor for Wayland based on [wlroots](https://git
 
 dwl is not meant to provide every feature under the sun. Instead, like dwm, it sticks to features which are necessary, simple, and straightforward to implement given the base on which it is built. Implemented default features are:
 
-- Any features provided by dwm/Xlib: simple window borders, tags, keybindings, client rules, mouse move/resize. The built-in status bar is an exception to avoid taking a dependency on FreeType or Pango and increasing the SLOC
+- Any features provided by dwm/Xlib: simple window borders, tags, keybindings, client rules, mouse move/resize. Providing a built-in status bar is an exception to this goal, to avoid dependencies on font rendering and/or drawing libraries when an external bar could work well.
 - Configurable multi-monitor layout support, including position and rotation
 - Configurable HiDPI/multi-DPI support
 - Various Wayland protocols
@@ -21,7 +21,7 @@ dwl is not meant to provide every feature under the sun. Instead, like dwm, it s
 Features under consideration (possibly as patches) are:
 
 - Protocols made trivial by wlroots
-- Communication from the compositor to status bars.  A straightforward possibility would be to use stdout or a provided file descriptor.
+- Provide information to external status bars via stdout or another file descriptor
 - Implement the input-inhibitor protocol to support screen lockers
 - Implement the idle-inhibit protocol which lets applications such as mpv disable idle monitoring
 - Layer shell popups (used by Waybar)
