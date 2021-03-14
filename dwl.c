@@ -93,6 +93,7 @@ typedef struct {
 		struct wlr_xwayland_surface *xwayland;
 	} surface;
 	struct wl_listener commit;
+	struct wl_listener new_sub;
 	struct wl_listener map;
 	struct wl_listener unmap;
 	struct wl_listener destroy;
@@ -114,6 +115,15 @@ typedef struct {
 	int prevheight;
 	int isfullscreen;
 } Client;
+
+typedef struct {
+	struct wl_listener commit;
+	struct wl_listener map;
+	struct wl_listener unmap;
+	struct wl_listener destroy;
+	struct wlr_subsurface *subsurface;
+	Monitor *mon;
+} Subsurface;
 
 typedef struct {
 	struct wl_listener request_mode;
@@ -227,6 +237,7 @@ static void cleanupmon(struct wl_listener *listener, void *data);
 static void closemon(Monitor *m);
 static void commitlayersurfacenotify(struct wl_listener *listener, void *data);
 static void commitnotify(struct wl_listener *listener, void *data);
+static void commitnotify_sub(struct wl_listener *listener, void *data);
 static void createkeyboard(struct wlr_input_device *device);
 static void createmon(struct wl_listener *listener, void *data);
 static void createnotify(struct wl_listener *listener, void *data);
@@ -236,6 +247,7 @@ static void createxdeco(struct wl_listener *listener, void *data);
 static void cursorframe(struct wl_listener *listener, void *data);
 static void destroylayersurfacenotify(struct wl_listener *listener, void *data);
 static void destroynotify(struct wl_listener *listener, void *data);
+static void destroynotify_sub(struct wl_listener *listener, void *data);
 static void destroyxdeco(struct wl_listener *listener, void *data);
 static Monitor *dirtomon(enum wlr_direction dir);
 static void focusclient(Client *c, int lift);
@@ -252,12 +264,14 @@ static void keypressmod(struct wl_listener *listener, void *data);
 static void killclient(const Arg *arg);
 static void maplayersurfacenotify(struct wl_listener *listener, void *data);
 static void mapnotify(struct wl_listener *listener, void *data);
+static void mapnotify_sub(struct wl_listener *listener, void *data);
 static void maximizeclient(Client *c);
 static void monocle(Monitor *m);
 static void motionabsolute(struct wl_listener *listener, void *data);
 static void motionnotify(uint32_t time);
 static void motionrelative(struct wl_listener *listener, void *data);
 static void moveresize(const Arg *arg);
+static void new_subnotify(struct wl_listener *listener, void *data);
 static void outputmgrapply(struct wl_listener *listener, void *data);
 static void outputmgrapplyortest(struct wlr_output_configuration_v1 *config, int test);
 static void outputmgrtest(struct wl_listener *listener, void *data);
@@ -293,6 +307,7 @@ static void toggleview(const Arg *arg);
 static void unmaplayersurface(LayerSurface *layersurface);
 static void unmaplayersurfacenotify(struct wl_listener *listener, void *data);
 static void unmapnotify(struct wl_listener *listener, void *data);
+static void unmapnotify_sub(struct wl_listener *listener, void *data);
 static void updatemons(struct wl_listener *listener, void *data);
 static void view(const Arg *arg);
 static void virtualkeyboard(struct wl_listener *listener, void *data);
@@ -792,6 +807,13 @@ commitnotify(struct wl_listener *listener, void *data)
 }
 
 void
+commitnotify_sub(struct wl_listener *listener, void *data)
+{
+	Subsurface *s = wl_container_of(listener, s, commit);
+	wlr_output_damage_add_whole(s->mon->damage);
+}
+
+void
 createkeyboard(struct wlr_input_device *device)
 {
 	struct xkb_context *context;
@@ -909,6 +931,7 @@ createnotify(struct wl_listener *listener, void *data)
 			WLR_EDGE_BOTTOM | WLR_EDGE_LEFT | WLR_EDGE_RIGHT);
 
 	LISTEN(&xdg_surface->surface->events.commit, &c->commit, commitnotify);
+	LISTEN(&xdg_surface->surface->events.new_subsurface, &c->new_sub, new_subnotify);
 	LISTEN(&xdg_surface->events.map, &c->map, mapnotify);
 	LISTEN(&xdg_surface->events.unmap, &c->unmap, unmapnotify);
 	LISTEN(&xdg_surface->events.destroy, &c->destroy, destroynotify);
@@ -1040,6 +1063,18 @@ destroynotify(struct wl_listener *listener, void *data)
 #endif
 		wl_list_remove(&c->commit.link);
 	free(c);
+}
+
+void
+destroynotify_sub(struct wl_listener *listener, void *data)
+{
+	Subsurface *s = wl_container_of(listener, s, destroy);
+	wlr_output_damage_add_whole(s->mon->damage);
+	wl_list_remove(&s->commit.link);
+	wl_list_remove(&s->map.link);
+	wl_list_remove(&s->unmap.link);
+	wl_list_remove(&s->destroy.link);
+	free(s);
 }
 
 void
@@ -1348,6 +1383,14 @@ maplayersurfacenotify(struct wl_listener *listener, void *data)
 }
 
 void
+mapnotify_sub(struct wl_listener *listener, void *data)
+{
+	Subsurface *s = wl_container_of(listener, s, map);
+	wlr_output_damage_add_whole(s->mon->damage);
+}
+
+
+void
 mapnotify(struct wl_listener *listener, void *data)
 {
 	/* Called when the surface is mapped, or ready to display on-screen. */
@@ -1520,6 +1563,20 @@ moveresize(const Arg *arg)
 		break;
 	}
 }
+
+void
+new_subnotify(struct wl_listener *listener, void *data) {
+	Subsurface *s = calloc(1, sizeof(Subsurface));
+	Client *c = wl_container_of(listener, c, new_sub);
+	s->subsurface = data;
+	s->mon = c->mon;
+
+	LISTEN(&s->subsurface->surface->events.commit, &s->commit, commitnotify_sub);
+	LISTEN(&s->subsurface->events.map, &s->map, mapnotify_sub);
+	LISTEN(&s->subsurface->events.unmap, &s->unmap, unmapnotify_sub);
+	LISTEN(&s->subsurface->events.destroy, &s->destroy, destroynotify_sub);
+}
+
 
 void
 outputmgrapply(struct wl_listener *listener, void *data)
@@ -2316,6 +2373,14 @@ unmapnotify(struct wl_listener *listener, void *data)
 	wl_list_remove(&c->flink);
 	wl_list_remove(&c->slink);
 }
+
+void
+unmapnotify_sub(struct wl_listener *listener, void *data)
+{
+	Subsurface *s = wl_container_of(listener, s, unmap);
+	wlr_output_damage_add_whole(s->mon->damage);
+}
+
 
 void
 updatemons(struct wl_listener *listener, void *data)
