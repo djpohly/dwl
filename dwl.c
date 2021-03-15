@@ -117,6 +117,7 @@ typedef struct {
 } Client;
 
 typedef struct {
+	struct wl_list link;
 	struct wl_listener commit;
 	struct wl_listener map;
 	struct wl_listener unmap;
@@ -329,6 +330,7 @@ static struct wl_list clients; /* tiling order */
 static struct wl_list fstack;  /* focus order */
 static struct wl_list stack;   /* stacking z-order */
 static struct wl_list independents;
+static struct wl_list subsurfaces;
 static struct wlr_idle *idle;
 static struct wlr_layer_shell_v1 *layer_shell;
 static struct wlr_xdg_decoration_manager_v1 *xdeco_mgr;
@@ -1070,7 +1072,6 @@ void
 destroynotify_sub(struct wl_listener *listener, void *data)
 {
 	Subsurface *s = wl_container_of(listener, s, destroy);
-	wlr_output_damage_add_whole(s->c->mon->damage);
 	wl_list_remove(&s->commit.link);
 	wl_list_remove(&s->map.link);
 	wl_list_remove(&s->unmap.link);
@@ -1384,14 +1385,6 @@ maplayersurfacenotify(struct wl_listener *listener, void *data)
 }
 
 void
-mapnotify_sub(struct wl_listener *listener, void *data)
-{
-	Subsurface *s = wl_container_of(listener, s, map);
-	wlr_output_damage_add_whole(s->c->mon->damage);
-}
-
-
-void
 mapnotify(struct wl_listener *listener, void *data)
 {
 	/* Called when the surface is mapped, or ready to display on-screen. */
@@ -1426,6 +1419,15 @@ mapnotify(struct wl_listener *listener, void *data)
 		 * is focused and the new client isn't floating */
 	}
 }
+
+void
+mapnotify_sub(struct wl_listener *listener, void *data)
+{
+	Subsurface *s = wl_container_of(listener, s, map);
+	wl_list_insert(&subsurfaces, &s->link);
+	wlr_output_damage_add_whole(s->c->mon->damage);
+}
+
 
 void
 monocle(Monitor *m)
@@ -1567,9 +1569,10 @@ moveresize(const Arg *arg)
 
 void
 new_subnotify(struct wl_listener *listener, void *data) {
-	Subsurface *s = calloc(1, sizeof(Subsurface));
+	struct wlr_subsurface *subsurface = data;
+	Subsurface *s = subsurface->data = calloc(1, sizeof(*s));
+	s->subsurface = subsurface;
 	s->c = wl_container_of(listener, s->c, new_sub);
-	s->subsurface = data;
 
 	LISTEN(&s->subsurface->surface->events.commit, &s->commit, commitnotify_sub);
 	LISTEN(&s->subsurface->events.map, &s->map, mapnotify_sub);
@@ -2124,6 +2127,7 @@ setup(void)
 	wl_list_init(&fstack);
 	wl_list_init(&stack);
 	wl_list_init(&independents);
+	wl_list_init(&subsurfaces);
 
 	idle = wlr_idle_create(dpy);
 
@@ -2376,9 +2380,8 @@ void
 unmapnotify_sub(struct wl_listener *listener, void *data)
 {
 	Subsurface *s = wl_container_of(listener, s, unmap);
-	wlr_output_damage_add_whole(s->c->mon->damage);
+	wl_list_remove(&s->link);
 }
-
 
 void
 updatemons(struct wl_listener *listener, void *data)
