@@ -1337,7 +1337,7 @@ keypress(struct wl_listener *listener, void *data)
 	wlr_idle_notify_activity(idle, seat);
 
 	/* On _press_, attempt to process a compositor keybinding. */
-	if (event->state == WLR_KEY_PRESSED)
+	if (event->state == WL_KEYBOARD_KEY_STATE_PRESSED)
 		for (i = 0; i < nsyms; i++)
 			handled = keybinding(mods, syms[i]) || handled;
 
@@ -2082,7 +2082,7 @@ setup(void)
 	 * backend uses the renderer, for example, to fall back to software cursors
 	 * if the backend does not support hardware cursors (some older GPUs
 	 * don't). */
-	if (!(backend = wlr_backend_autocreate(dpy, NULL)))
+	if (!(backend = wlr_backend_autocreate(dpy)))
 		BARF("couldn't create backend");
 
 	/* If we don't provide a renderer, autocreate makes a GLES2 renderer for us.
