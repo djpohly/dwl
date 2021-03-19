@@ -378,6 +378,7 @@ static struct wl_listener request_set_sel = {.notify = setsel};
 static void activatex11(struct wl_listener *listener, void *data);
 static void configurex11(struct wl_listener *listener, void *data);
 static void createnotifyx11(struct wl_listener *listener, void *data);
+void commitnotifyx11(struct wl_listener *listener, void *data);
 static Atom getatom(xcb_connection_t *xc, const char *name);
 static void renderindependents(struct wlr_output *output, struct timespec *now);
 static void xwaylandready(struct wl_listener *listener, void *data);
@@ -1410,6 +1411,12 @@ mapnotify(struct wl_listener *listener, void *data)
 
 	// Damage the whole screen
 	wlr_output_damage_add_whole(c->mon->damage);
+
+#ifdef XWAYLAND
+	if (c->type != XDGShell)
+		if (c->surface.xwayland->surface)
+			LISTEN(&c->surface.xwayland->surface->events.commit, &c->commit, commitnotifyx11);
+#endif
 
 	if (c->mon->fullscreenclient && c->mon->fullscreenclient == oldfocus
 			&& !c->isfloating && c->mon->lt[c->mon->sellt]->arrange) {
@@ -2558,6 +2565,16 @@ createnotifyx11(struct wl_listener *listener, void *data)
 	LISTEN(&xwayland_surface->events.destroy, &c->destroy, destroynotify);
 	LISTEN(&xwayland_surface->events.request_fullscreen, &c->fullscreen,
 			fullscreennotify);
+}
+
+void
+commitnotifyx11(struct wl_listener *listener, void *data)
+{
+	Client *c = wl_container_of(listener, c, commit);
+
+	// Damage the whole screen
+	if (c->mon)
+		wlr_output_damage_add_whole(c->mon->damage);
 }
 
 Atom
