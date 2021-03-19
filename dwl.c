@@ -93,6 +93,7 @@ typedef struct {
 		struct wlr_xwayland_surface *xwayland;
 	} surface;
 	struct wl_listener commit;
+	struct wl_listener new_sub;
 	struct wl_listener map;
 	struct wl_listener unmap;
 	struct wl_listener destroy;
@@ -114,6 +115,16 @@ typedef struct {
 	int prevheight;
 	int isfullscreen;
 } Client;
+
+typedef struct {
+	struct wl_list link;
+	struct wl_listener commit;
+	struct wl_listener map;
+	struct wl_listener unmap;
+	struct wl_listener destroy;
+	struct wlr_subsurface *subsurface;
+	Client *c;
+} Subsurface;
 
 typedef struct {
 	struct wl_listener request_mode;
@@ -227,6 +238,7 @@ static void cleanupmon(struct wl_listener *listener, void *data);
 static void closemon(Monitor *m);
 static void commitlayersurfacenotify(struct wl_listener *listener, void *data);
 static void commitnotify(struct wl_listener *listener, void *data);
+static void commitnotify_sub(struct wl_listener *listener, void *data);
 static void createkeyboard(struct wlr_input_device *device);
 static void createmon(struct wl_listener *listener, void *data);
 static void createnotify(struct wl_listener *listener, void *data);
@@ -236,6 +248,7 @@ static void createxdeco(struct wl_listener *listener, void *data);
 static void cursorframe(struct wl_listener *listener, void *data);
 static void destroylayersurfacenotify(struct wl_listener *listener, void *data);
 static void destroynotify(struct wl_listener *listener, void *data);
+static void destroynotify_sub(struct wl_listener *listener, void *data);
 static void destroyxdeco(struct wl_listener *listener, void *data);
 static Monitor *dirtomon(enum wlr_direction dir);
 static void focusclient(Client *c, int lift);
@@ -252,12 +265,14 @@ static void keypressmod(struct wl_listener *listener, void *data);
 static void killclient(const Arg *arg);
 static void maplayersurfacenotify(struct wl_listener *listener, void *data);
 static void mapnotify(struct wl_listener *listener, void *data);
+static void mapnotify_sub(struct wl_listener *listener, void *data);
 static void maximizeclient(Client *c);
 static void monocle(Monitor *m);
 static void motionabsolute(struct wl_listener *listener, void *data);
 static void motionnotify(uint32_t time);
 static void motionrelative(struct wl_listener *listener, void *data);
 static void moveresize(const Arg *arg);
+static void new_subnotify(struct wl_listener *listener, void *data);
 static void outputmgrapply(struct wl_listener *listener, void *data);
 static void outputmgrapplyortest(struct wlr_output_configuration_v1 *config, int test);
 static void outputmgrtest(struct wl_listener *listener, void *data);
@@ -293,6 +308,7 @@ static void toggleview(const Arg *arg);
 static void unmaplayersurface(LayerSurface *layersurface);
 static void unmaplayersurfacenotify(struct wl_listener *listener, void *data);
 static void unmapnotify(struct wl_listener *listener, void *data);
+static void unmapnotify_sub(struct wl_listener *listener, void *data);
 static void updatemons(struct wl_listener *listener, void *data);
 static void view(const Arg *arg);
 static void virtualkeyboard(struct wl_listener *listener, void *data);
@@ -314,6 +330,7 @@ static struct wl_list clients; /* tiling order */
 static struct wl_list fstack;  /* focus order */
 static struct wl_list stack;   /* stacking z-order */
 static struct wl_list independents;
+static struct wl_list subsurfaces;
 static struct wlr_idle *idle;
 static struct wlr_layer_shell_v1 *layer_shell;
 static struct wlr_xdg_decoration_manager_v1 *xdeco_mgr;
@@ -490,6 +507,7 @@ arrange(Monitor *m)
 	else if (m->fullscreenclient)
 		maximizeclient(m->fullscreenclient);
 	/* TODO recheck pointer focus here... or in resize()? */
+	wlr_output_damage_add_whole(m->damage);
 }
 
 void
@@ -792,6 +810,13 @@ commitnotify(struct wl_listener *listener, void *data)
 }
 
 void
+commitnotify_sub(struct wl_listener *listener, void *data)
+{
+	Subsurface *s = wl_container_of(listener, s, commit);
+	wlr_output_damage_add_whole(s->c->mon->damage);
+}
+
+void
 createkeyboard(struct wlr_input_device *device)
 {
 	struct xkb_context *context;
@@ -909,6 +934,7 @@ createnotify(struct wl_listener *listener, void *data)
 			WLR_EDGE_BOTTOM | WLR_EDGE_LEFT | WLR_EDGE_RIGHT);
 
 	LISTEN(&xdg_surface->surface->events.commit, &c->commit, commitnotify);
+	LISTEN(&xdg_surface->surface->events.new_subsurface, &c->new_sub, new_subnotify);
 	LISTEN(&xdg_surface->events.map, &c->map, mapnotify);
 	LISTEN(&xdg_surface->events.unmap, &c->unmap, unmapnotify);
 	LISTEN(&xdg_surface->events.destroy, &c->destroy, destroynotify);
@@ -1040,6 +1066,17 @@ destroynotify(struct wl_listener *listener, void *data)
 #endif
 		wl_list_remove(&c->commit.link);
 	free(c);
+}
+
+void
+destroynotify_sub(struct wl_listener *listener, void *data)
+{
+	Subsurface *s = wl_container_of(listener, s, destroy);
+	wl_list_remove(&s->commit.link);
+	wl_list_remove(&s->map.link);
+	wl_list_remove(&s->unmap.link);
+	wl_list_remove(&s->destroy.link);
+	free(s);
 }
 
 void
@@ -1300,7 +1337,7 @@ keypress(struct wl_listener *listener, void *data)
 	wlr_idle_notify_activity(idle, seat);
 
 	/* On _press_, attempt to process a compositor keybinding. */
-	if (event->state == WLR_KEY_PRESSED)
+	if (event->state == WL_KEYBOARD_KEY_STATE_PRESSED)
 		for (i = 0; i < nsyms; i++)
 			handled = keybinding(mods, syms[i]) || handled;
 
@@ -1382,6 +1419,15 @@ mapnotify(struct wl_listener *listener, void *data)
 		 * is focused and the new client isn't floating */
 	}
 }
+
+void
+mapnotify_sub(struct wl_listener *listener, void *data)
+{
+	Subsurface *s = wl_container_of(listener, s, map);
+	wl_list_insert(&subsurfaces, &s->link);
+	wlr_output_damage_add_whole(s->c->mon->damage);
+}
+
 
 void
 monocle(Monitor *m)
@@ -1520,6 +1566,20 @@ moveresize(const Arg *arg)
 		break;
 	}
 }
+
+void
+new_subnotify(struct wl_listener *listener, void *data) {
+	struct wlr_subsurface *subsurface = data;
+	Subsurface *s = subsurface->data = calloc(1, sizeof(*s));
+	s->subsurface = subsurface;
+	s->c = wl_container_of(listener, s->c, new_sub);
+
+	LISTEN(&s->subsurface->surface->events.commit, &s->commit, commitnotify_sub);
+	LISTEN(&s->subsurface->events.map, &s->map, mapnotify_sub);
+	LISTEN(&s->subsurface->events.unmap, &s->unmap, unmapnotify_sub);
+	LISTEN(&s->subsurface->events.destroy, &s->destroy, destroynotify_sub);
+}
+
 
 void
 outputmgrapply(struct wl_listener *listener, void *data)
@@ -1971,7 +2031,6 @@ setmon(Client *c, Monitor *m, unsigned int newtags)
 	if (oldmon) {
 		wlr_surface_send_leave(client_surface(c), oldmon->wlr_output);
 		arrange(oldmon);
-		wlr_output_damage_add_whole(oldmon->damage);
 	}
 	if (m) {
 		/* Make sure window actually overlaps with the monitor */
@@ -1979,7 +2038,6 @@ setmon(Client *c, Monitor *m, unsigned int newtags)
 		wlr_surface_send_enter(client_surface(c), m->wlr_output);
 		c->tags = newtags ? newtags : m->tagset[m->seltags]; /* assign tags of target monitor */
 		arrange(m);
-		wlr_output_damage_add_whole(m->damage);
 	}
 	focusclient(focustop(selmon), 1);
 }
@@ -2024,7 +2082,7 @@ setup(void)
 	 * backend uses the renderer, for example, to fall back to software cursors
 	 * if the backend does not support hardware cursors (some older GPUs
 	 * don't). */
-	if (!(backend = wlr_backend_autocreate(dpy, NULL)))
+	if (!(backend = wlr_backend_autocreate(dpy)))
 		BARF("couldn't create backend");
 
 	/* If we don't provide a renderer, autocreate makes a GLES2 renderer for us.
@@ -2069,6 +2127,7 @@ setup(void)
 	wl_list_init(&fstack);
 	wl_list_init(&stack);
 	wl_list_init(&independents);
+	wl_list_init(&subsurfaces);
 
 	idle = wlr_idle_create(dpy);
 
@@ -2168,6 +2227,11 @@ setup(void)
 void
 sigchld(int unused)
 {
+	/* We should be able to remove this function in favor of a simple
+	 *     signal(SIGCHLD, SIG_IGN);
+	 * but the Xwayland implementation in wlroots currently prevents us from
+	 * setting our own disposition for SIGCHLD.
+	 */
 	if (signal(SIGCHLD, sigchld) == SIG_ERR)
 		EBARF("can't install SIGCHLD handler");
 	while (0 < waitpid(-1, NULL, WNOHANG))
@@ -2310,6 +2374,13 @@ unmapnotify(struct wl_listener *listener, void *data)
 	setmon(c, NULL, 0);
 	wl_list_remove(&c->flink);
 	wl_list_remove(&c->slink);
+}
+
+void
+unmapnotify_sub(struct wl_listener *listener, void *data)
+{
+	Subsurface *s = wl_container_of(listener, s, unmap);
+	wl_list_remove(&s->link);
 }
 
 void
