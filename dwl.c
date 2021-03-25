@@ -260,6 +260,7 @@ static void outputmgrapplyortest(struct wlr_output_configuration_v1 *config, int
 static void outputmgrtest(struct wl_listener *listener, void *data);
 static void pointerfocus(Client *c, struct wlr_surface *surface,
 		double sx, double sy, uint32_t time);
+static void printstatus(void);
 static void quit(const Arg *arg);
 static void render(struct wlr_surface *surface, int sx, int sy, void *data);
 static void renderclients(Monitor *m, struct timespec *now);
@@ -1116,6 +1117,7 @@ focusclient(Client *c, int lift)
 		wl_list_insert(&fstack, &c->flink);
 		selmon = c->mon;
 	}
+	printstatus();
 
 	/* Deactivate old client if focus is changing */
 	if (old && (!c || client_surface(c) != old)) {
@@ -1603,6 +1605,31 @@ pointerfocus(Client *c, struct wlr_surface *surface, double sx, double sy,
 }
 
 void
+printstatus(void)
+{
+	Monitor *m = NULL;
+	Client *c = NULL;
+	unsigned int activetags;
+
+	wl_list_for_each(m, &mons, link) {
+		activetags=0;
+		wl_list_for_each(c, &clients, link) {
+			if (c->mon == m)
+				activetags |= c->tags;
+		}
+		if (focustop(m))
+			printf("%s title %s\n", m->wlr_output->name, client_get_title(focustop(m)));
+		else
+			printf("%s title \n", m->wlr_output->name);
+
+		printf("%s selmon %u\n", m->wlr_output->name, m == selmon);
+		printf("%s tags %u %u\n", m->wlr_output->name, activetags, m->tagset[m->seltags]);
+		printf("%s layout %s\n", m->wlr_output->name, m->lt[m->sellt]->symbol);
+	}
+	fflush(stdout);
+}
+
+void
 quit(const Arg *arg)
 {
 	wl_display_terminate(dpy);
@@ -1844,6 +1871,7 @@ run(char *startup_cmd)
 		if (startup_pid < 0)
 			EBARF("startup: fork");
 		if (startup_pid == 0) {
+			dup2(STDERR_FILENO, STDOUT_FILENO);
 			execl("/bin/sh", "/bin/sh", "-c", startup_cmd, NULL);
 			EBARF("startup: execl");
 		}
@@ -1914,6 +1942,7 @@ setlayout(const Arg *arg)
 		selmon->lt[selmon->sellt] = (Layout *)arg->v;
 	/* TODO change layout symbol? */
 	arrange(selmon);
+	printstatus();
 }
 
 /* arg > 1.0 will set mfact absolutely */
@@ -2154,6 +2183,7 @@ void
 spawn(const Arg *arg)
 {
 	if (fork() == 0) {
+		dup2(STDERR_FILENO, STDOUT_FILENO);
 		setsid();
 		execvp(((char **)arg->v)[0], (char **)arg->v);
 		EBARF("dwl: execvp %s failed", ((char **)arg->v)[0]);
@@ -2169,6 +2199,7 @@ tag(const Arg *arg)
 		focusclient(focustop(selmon), 1);
 		arrange(selmon);
 	}
+	printstatus();
 }
 
 void
@@ -2238,6 +2269,7 @@ toggletag(const Arg *arg)
 		focusclient(focustop(selmon), 1);
 		arrange(selmon);
 	}
+	printstatus();
 }
 
 void
@@ -2250,6 +2282,7 @@ toggleview(const Arg *arg)
 		focusclient(focustop(selmon), 1);
 		arrange(selmon);
 	}
+	printstatus();
 }
 
 void
@@ -2330,6 +2363,7 @@ view(const Arg *arg)
 		selmon->tagset[selmon->seltags] = arg->ui & TAGMASK;
 	focusclient(focustop(selmon), 1);
 	arrange(selmon);
+	printstatus();
 }
 
 void
