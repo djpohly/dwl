@@ -1454,8 +1454,7 @@ motionrelative(struct wl_listener *listener, void *data)
 void
 moveresize(const Arg *arg)
 {
-	grabc = xytoclient(cursor->x, cursor->y);
-	if (!grabc)
+	if (cursor_mode != CurNormal || !(grabc = xytoclient(cursor->x, cursor->y)))
 		return;
 
 	/* Float the window and tell motionnotify to grab it */
