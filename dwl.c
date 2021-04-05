@@ -949,6 +949,13 @@ createpointer(struct wlr_input_device *device)
 
 		if (libinput_device_config_scroll_has_natural_scroll(libinput_device))
 			libinput_device_config_scroll_set_natural_scroll_enabled(libinput_device, natural_scrolling);
+
+		if (libinput_device_config_accel_is_available(libinput_device) && pointer_speed)
+			libinput_device_config_accel_set_speed(libinput_device, pointer_speed);
+
+#ifdef ACCEL_PROFILE
+		libinput_device_config_accel_set_profile(libinput_device, ACCEL_PROFILE);
+#endif
 	}
 
 	/* We don't do anything special with pointers. All of our pointer handling

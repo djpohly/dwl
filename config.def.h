@@ -51,6 +51,16 @@ static const int repeat_delay = 600;
 static const int tap_to_click = 1;
 static const int natural_scrolling = 0;
 
+/* Define the accel profile, the posible values can be */
+/* LIBINPUT_CONFIG_ACCEL_PROFILE_NONE */
+/* LIBINPUT_CONFIG_ACCEL_PROFILE_FLAT (this disables the acceleration). */
+/* LIBINPUT_CONFIG_ACCEL_PROFILE_ADAPTIVE (this is the default profile for most devices). */
+#define ACCEL_PROFILE LIBINPUT_CONFIG_ACCEL_PROFILE_ADAPTIVE
+
+/* Set the pointer acceleration of this pointer device within a range of [-1,1]. */
+/* 0 is the default value, -1 is slowest acceleration and 1 is the maximun accel */
+static const double pointer_speed = 0;
+
 #define MODKEY WLR_MODIFIER_ALT
 #define TAGKEYS(KEY,SKEY,TAG) \
 	{ MODKEY,                    KEY,            view,            {.ui = 1 << TAG} }, \
