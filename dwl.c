@@ -32,6 +32,7 @@
 #include <wlr/types/wlr_primary_selection.h>
 #include <wlr/types/wlr_primary_selection_v1.h>
 #include <wlr/types/wlr_screencopy_v1.h>
+#include <wlr/types/wlr_server_decoration.h>
 #include <wlr/types/wlr_seat.h>
 #include <wlr/types/wlr_viewporter.h>
 #include <wlr/types/wlr_virtual_keyboard_v1.h>
@@ -228,18 +229,15 @@ static void createmon(struct wl_listener *listener, void *data);
 static void createnotify(struct wl_listener *listener, void *data);
 static void createlayersurface(struct wl_listener *listener, void *data);
 static void createpointer(struct wlr_input_device *device);
-static void createxdeco(struct wl_listener *listener, void *data);
 static void cursorframe(struct wl_listener *listener, void *data);
 static void destroylayersurfacenotify(struct wl_listener *listener, void *data);
 static void destroynotify(struct wl_listener *listener, void *data);
-static void destroyxdeco(struct wl_listener *listener, void *data);
 static Monitor *dirtomon(enum wlr_direction dir);
 static void focusclient(Client *c, int lift);
 static void focusmon(const Arg *arg);
 static void focusstack(const Arg *arg);
 static void fullscreennotify(struct wl_listener *listener, void *data);
 static Client *focustop(Monitor *m);
-static void getxdecomode(struct wl_listener *listener, void *data);
 static void incnmaster(const Arg *arg);
 static void inputdevice(struct wl_listener *listener, void *data);
 static int keybinding(uint32_t mods, xkb_keysym_t sym);
@@ -312,7 +310,6 @@ static struct wl_list stack;   /* stacking z-order */
 static struct wl_list independents;
 static struct wlr_idle *idle;
 static struct wlr_layer_shell_v1 *layer_shell;
-static struct wlr_xdg_decoration_manager_v1 *xdeco_mgr;
 static struct wlr_output_manager_v1 *output_mgr;
 static struct wlr_virtual_keyboard_manager_v1 *virtual_keyboard_mgr;
 
@@ -344,7 +341,6 @@ static struct wl_listener layout_change = {.notify = updatemons};
 static struct wl_listener new_input = {.notify = inputdevice};
 static struct wl_listener new_virtual_keyboard = {.notify = virtualkeyboard};
 static struct wl_listener new_output = {.notify = createmon};
-static struct wl_listener new_xdeco = {.notify = createxdeco};
 static struct wl_listener new_xdg_surface = {.notify = createnotify};
 static struct wl_listener new_layer_shell_surface = {.notify = createlayersurface};
 static struct wl_listener output_mgr_apply = {.notify = outputmgrapply};
@@ -959,18 +955,6 @@ createpointer(struct wlr_input_device *device)
 }
 
 void
-createxdeco(struct wl_listener *listener, void *data)
-{
-	struct wlr_xdg_toplevel_decoration_v1 *wlr_deco = data;
-	Decoration *d = wlr_deco->data = calloc(1, sizeof(*d));
-
-	LISTEN(&wlr_deco->events.request_mode, &d->request_mode, getxdecomode);
-	LISTEN(&wlr_deco->events.destroy, &d->destroy, destroyxdeco);
-
-	getxdecomode(&d->request_mode, wlr_deco);
-}
-
-void
 cursorframe(struct wl_listener *listener, void *data)
 {
 	/* This event is forwarded by the cursor when a pointer emits an frame
@@ -1018,17 +1002,6 @@ destroynotify(struct wl_listener *listener, void *data)
 #endif
 		wl_list_remove(&c->commit.link);
 	free(c);
-}
-
-void
-destroyxdeco(struct wl_listener *listener, void *data)
-{
-	struct wlr_xdg_toplevel_decoration_v1 *wlr_deco = data;
-	Decoration *d = wlr_deco->data;
-
-	wl_list_remove(&d->destroy.link);
-	wl_list_remove(&d->request_mode.link);
-	free(d);
 }
 
 void
@@ -1183,14 +1156,6 @@ focustop(Monitor *m)
 		if (VISIBLEON(c, m))
 			return c;
 	return NULL;
-}
-
-void
-getxdecomode(struct wl_listener *listener, void *data)
-{
-	struct wlr_xdg_toplevel_decoration_v1 *wlr_deco = data;
-	wlr_xdg_toplevel_decoration_v1_set_mode(wlr_deco,
-			WLR_XDG_TOPLEVEL_DECORATION_V1_MODE_SERVER_SIDE);
 }
 
 void
@@ -2051,9 +2016,11 @@ setup(void)
 	xdg_shell = wlr_xdg_shell_create(dpy);
 	wl_signal_add(&xdg_shell->events.new_surface, &new_xdg_surface);
 
-	/* Use xdg_decoration protocol to negotiate server-side decorations */
-	xdeco_mgr = wlr_xdg_decoration_manager_v1_create(dpy);
-	wl_signal_add(&xdeco_mgr->events.new_toplevel_decoration, &new_xdeco);
+	/* Use decoration protocols to negotiate server-side decorations */
+	wlr_server_decoration_manager_set_default_mode(
+			wlr_server_decoration_manager_create(dpy),
+			WLR_SERVER_DECORATION_MANAGER_MODE_SERVER);
+	wlr_xdg_decoration_manager_v1_create(dpy);
 
 	/*
 	 * Creates a cursor, which is a wlroots utility for tracking the cursor
