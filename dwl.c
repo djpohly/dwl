@@ -188,7 +188,6 @@ struct Monitor {
 	unsigned int tagset[2];
 	double mfact;
 	int nmaster;
-	Client *fullscreenclient;
 	struct wlr_output_damage *damage;
 };
 
@@ -266,7 +265,6 @@ static void killclient(const Arg *arg);
 static void maplayersurfacenotify(struct wl_listener *listener, void *data);
 static void mapnotify(struct wl_listener *listener, void *data);
 static void mapnotify_sub(struct wl_listener *listener, void *data);
-static void maximizeclient(Client *c);
 static void monocle(Monitor *m);
 static void motionabsolute(struct wl_listener *listener, void *data);
 static void motionnotify(uint32_t time);
@@ -278,6 +276,7 @@ static void outputmgrapplyortest(struct wlr_output_configuration_v1 *config, int
 static void outputmgrtest(struct wl_listener *listener, void *data);
 static void pointerfocus(Client *c, struct wlr_surface *surface,
 		double sx, double sy, uint32_t time);
+static void printstatus(void);
 static void quit(const Arg *arg);
 static void render(struct wlr_surface *surface, int sx, int sy, void *data);
 static void renderclients(Monitor *m, struct timespec *now);
@@ -505,8 +504,6 @@ arrange(Monitor *m)
 {
 	if (m->lt[m->sellt]->arrange)
 		m->lt[m->sellt]->arrange(m);
-	else if (m->fullscreenclient)
-		maximizeclient(m->fullscreenclient);
 	/* TODO recheck pointer focus here... or in resize()? */
 	wlr_output_damage_add_whole(m->damage);
 }
@@ -806,8 +803,7 @@ commitnotify(struct wl_listener *listener, void *data)
 		c->resize = 0;
 
 	// Damage the whole screen
-	if (c->mon)
-		wlr_output_damage_add_whole(c->mon->damage);
+	wlr_output_damage_add_whole(c->mon->damage);
 }
 
 void
@@ -921,9 +917,6 @@ createnotify(struct wl_listener *listener, void *data)
 
 	if (xdg_surface->role != WLR_XDG_SURFACE_ROLE_TOPLEVEL)
 		return;
-	wl_list_for_each(c, &clients, link)
-		if (c->isfullscreen && VISIBLEON(c, c->mon))
-			setfullscreen(c, 0);
 
 	/* Allocate a Client for this surface */
 	c = xdg_surface->data = calloc(1, sizeof(*c));
@@ -934,7 +927,6 @@ createnotify(struct wl_listener *listener, void *data)
 	wlr_xdg_toplevel_set_tiled(c->surface.xdg, WLR_EDGE_TOP |
 			WLR_EDGE_BOTTOM | WLR_EDGE_LEFT | WLR_EDGE_RIGHT);
 
-	LISTEN(&xdg_surface->surface->events.commit, &c->commit, commitnotify);
 	LISTEN(&xdg_surface->surface->events.new_subsurface, &c->new_sub, new_subnotify);
 	LISTEN(&xdg_surface->events.map, &c->map, mapnotify);
 	LISTEN(&xdg_surface->events.unmap, &c->unmap, unmapnotify);
@@ -1095,14 +1087,8 @@ void
 togglefullscreen(const Arg *arg)
 {
 	Client *sel = selclient();
-	setfullscreen(sel, !sel->isfullscreen);
-}
-
-void
-maximizeclient(Client *c)
-{
-	resize(c, c->mon->m.x, c->mon->m.y, c->mon->m.width, c->mon->m.height, 0);
-	/* used for fullscreen clients */
+	if (sel)
+		setfullscreen(sel, !sel->isfullscreen);
 }
 
 void
@@ -1117,13 +1103,11 @@ setfullscreen(Client *c, int fullscreen)
 		c->prevy = c->geom.y;
 		c->prevheight = c->geom.height;
 		c->prevwidth = c->geom.width;
-		c->mon->fullscreenclient = c;
-		maximizeclient(c);
+		resize(c, c->mon->m.x, c->mon->m.y, c->mon->m.width, c->mon->m.height, 0);
 	} else {
 		/* restore previous size instead of arrange for floating windows since
 		 * client positions are set by the user and cannot be recalculated */
 		resize(c, c->prevx, c->prevy, c->prevwidth, c->prevheight, 0);
-		c->mon->fullscreenclient = NULL;
 		arrange(c->mon);
 	}
 }
@@ -1170,6 +1154,7 @@ focusclient(Client *c, int lift)
 		wl_list_insert(&fstack, &c->flink);
 		selmon = c->mon;
 	}
+	printstatus();
 
 	/* Deactivate old client if focus is changing */
 	if (old && (!c || client_surface(c) != old)) {
@@ -1389,7 +1374,7 @@ void
 mapnotify(struct wl_listener *listener, void *data)
 {
 	/* Called when the surface is mapped, or ready to display on-screen. */
-	Client *c = wl_container_of(listener, c, map), *oldfocus = selclient();
+	Client *c = wl_container_of(listener, c, map);
 
 	if (client_is_unmanaged(c)) {
 		/* Insert this independent into independents lists. */
@@ -1414,17 +1399,10 @@ mapnotify(struct wl_listener *listener, void *data)
 
 #ifdef XWAYLAND
 	if (c->type != XDGShell)
-		if (c->surface.xwayland->surface)
-			LISTEN(&c->surface.xwayland->surface->events.commit, &c->commit, commitnotifyx11);
+		LISTEN(&c->surface.xwayland->surface->events.commit, &c->commit, commitnotifyx11);
+	else
 #endif
-
-	if (c->mon->fullscreenclient && c->mon->fullscreenclient == oldfocus
-			&& !c->isfloating && c->mon->lt[c->mon->sellt]->arrange) {
-		maximizeclient(c->mon->fullscreenclient);
-		focusclient(c->mon->fullscreenclient, 1);
-		/* give the focus back the fullscreen client on that monitor if exists,
-		 * is focused and the new client isn't floating */
-	}
+		LISTEN(&c->surface.xdg->surface->events.commit, &c->commit, commitnotify);
 }
 
 void
@@ -1433,6 +1411,7 @@ mapnotify_sub(struct wl_listener *listener, void *data)
 	Subsurface *s = wl_container_of(listener, s, map);
 	wl_list_insert(&subsurfaces, &s->link);
 	wlr_output_damage_add_whole(s->c->mon->damage);
+	LISTEN(&s->subsurface->surface->events.commit, &s->commit, commitnotify_sub);
 }
 
 
@@ -1442,12 +1421,9 @@ monocle(Monitor *m)
 	Client *c;
 
 	wl_list_for_each(c, &clients, link) {
-		if (!VISIBLEON(c, m) || c->isfloating)
+		if (!VISIBLEON(c, m) || c->isfloating || c->isfullscreen)
 			continue;
-		if (c->isfullscreen)
-			maximizeclient(c);
-		else
-			resize(c, m->w.x, m->w.y, m->w.width, m->w.height, 0);
+		resize(c, m->w.x, m->w.y, m->w.width, m->w.height, 0);
 	}
 }
 
@@ -1550,8 +1526,7 @@ motionrelative(struct wl_listener *listener, void *data)
 void
 moveresize(const Arg *arg)
 {
-	grabc = xytoclient(cursor->x, cursor->y);
-	if (!grabc)
+	if (cursor_mode != CurNormal || !(grabc = xytoclient(cursor->x, cursor->y)))
 		return;
 
 	/* Float the window and tell motionnotify to grab it */
@@ -1581,7 +1556,6 @@ new_subnotify(struct wl_listener *listener, void *data) {
 	s->subsurface = subsurface;
 	s->c = wl_container_of(listener, s->c, new_sub);
 
-	LISTEN(&s->subsurface->surface->events.commit, &s->commit, commitnotify_sub);
 	LISTEN(&s->subsurface->events.map, &s->map, mapnotify_sub);
 	LISTEN(&s->subsurface->events.unmap, &s->unmap, unmapnotify_sub);
 	LISTEN(&s->subsurface->events.destroy, &s->destroy, destroynotify_sub);
@@ -1686,6 +1660,31 @@ pointerfocus(Client *c, struct wlr_surface *surface, double sx, double sy,
 
 	if (sloppyfocus && !internal_call)
 		focusclient(c, 0);
+}
+
+void
+printstatus(void)
+{
+	Monitor *m = NULL;
+	Client *c = NULL;
+	unsigned int activetags;
+
+	wl_list_for_each(m, &mons, link) {
+		activetags=0;
+		wl_list_for_each(c, &clients, link) {
+			if (c->mon == m)
+				activetags |= c->tags;
+		}
+		if (focustop(m))
+			printf("%s title %s\n", m->wlr_output->name, client_get_title(focustop(m)));
+		else
+			printf("%s title \n", m->wlr_output->name);
+
+		printf("%s selmon %u\n", m->wlr_output->name, m == selmon);
+		printf("%s tags %u %u\n", m->wlr_output->name, activetags, m->tagset[m->seltags]);
+		printf("%s layout %s\n", m->wlr_output->name, m->lt[m->sellt]->symbol);
+	}
+	fflush(stdout);
 }
 
 void
@@ -1938,6 +1937,7 @@ run(char *startup_cmd)
 		if (startup_pid < 0)
 			EBARF("startup: fork");
 		if (startup_pid == 0) {
+			dup2(STDERR_FILENO, STDOUT_FILENO);
 			execl("/bin/sh", "/bin/sh", "-c", startup_cmd, NULL);
 			EBARF("startup: execl");
 		}
@@ -2008,6 +2008,7 @@ setlayout(const Arg *arg)
 		selmon->lt[selmon->sellt] = (Layout *)arg->v;
 	/* TODO change layout symbol? */
 	arrange(selmon);
+	printstatus();
 }
 
 /* arg > 1.0 will set mfact absolutely */
@@ -2249,6 +2250,7 @@ void
 spawn(const Arg *arg)
 {
 	if (fork() == 0) {
+		dup2(STDERR_FILENO, STDOUT_FILENO);
 		setsid();
 		execvp(((char **)arg->v)[0], (char **)arg->v);
 		EBARF("dwl: execvp %s failed", ((char **)arg->v)[0]);
@@ -2264,6 +2266,7 @@ tag(const Arg *arg)
 		focusclient(focustop(selmon), 1);
 		arrange(selmon);
 	}
+	printstatus();
 }
 
 void
@@ -2293,11 +2296,9 @@ tile(Monitor *m)
 		mw = m->w.width;
 	i = my = ty = 0;
 	wl_list_for_each(c, &clients, link) {
-		if (!VISIBLEON(c, m) || c->isfloating)
+		if (!VISIBLEON(c, m) || c->isfloating || c->isfullscreen)
 			continue;
-		if (c->isfullscreen)
-			maximizeclient(c);
-		else if (i < m->nmaster) {
+		if (i < m->nmaster) {
 			h = (m->w.height - my) / (MIN(n, m->nmaster) - i);
 			resize(c, m->w.x, m->w.y + my, mw, h, 0);
 			my += c->geom.height;
@@ -2333,6 +2334,7 @@ toggletag(const Arg *arg)
 		focusclient(focustop(selmon), 1);
 		arrange(selmon);
 	}
+	printstatus();
 }
 
 void
@@ -2345,6 +2347,7 @@ toggleview(const Arg *arg)
 		focusclient(focustop(selmon), 1);
 		arrange(selmon);
 	}
+	printstatus();
 }
 
 void
@@ -2437,6 +2440,7 @@ view(const Arg *arg)
 		selmon->tagset[selmon->seltags] = arg->ui & TAGMASK;
 	focusclient(focustop(selmon), 1);
 	arrange(selmon);
+	printstatus();
 }
 
 void
@@ -2573,8 +2577,7 @@ commitnotifyx11(struct wl_listener *listener, void *data)
 	Client *c = wl_container_of(listener, c, commit);
 
 	// Damage the whole screen
-	if (c->mon)
-		wlr_output_damage_add_whole(c->mon->damage);
+	wlr_output_damage_add_whole(c->mon->damage);
 }
 
 Atom
