@@ -11,6 +11,14 @@ LDLIBS += $(foreach p,$(PKGS),$(shell pkg-config --libs $(p)))
 
 all: dwl
 
+clean:
+	rm -f dwl *.o *-protocol.h *-protocol.c
+
+install: dwl
+	install -D dwl $(PREFIX)/bin/dwl
+
+.PHONY: all clean install
+
 # wayland-scanner is a tool which generates C headers and rigging for Wayland
 # protocols, which are specified in XML. wlroots requires you to rig these up
 # to your build system yourself and provide them in the include path.
@@ -50,12 +58,3 @@ config.h: | config.def.h
 dwl.o: config.mk config.h client.h xdg-shell-protocol.h wlr-layer-shell-unstable-v1-protocol.h idle-protocol.h
 
 dwl: xdg-shell-protocol.o wlr-layer-shell-unstable-v1-protocol.o idle-protocol.o
-
-clean:
-	rm -f dwl *.o *-protocol.h *-protocol.c
-
-install: dwl
-	install -D dwl $(PREFIX)/bin/dwl
-
-.DEFAULT_GOAL=dwl
-.PHONY: clean
