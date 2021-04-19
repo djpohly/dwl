@@ -17,7 +17,10 @@ clean:
 install: dwl
 	install -D dwl $(PREFIX)/bin/dwl
 
-.PHONY: all clean install
+uninstall:
+	rm -f $(PREFIX)/bin/dwl
+
+.PHONY: all clean install uninstall
 
 # wayland-scanner is a tool which generates C headers and rigging for Wayland
 # protocols, which are specified in XML. wlroots requires you to rig these up
