@@ -1809,15 +1809,22 @@ run(char *startup_cmd)
 	setenv("WAYLAND_DISPLAY", socket, 1);
 
 	if (startup_cmd) {
+		int piperw[2];
+		pipe(piperw);
 		startup_pid = fork();
 		if (startup_pid < 0)
 			EBARF("startup: fork");
 		if (startup_pid == 0) {
-			dup2(STDERR_FILENO, STDOUT_FILENO);
+			dup2(piperw[0], STDIN_FILENO);
+			close(piperw[1]);
 			execl("/bin/sh", "/bin/sh", "-c", startup_cmd, NULL);
 			EBARF("startup: execl");
 		}
+		dup2(piperw[1], STDOUT_FILENO);
+		close(piperw[0]);
 	}
+	/* If nobody is reading the status output, don't terminate */
+	signal(SIGPIPE, SIG_IGN);
 
 	/* Run the Wayland event loop. This does not return until you exit the
 	 * compositor. Starting the backend rigged up all of the necessary event
