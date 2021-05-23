@@ -1304,9 +1304,17 @@ mapnotify(struct wl_listener *listener, void *data)
 	c->geom.width += 2 * c->bw;
 	c->geom.height += 2 * c->bw;
 
+#ifdef XWAYLAND
+	if (c->type == XDGShell) {
+		/* Tell the client not to try anything fancy */
+		wlr_xdg_toplevel_set_tiled(c->surface.xdg, WLR_EDGE_TOP |
+				WLR_EDGE_BOTTOM | WLR_EDGE_LEFT | WLR_EDGE_RIGHT);
+	}
+#else
 	/* Tell the client not to try anything fancy */
 	wlr_xdg_toplevel_set_tiled(c->surface.xdg, WLR_EDGE_TOP |
 			WLR_EDGE_BOTTOM | WLR_EDGE_LEFT | WLR_EDGE_RIGHT);
+#endif
 
 	/* Set initial monitor, tags, floating status, and focus */
 	applyrules(c);
