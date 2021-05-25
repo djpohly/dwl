@@ -842,10 +842,12 @@ createmon(struct wl_listener *listener, void *data)
 	LISTEN(&wlr_output->events.frame, &m->frame, rendermon);
 	LISTEN(&wlr_output->events.destroy, &m->destroy, cleanupmon);
 
-	wl_list_insert(&mons, &m->link);
 	wlr_output_enable(wlr_output, 1);
 	if (!wlr_output_commit(wlr_output))
 		return;
+
+	wl_list_insert(&mons, &m->link);
+	printstatus();
 
 	/* Adds this to the output layout in the order it was configured in.
 	 *
@@ -1786,27 +1788,9 @@ run(char *startup_cmd)
 	const char *socket = wl_display_add_socket_auto(dpy);
 	if (!socket)
 		BARF("startup: display_add_socket_auto");
-
-	/* Start the backend. This will enumerate outputs and inputs, become the DRM
-	 * master, etc */
-	if (!wlr_backend_start(backend))
-		BARF("startup: backend_start");
-
-	/* Now that outputs are initialized, choose initial selmon based on
-	 * cursor position, and set default cursor image */
-	selmon = xytomon(cursor->x, cursor->y);
-
-	/* TODO hack to get cursor to display in its initial location (100, 100)
-	 * instead of (0, 0) and then jumping.  still may not be fully
-	 * initialized, as the image/coordinates are not transformed for the
-	 * monitor when displayed here */
-	wlr_cursor_warp_closest(cursor, NULL, cursor->x, cursor->y);
-	wlr_xcursor_manager_set_cursor_image(cursor_mgr, "left_ptr", cursor);
-
-	/* Set the WAYLAND_DISPLAY environment variable to our socket and run the
-	 * startup command if requested. */
 	setenv("WAYLAND_DISPLAY", socket, 1);
 
+	/* Now that the socket exists, run the startup command */
 	if (startup_cmd) {
 		int piperw[2];
 		pipe(piperw);
@@ -1824,6 +1808,22 @@ run(char *startup_cmd)
 	}
 	/* If nobody is reading the status output, don't terminate */
 	signal(SIGPIPE, SIG_IGN);
+
+	/* Start the backend. This will enumerate outputs and inputs, become the DRM
+	 * master, etc */
+	if (!wlr_backend_start(backend))
+		BARF("startup: backend_start");
+
+	/* Now that outputs are initialized, choose initial selmon based on
+	 * cursor position, and set default cursor image */
+	selmon = xytomon(cursor->x, cursor->y);
+
+	/* TODO hack to get cursor to display in its initial location (100, 100)
+	 * instead of (0, 0) and then jumping.  still may not be fully
+	 * initialized, as the image/coordinates are not transformed for the
+	 * monitor when displayed here */
+	wlr_cursor_warp_closest(cursor, NULL, cursor->x, cursor->y);
+	wlr_xcursor_manager_set_cursor_image(cursor_mgr, "left_ptr", cursor);
 
 	/* Run the Wayland event loop. This does not return until you exit the
 	 * compositor. Starting the backend rigged up all of the necessary event
