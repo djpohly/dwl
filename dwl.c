@@ -96,6 +96,7 @@ typedef struct {
 	struct wl_listener map;
 	struct wl_listener unmap;
 	struct wl_listener destroy;
+	struct wl_listener set_title;
 	struct wl_listener fullscreen;
 	struct wlr_box geom;  /* layout-relative, includes border */
 	Monitor *mon;
@@ -288,6 +289,7 @@ static void unmaplayersurface(LayerSurface *layersurface);
 static void unmaplayersurfacenotify(struct wl_listener *listener, void *data);
 static void unmapnotify(struct wl_listener *listener, void *data);
 static void updatemons(struct wl_listener *listener, void *data);
+static void updatetitle(struct wl_listener *listener, void *data);
 static void view(const Arg *arg);
 static void virtualkeyboard(struct wl_listener *listener, void *data);
 static Client *xytoclient(double x, double y);
@@ -883,14 +885,11 @@ createnotify(struct wl_listener *listener, void *data)
 	c->surface.xdg = xdg_surface;
 	c->bw = borderpx;
 
-	/* Tell the client not to try anything fancy */
-	wlr_xdg_toplevel_set_tiled(c->surface.xdg, WLR_EDGE_TOP |
-			WLR_EDGE_BOTTOM | WLR_EDGE_LEFT | WLR_EDGE_RIGHT);
-
 	LISTEN(&xdg_surface->surface->events.commit, &c->commit, commitnotify);
 	LISTEN(&xdg_surface->events.map, &c->map, mapnotify);
 	LISTEN(&xdg_surface->events.unmap, &c->unmap, unmapnotify);
 	LISTEN(&xdg_surface->events.destroy, &c->destroy, destroynotify);
+	LISTEN(&xdg_surface->toplevel->events.set_title, &c->set_title, updatetitle);
 	LISTEN(&xdg_surface->toplevel->events.request_fullscreen, &c->fullscreen,
 			fullscreennotify);
 	c->isfullscreen = 0;
@@ -994,6 +993,7 @@ destroynotify(struct wl_listener *listener, void *data)
 	wl_list_remove(&c->map.link);
 	wl_list_remove(&c->unmap.link);
 	wl_list_remove(&c->destroy.link);
+	wl_list_remove(&c->set_title.link);
 	wl_list_remove(&c->fullscreen.link);
 #ifdef XWAYLAND
 	if (c->type == X11Managed)
@@ -1303,6 +1303,9 @@ mapnotify(struct wl_listener *listener, void *data)
 	client_get_geometry(c, &c->geom);
 	c->geom.width += 2 * c->bw;
 	c->geom.height += 2 * c->bw;
+
+	/* Tell the client not to try anything fancy */
+	client_set_tiled(c, WLR_EDGE_TOP | WLR_EDGE_BOTTOM | WLR_EDGE_LEFT | WLR_EDGE_RIGHT);
 
 	/* Set initial monitor, tags, floating status, and focus */
 	applyrules(c);
@@ -1805,15 +1808,22 @@ run(char *startup_cmd)
 	setenv("WAYLAND_DISPLAY", socket, 1);
 
 	if (startup_cmd) {
+		int piperw[2];
+		pipe(piperw);
 		startup_pid = fork();
 		if (startup_pid < 0)
 			EBARF("startup: fork");
 		if (startup_pid == 0) {
-			dup2(STDERR_FILENO, STDOUT_FILENO);
+			dup2(piperw[0], STDIN_FILENO);
+			close(piperw[1]);
 			execl("/bin/sh", "/bin/sh", "-c", startup_cmd, NULL);
 			EBARF("startup: execl");
 		}
+		dup2(piperw[1], STDOUT_FILENO);
+		close(piperw[0]);
 	}
+	/* If nobody is reading the status output, don't terminate */
+	signal(SIGPIPE, SIG_IGN);
 
 	/* Run the Wayland event loop. This does not return until you exit the
 	 * compositor. Starting the backend rigged up all of the necessary event
@@ -2292,6 +2302,14 @@ updatemons(struct wl_listener *listener, void *data)
 }
 
 void
+updatetitle(struct wl_listener *listener, void *data)
+{
+	Client *c = wl_container_of(listener, c, set_title);
+	if (c == focustop(c->mon))
+		printstatus();
+}
+
+void
 view(const Arg *arg)
 {
 	if ((arg->ui & TAGMASK) == selmon->tagset[selmon->seltags])
@@ -2427,6 +2445,7 @@ createnotifyx11(struct wl_listener *listener, void *data)
 			activatex11);
 	LISTEN(&xwayland_surface->events.request_configure, &c->configure,
 			configurex11);
+	LISTEN(&xwayland_surface->events.set_title, &c->set_title, updatetitle);
 	LISTEN(&xwayland_surface->events.destroy, &c->destroy, destroynotify);
 	LISTEN(&xwayland_surface->events.request_fullscreen, &c->fullscreen,
 			fullscreennotify);
