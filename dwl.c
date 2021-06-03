@@ -259,6 +259,7 @@ static void pointerfocus(Client *c, struct wlr_surface *surface,
 		double sx, double sy, uint32_t time);
 static void printstatus(void);
 static void quit(const Arg *arg);
+static void quitsignal(int signo);
 static void render(struct wlr_surface *surface, int sx, int sy, void *data);
 static void renderclients(Monitor *m, struct timespec *now);
 static void renderlayer(struct wl_list *layer_surfaces, struct timespec *now);
@@ -842,10 +843,12 @@ createmon(struct wl_listener *listener, void *data)
 	LISTEN(&wlr_output->events.frame, &m->frame, rendermon);
 	LISTEN(&wlr_output->events.destroy, &m->destroy, cleanupmon);
 
-	wl_list_insert(&mons, &m->link);
 	wlr_output_enable(wlr_output, 1);
 	if (!wlr_output_commit(wlr_output))
 		return;
+
+	wl_list_insert(&mons, &m->link);
+	printstatus();
 
 	/* Adds this to the output layout in the order it was configured in.
 	 *
@@ -1577,6 +1580,12 @@ quit(const Arg *arg)
 }
 
 void
+quitsignal(int signo)
+{
+	quit(NULL);
+}
+
+void
 render(struct wlr_surface *surface, int sx, int sy, void *data)
 {
 	/* This function is called for every surface that needs to be rendered. */
@@ -1724,38 +1733,42 @@ rendermon(struct wl_listener *listener, void *data)
 		}
 	}
 
-	/* wlr_output_attach_render makes the OpenGL context current. */
-	if (!wlr_output_attach_render(m->wlr_output, NULL))
-		return;
+	/* HACK: This loop is the simplest way to handle ephemeral pageflip
+	 * failures but probably not the best. Revisit if damage tracking is
+	 * added. */
+	do {
+		/* wlr_output_attach_render makes the OpenGL context current. */
+		if (!wlr_output_attach_render(m->wlr_output, NULL))
+			return;
 
-	if (render) {
-		/* Begin the renderer (calls glViewport and some other GL sanity checks) */
-		wlr_renderer_begin(drw, m->wlr_output->width, m->wlr_output->height);
-		wlr_renderer_clear(drw, rootcolor);
+		if (render) {
+			/* Begin the renderer (calls glViewport and some other GL sanity checks) */
+			wlr_renderer_begin(drw, m->wlr_output->width, m->wlr_output->height);
+			wlr_renderer_clear(drw, rootcolor);
 
-		renderlayer(&m->layers[ZWLR_LAYER_SHELL_V1_LAYER_BACKGROUND], &now);
-		renderlayer(&m->layers[ZWLR_LAYER_SHELL_V1_LAYER_BOTTOM], &now);
-		renderclients(m, &now);
+			renderlayer(&m->layers[ZWLR_LAYER_SHELL_V1_LAYER_BACKGROUND], &now);
+			renderlayer(&m->layers[ZWLR_LAYER_SHELL_V1_LAYER_BOTTOM], &now);
+			renderclients(m, &now);
 #ifdef XWAYLAND
-		renderindependents(m->wlr_output, &now);
+			renderindependents(m->wlr_output, &now);
 #endif
-		renderlayer(&m->layers[ZWLR_LAYER_SHELL_V1_LAYER_TOP], &now);
-		renderlayer(&m->layers[ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY], &now);
+			renderlayer(&m->layers[ZWLR_LAYER_SHELL_V1_LAYER_TOP], &now);
+			renderlayer(&m->layers[ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY], &now);
 
-		/* Hardware cursors are rendered by the GPU on a separate plane, and can be
-		 * moved around without re-rendering what's beneath them - which is more
-		 * efficient. However, not all hardware supports hardware cursors. For this
-		 * reason, wlroots provides a software fallback, which we ask it to render
-		 * here. wlr_cursor handles configuring hardware vs software cursors for you,
-		 * and this function is a no-op when hardware cursors are in use. */
-		wlr_output_render_software_cursors(m->wlr_output, NULL);
+			/* Hardware cursors are rendered by the GPU on a separate plane, and can be
+			 * moved around without re-rendering what's beneath them - which is more
+			 * efficient. However, not all hardware supports hardware cursors. For this
+			 * reason, wlroots provides a software fallback, which we ask it to render
+			 * here. wlr_cursor handles configuring hardware vs software cursors for you,
+			 * and this function is a no-op when hardware cursors are in use. */
+			wlr_output_render_software_cursors(m->wlr_output, NULL);
 
-		/* Conclude rendering and swap the buffers, showing the final frame
-		 * on-screen. */
-		wlr_renderer_end(drw);
-	}
+			/* Conclude rendering and swap the buffers, showing the final frame
+			 * on-screen. */
+			wlr_renderer_end(drw);
+		}
 
-	wlr_output_commit(m->wlr_output);
+	} while (!wlr_output_commit(m->wlr_output));
 }
 
 void
@@ -1786,27 +1799,9 @@ run(char *startup_cmd)
 	const char *socket = wl_display_add_socket_auto(dpy);
 	if (!socket)
 		BARF("startup: display_add_socket_auto");
-
-	/* Start the backend. This will enumerate outputs and inputs, become the DRM
-	 * master, etc */
-	if (!wlr_backend_start(backend))
-		BARF("startup: backend_start");
-
-	/* Now that outputs are initialized, choose initial selmon based on
-	 * cursor position, and set default cursor image */
-	selmon = xytomon(cursor->x, cursor->y);
-
-	/* TODO hack to get cursor to display in its initial location (100, 100)
-	 * instead of (0, 0) and then jumping.  still may not be fully
-	 * initialized, as the image/coordinates are not transformed for the
-	 * monitor when displayed here */
-	wlr_cursor_warp_closest(cursor, NULL, cursor->x, cursor->y);
-	wlr_xcursor_manager_set_cursor_image(cursor_mgr, "left_ptr", cursor);
-
-	/* Set the WAYLAND_DISPLAY environment variable to our socket and run the
-	 * startup command if requested. */
 	setenv("WAYLAND_DISPLAY", socket, 1);
 
+	/* Now that the socket exists, run the startup command */
 	if (startup_cmd) {
 		int piperw[2];
 		pipe(piperw);
@@ -1824,6 +1819,22 @@ run(char *startup_cmd)
 	}
 	/* If nobody is reading the status output, don't terminate */
 	signal(SIGPIPE, SIG_IGN);
+
+	/* Start the backend. This will enumerate outputs and inputs, become the DRM
+	 * master, etc */
+	if (!wlr_backend_start(backend))
+		BARF("startup: backend_start");
+
+	/* Now that outputs are initialized, choose initial selmon based on
+	 * cursor position, and set default cursor image */
+	selmon = xytomon(cursor->x, cursor->y);
+
+	/* TODO hack to get cursor to display in its initial location (100, 100)
+	 * instead of (0, 0) and then jumping.  still may not be fully
+	 * initialized, as the image/coordinates are not transformed for the
+	 * monitor when displayed here */
+	wlr_cursor_warp_closest(cursor, NULL, cursor->x, cursor->y);
+	wlr_xcursor_manager_set_cursor_image(cursor_mgr, "left_ptr", cursor);
 
 	/* Run the Wayland event loop. This does not return until you exit the
 	 * compositor. Starting the backend rigged up all of the necessary event
@@ -1961,8 +1972,10 @@ setup(void)
 	 * clients from the Unix socket, manging Wayland globals, and so on. */
 	dpy = wl_display_create();
 
-	/* clean up child processes immediately */
+	/* Set up signal handlers */
 	sigchld(0);
+	signal(SIGINT, quitsignal);
+	signal(SIGTERM, quitsignal);
 
 	/* The backend is a wlroots feature which abstracts the underlying input and
 	 * output hardware. The autocreate option will choose the most suitable
