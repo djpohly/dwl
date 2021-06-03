@@ -15,6 +15,7 @@ dwl is not meant to provide every feature under the sun. Instead, like dwm, it s
 - Configurable multi-monitor layout support, including position and rotation
 - Configurable HiDPI/multi-DPI support
 - Provide information to external status bars via stdout/stdin
+- Urgency hints via xdg-activate protocol
 - Various Wayland protocols
 - XWayland support as provided by wlroots (can be enabled in `config.mk`)
 - Zero flickering - Wayland users naturally expect that "every frame is perfect"
@@ -22,7 +23,6 @@ dwl is not meant to provide every feature under the sun. Instead, like dwm, it s
 Features under consideration (possibly as patches) are:
 
 - Protocols made trivial by wlroots
-- Implement urgent/focus-request once the xdg-activation protocol [hits wlroots](https://github.com/swaywm/wlroots/pull/2718)
 - Implement the input-inhibitor protocol to support screen lockers
 - Implement the idle-inhibit protocol which lets applications such as mpv disable idle monitoring
 - Layer shell popups (used by Waybar)

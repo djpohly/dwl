@@ -37,6 +37,7 @@
 #include <wlr/types/wlr_viewporter.h>
 #include <wlr/types/wlr_virtual_keyboard_v1.h>
 #include <wlr/types/wlr_xcursor_manager.h>
+#include <wlr/types/wlr_xdg_activation_v1.h>
 #include <wlr/types/wlr_xdg_decoration_v1.h>
 #include <wlr/types/wlr_xdg_output_v1.h>
 #include <wlr/types/wlr_xdg_shell.h>
@@ -107,7 +108,7 @@ typedef struct {
 #endif
 	int bw;
 	unsigned int tags;
-	int isfloating;
+	int isfloating, isurgent;
 	uint32_t resize; /* configure serial of a pending resize */
 	int prevx;
 	int prevy;
@@ -291,6 +292,7 @@ static void unmaplayersurfacenotify(struct wl_listener *listener, void *data);
 static void unmapnotify(struct wl_listener *listener, void *data);
 static void updatemons(struct wl_listener *listener, void *data);
 static void updatetitle(struct wl_listener *listener, void *data);
+static void urgent(struct wl_listener *listener, void *data);
 static void view(const Arg *arg);
 static void virtualkeyboard(struct wl_listener *listener, void *data);
 static Client *xytoclient(double x, double y);
@@ -307,6 +309,7 @@ static struct wlr_renderer *drw;
 static struct wlr_compositor *compositor;
 
 static struct wlr_xdg_shell *xdg_shell;
+static struct wlr_xdg_activation_v1 *activation;
 static struct wl_list clients; /* tiling order */
 static struct wl_list fstack;  /* focus order */
 static struct wl_list stack;   /* stacking z-order */
@@ -348,6 +351,7 @@ static struct wl_listener new_xdg_surface = {.notify = createnotify};
 static struct wl_listener new_layer_shell_surface = {.notify = createlayersurface};
 static struct wl_listener output_mgr_apply = {.notify = outputmgrapply};
 static struct wl_listener output_mgr_test = {.notify = outputmgrtest};
+static struct wl_listener request_activate = {.notify = urgent};
 static struct wl_listener request_cursor = {.notify = setcursor};
 static struct wl_listener request_set_psel = {.notify = setpsel};
 static struct wl_listener request_set_sel = {.notify = setsel};
@@ -1077,6 +1081,7 @@ focusclient(Client *c, int lift)
 		wl_list_remove(&c->flink);
 		wl_list_insert(&fstack, &c->flink);
 		selmon = c->mon;
+		c->isurgent = 0;
 	}
 	printstatus();
 
@@ -1552,22 +1557,29 @@ void
 printstatus(void)
 {
 	Monitor *m = NULL;
-	Client *c = NULL;
-	unsigned int activetags;
+	Client *c;
+	unsigned int occ, urg, sel;
 
 	wl_list_for_each(m, &mons, link) {
-		activetags=0;
+		occ = urg = 0;
 		wl_list_for_each(c, &clients, link) {
-			if (c->mon == m)
-				activetags |= c->tags;
+			if (c->mon != m)
+				continue;
+			occ |= c->tags;
+			if (c->isurgent)
+				urg |= c->tags;
 		}
-		if (focustop(m))
+		if ((c = focustop(m))) {
 			printf("%s title %s\n", m->wlr_output->name, client_get_title(focustop(m)));
-		else
+			sel = c->tags;
+		} else {
 			printf("%s title \n", m->wlr_output->name);
+			sel = 0;
+		}
 
 		printf("%s selmon %u\n", m->wlr_output->name, m == selmon);
-		printf("%s tags %u %u\n", m->wlr_output->name, activetags, m->tagset[m->seltags]);
+		printf("%s tags %u %u %u %u\n", m->wlr_output->name, occ, m->tagset[m->seltags],
+				sel, urg);
 		printf("%s layout %s\n", m->wlr_output->name, m->lt[m->sellt]->symbol);
 	}
 	fflush(stdout);
@@ -1819,6 +1831,7 @@ run(char *startup_cmd)
 	}
 	/* If nobody is reading the status output, don't terminate */
 	signal(SIGPIPE, SIG_IGN);
+	printstatus();
 
 	/* Start the backend. This will enumerate outputs and inputs, become the DRM
 	 * master, etc */
@@ -2008,6 +2021,10 @@ setup(void)
 	wlr_gamma_control_manager_v1_create(dpy);
 	wlr_primary_selection_v1_device_manager_create(dpy);
 	wlr_viewporter_create(dpy);
+
+	/* Initializes the interface used to implement urgency hints */
+	activation = wlr_xdg_activation_v1_create(dpy);
+	wl_signal_add(&activation->events.request_activate, &request_activate);
 
 	/* Creates an output layout, which a wlroots utility for working with an
 	 * arrangement of screens in a physical layout. */
@@ -2320,6 +2337,21 @@ updatetitle(struct wl_listener *listener, void *data)
 	Client *c = wl_container_of(listener, c, set_title);
 	if (c == focustop(c->mon))
 		printstatus();
+}
+
+void
+urgent(struct wl_listener *listener, void *data)
+{
+	struct wlr_xdg_activation_v1_request_activate_event *event = data;
+	Client *c;
+
+	if (!wlr_surface_is_xdg_surface(event->surface))
+		return;
+	c = wlr_xdg_surface_from_wlr_surface(event->surface)->data;
+	if (c != selclient()) {
+		c->isurgent = 1;
+		printstatus();
+	}
 }
 
 void
