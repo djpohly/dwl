@@ -15,6 +15,7 @@ dwl is not meant to provide every feature under the sun. Instead, like dwm, it s
 - Configurable multi-monitor layout support, including position and rotation
 - Configurable HiDPI/multi-DPI support
 - Provide information to external status bars via stdout/stdin
+- Urgency hints via xdg-activate protocol
 - Various Wayland protocols
 - XWayland support as provided by wlroots (can be enabled in `config.mk`)
 - Zero flickering - Wayland users naturally expect that "every frame is perfect"
@@ -22,7 +23,6 @@ dwl is not meant to provide every feature under the sun. Instead, like dwm, it s
 Features under consideration (possibly as patches) are:
 
 - Protocols made trivial by wlroots
-- Implement urgent/focus-request once the xdg-activation protocol [hits wlroots](https://github.com/swaywm/wlroots/pull/2718)
 - Implement the input-inhibitor protocol to support screen lockers
 - Implement the idle-inhibit protocol which lets applications such as mpv disable idle monitoring
 - Layer shell popups (used by Waybar)
@@ -38,7 +38,7 @@ Feature *non-goals* for the main codebase include:
 
 ## Building dwl
 
-dwl has only two dependencies: wlroots-git and wayland-protocols. Simply install these (and their `-devel` versions if your distro has separate development packages) and run `make`.
+dwl has only two dependencies: wlroots and wayland-protocols. Simply install these (and their `-devel` versions if your distro has separate development packages) and run `make`.  If you wish to build against a Git version of wlroots, check out the [wlroots-next branch](https://github.com/djpohly/dwl/tree/wlroots-next).
 
 To enable XWayland, you should also install xorg-xwayland and uncomment its flag in `config.mk`.
 
