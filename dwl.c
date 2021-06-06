@@ -1018,6 +1018,9 @@ togglefullscreen(const Arg *arg)
 void
 setfullscreen(Client *c, int fullscreen)
 {
+	if (!c->mon)
+		return;
+
 	c->isfullscreen = fullscreen;
 	c->bw = (1 - fullscreen) * borderpx;
 	client_set_fullscreen(c, fullscreen);
