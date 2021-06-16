@@ -1934,6 +1934,9 @@ setmon(Client *c, Monitor *m, unsigned int newtags)
 {
 	Monitor *oldmon = c->mon;
 
+	if (m)
+		c->tags = newtags ? newtags : m->tagset[m->seltags]; /* assign tags of target monitor */
+
 	if (oldmon == m)
 		return;
 	c->mon = m;
@@ -1947,7 +1950,6 @@ setmon(Client *c, Monitor *m, unsigned int newtags)
 		/* Make sure window actually overlaps with the monitor */
 		applybounds(c, &m->m);
 		wlr_surface_send_enter(client_surface(c), m->wlr_output);
-		c->tags = newtags ? newtags : m->tagset[m->seltags]; /* assign tags of target monitor */
 		arrange(m);
 	}
 	focusclient(focustop(selmon), 1);
