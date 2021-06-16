@@ -888,6 +888,9 @@ createnotify(struct wl_listener *listener, void *data)
 	c->surface.xdg = xdg_surface;
 	c->bw = borderpx;
 
+	/* set monitor, then it will be overwritten by applyrules */
+	setmon(c,selmon, 0);
+
 	LISTEN(&xdg_surface->surface->events.commit, &c->commit, commitnotify);
 	LISTEN(&xdg_surface->events.map, &c->map, mapnotify);
 	LISTEN(&xdg_surface->events.unmap, &c->unmap, unmapnotify);
@@ -1315,6 +1318,10 @@ mapnotify(struct wl_listener *listener, void *data)
 
 	/* Set initial monitor, tags, floating status, and focus */
 	applyrules(c);
+
+	arrange(c->mon);
+	if (VISIBLEON(c, c->mon))
+		focusclient(c, 1);
 }
 
 void
@@ -2453,6 +2460,9 @@ createnotifyx11(struct wl_listener *listener, void *data)
 	c->type = xwayland_surface->override_redirect ? X11Unmanaged : X11Managed;
 	c->bw = borderpx;
 	c->isfullscreen = 0;
+
+	/* set monitor, then it will be overwritten by applyrules */
+	setmon(c,selmon, 0);
 
 	/* Listen to the various events it can emit */
 	LISTEN(&xwayland_surface->events.map, &c->map, mapnotify);
