@@ -8,6 +8,7 @@ WAYLAND_SCANNER=$(shell pkg-config --variable=wayland_scanner wayland-scanner)
 PKGS = wlroots wayland-server xcb xkbcommon libinput
 CFLAGS += $(foreach p,$(PKGS),$(shell pkg-config --cflags $(p)))
 LDLIBS += $(foreach p,$(PKGS),$(shell pkg-config --libs $(p)))
+LDLIBS += -lrt
 
 all: dwl
 
