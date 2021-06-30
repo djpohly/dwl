@@ -50,14 +50,19 @@ As in the dwm community, we encourage users to share patches they have created. 
 
 ## Running dwl
 
-dwl can be run as-is, with no arguments. In an existing Wayland or X11 session, this will open a window to act as a virtual display. When run from a TTY, the Wayland server will take over the entire virtual terminal. Clients started by dwl will have `WAYLAND_DISPLAY` set in their environment, and other clients can be started from outside the session by setting this variable accordingly.
+dwl can be run on any of the backends supported by wlroots. This means you can run it as a separate window inside either an X11 or Wayland session, as well as directly from a VT console. Depending on your distro's setup, you may need to add your user to the `video` and `input` groups before you can run dwl on a VT.
 
-You can also specify a startup program using the `-s` option. The argument to this option will be run at startup as a shell command (using `sh -c`) and can serve a similar function to `.xinitrc`: starting a service manager or other startup applications. Unlike `.xinitrc`, the display server will not shut down when this process terminates. Instead, as dwl is shutting down, it will send this process a SIGTERM and wait for it to terminate (if it hasn't already). This makes it ideal not only for initialization but also for execing into a user-level service manager like s6 or `systemd --user`.
+When dwl is run with no arguments, it will launch the server and begin handling any shortcuts configured in `config.h`. There is no status bar or other decoration initially; these are instead clients that can be run within the Wayland session.
+
+If you would like to run a script or command automatically at startup, you can specify the command using the `-s` option. The argument to this option will be parsed as a shell command (using `sh -c`) and can serve a similar function to `.xinitrc`. Unlike `.xinitrc`, the display server will not shut down when this process terminates. Instead, as dwl is shutting down, it will send this process a SIGTERM and wait for it to terminate (if it hasn't already). This makes it ideal for execing into a user service manager like [s6](https://skarnet.org/software/s6/), [anopa](https://jjacky.com/anopa/), [runit](http://smarden.org/runit/faq.html#userservices), or [`systemd --user`](https://wiki.archlinux.org/title/Systemd/User).
+
+Note: The `-s` command is run as a *child process* of dwl, which means that it does not have the ability to affect the environment of dwl or of any processes that it spawns. If you need to set environment variables that affect the entire dwl session (such as `XDG_RUNTIME_DIR` in the note below), these must be set prior to running dwl.
 
 Note: Wayland requires a valid `XDG_RUNTIME_DIR`, which is usually set up by a session manager such as `elogind` or `systemd-logind`.  If your system doesn't do this automatically, you will need to configure it prior to launching `dwl`, e.g.:
 
     export XDG_RUNTIME_DIR=/tmp/xdg-runtime-$(id -u)
     mkdir -p $XDG_RUNTIME_DIR
+    dwl
 
 ## Replacements for X applications
 
