@@ -1083,7 +1083,6 @@ focusclient(Client *c, int lift)
 		selmon = c->mon;
 		c->isurgent = 0;
 	}
-	printstatus();
 
 	/* Deactivate old client if focus is changing */
 	if (old && (!c || client_surface(c) != old)) {
@@ -1105,6 +1104,8 @@ focusclient(Client *c, int lift)
 			client_activate_surface(old, 0);
 		}
 	}
+
+	printstatus();
 
 	if (!c) {
 		/* With no client, all we have left is to clear focus */
