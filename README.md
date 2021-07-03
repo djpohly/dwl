@@ -17,6 +17,7 @@ dwl is not meant to provide every feature under the sun. Instead, like dwm, it s
 - Idle-inhibit protocol which lets applications such as mpv disable idle monitoring
 - Provide information to external status bars via stdout/stdin
 - Urgency hints via xdg-activate protocol
+- Support screen lockers via input-inhibitor protocol
 - Various Wayland protocols
 - XWayland support as provided by wlroots (can be enabled in `config.mk`)
 - Zero flickering - Wayland users naturally expect that "every frame is perfect"
@@ -26,7 +27,6 @@ dwl is not meant to provide every feature under the sun. Instead, like dwm, it s
 Features under consideration (possibly as patches) are:
 
 - Protocols made trivial by wlroots
-- Implement the input-inhibitor protocol to support screen lockers (see https://github.com/djpohly/dwl/pull/132)
 - Implement the text-input and input-method protocols to support IME once ibus implements input-method v2 (see https://github.com/ibus/ibus/pull/2256 and https://github.com/djpohly/dwl/pull/12)
 
 Feature *non-goals* for the main codebase include:
