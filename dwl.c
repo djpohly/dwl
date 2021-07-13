@@ -23,6 +23,7 @@
 #include <wlr/types/wlr_gamma_control_v1.h>
 #include <wlr/types/wlr_input_device.h>
 #include <wlr/types/wlr_idle.h>
+#include <wlr/types/wlr_idle_inhibit_v1.h>
 #include <wlr/types/wlr_layer_shell_v1.h>
 #include <wlr/types/wlr_keyboard.h>
 #include <wlr/types/wlr_matrix.h>
@@ -219,12 +220,14 @@ static void cleanupmon(struct wl_listener *listener, void *data);
 static void closemon(Monitor *m);
 static void commitlayersurfacenotify(struct wl_listener *listener, void *data);
 static void commitnotify(struct wl_listener *listener, void *data);
+static void createidleinhibitor(struct wl_listener *listener, void *data);
 static void createkeyboard(struct wlr_input_device *device);
 static void createmon(struct wl_listener *listener, void *data);
 static void createnotify(struct wl_listener *listener, void *data);
 static void createlayersurface(struct wl_listener *listener, void *data);
 static void createpointer(struct wlr_input_device *device);
 static void cursorframe(struct wl_listener *listener, void *data);
+static void destroyidleinhibitor(struct wl_listener *listener, void *data);
 static void destroylayersurfacenotify(struct wl_listener *listener, void *data);
 static void destroynotify(struct wl_listener *listener, void *data);
 static Monitor *dirtomon(enum wlr_direction dir);
@@ -307,6 +310,7 @@ static struct wlr_xdg_activation_v1 *activation;
 static struct wl_list clients; /* tiling order */
 static struct wl_list fstack;  /* focus order */
 static struct wlr_idle *idle;
+static struct wlr_idle_inhibit_manager_v1 *idle_inhibit_mgr;
 static struct wlr_layer_shell_v1 *layer_shell;
 static struct wlr_output_manager_v1 *output_mgr;
 static struct wlr_virtual_keyboard_manager_v1 *virtual_keyboard_mgr;
@@ -331,6 +335,8 @@ static struct wl_listener cursor_button = {.notify = buttonpress};
 static struct wl_listener cursor_frame = {.notify = cursorframe};
 static struct wl_listener cursor_motion = {.notify = motionrelative};
 static struct wl_listener cursor_motion_absolute = {.notify = motionabsolute};
+static struct wl_listener idle_inhibitor_create = {.notify = createidleinhibitor};
+static struct wl_listener idle_inhibitor_destroy = {.notify = destroyidleinhibitor};
 static struct wl_listener layout_change = {.notify = updatemons};
 static struct wl_listener new_input = {.notify = inputdevice};
 static struct wl_listener new_virtual_keyboard = {.notify = virtualkeyboard};
@@ -770,6 +776,15 @@ commitnotify(struct wl_listener *listener, void *data)
 }
 
 void
+createidleinhibitor(struct wl_listener *listener, void *data)
+{
+	struct wlr_idle_inhibitor_v1 *idle_inhibitor = data;
+	wl_signal_add(&idle_inhibitor->events.destroy, &idle_inhibitor_destroy);
+
+	wlr_idle_set_enabled(idle, seat, 0);
+}
+
+void
 createkeyboard(struct wlr_input_device *device)
 {
 	struct xkb_context *context;
@@ -989,6 +1004,14 @@ cursorframe(struct wl_listener *listener, void *data)
 }
 
 void
+destroyidleinhibitor(struct wl_listener *listener, void *data)
+{
+	/* I've been testing and at this point the inhibitor has not yet been
+	 * removed from the list, checking if it has at least one item. */
+	wlr_idle_set_enabled(idle, seat, wl_list_length(&idle_inhibit_mgr->inhibitors) <= 1);
+}
+
+void
 destroylayersurfacenotify(struct wl_listener *listener, void *data)
 {
 	LayerSurface *layersurface = wl_container_of(listener, layersurface, destroy);
@@ -1147,6 +1170,7 @@ focusclient(Client *c, int lift)
 	}
 
 	printstatus();
+	wlr_idle_set_enabled(idle, seat, wl_list_empty(&idle_inhibit_mgr->inhibitors));
 
 	if (!c) {
 		/* With no client, all we have left is to clear focus */
@@ -1962,6 +1986,9 @@ setup(void)
 	wl_list_init(&fstack);
 
 	idle = wlr_idle_create(dpy);
+
+	idle_inhibit_mgr = wlr_idle_inhibit_v1_create(dpy);
+	wl_signal_add(&idle_inhibit_mgr->events.new_inhibitor, &idle_inhibitor_create);
 
 	layer_shell = wlr_layer_shell_v1_create(dpy);
 	wl_signal_add(&layer_shell->events.new_surface, &new_layer_shell_surface);
