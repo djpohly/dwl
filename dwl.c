@@ -29,6 +29,7 @@
 #include <wlr/types/wlr_output_layout.h>
 #include <wlr/types/wlr_output_management_v1.h>
 #include <wlr/types/wlr_pointer.h>
+#include <wlr/types/wlr_presentation_time.h>
 #include <wlr/types/wlr_primary_selection.h>
 #include <wlr/types/wlr_primary_selection_v1.h>
 #include <wlr/types/wlr_screencopy_v1.h>
@@ -317,6 +318,7 @@ static struct wl_list independents;
 static struct wlr_idle *idle;
 static struct wlr_layer_shell_v1 *layer_shell;
 static struct wlr_output_manager_v1 *output_mgr;
+static struct wlr_presentation *presentation;
 static struct wlr_virtual_keyboard_manager_v1 *virtual_keyboard_mgr;
 
 static struct wlr_cursor *cursor;
@@ -1653,6 +1655,8 @@ render(struct wlr_surface *surface, int sx, int sy, void *data)
 	/* This lets the client know that we've displayed that frame and it can
 	 * prepare another one now if it likes. */
 	wlr_surface_send_frame_done(surface, rdata->when);
+
+	wlr_presentation_surface_sampled_on_output(presentation, surface, output);
 }
 
 void
@@ -2115,6 +2119,8 @@ setup(void)
 	output_mgr = wlr_output_manager_v1_create(dpy);
 	wl_signal_add(&output_mgr->events.apply, &output_mgr_apply);
 	wl_signal_add(&output_mgr->events.test, &output_mgr_test);
+
+	presentation = wlr_presentation_create(dpy, backend);
 
 #ifdef XWAYLAND
 	/*
