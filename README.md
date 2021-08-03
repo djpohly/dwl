@@ -77,7 +77,7 @@ You can find a [list of Wayland applications on the sway wiki](https://github.co
 
 ## IRC channel
 
-dwl's IRC channel is #dwl on irc.freenode.net.
+dwl's IRC channel is #dwl on irc.libera.chat.
 
 ## Acknowledgements
 
