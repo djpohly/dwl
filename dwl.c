@@ -841,7 +841,6 @@ set_mode(struct wlr_output *output, int width, int height,
 	}
 	if (!best) {
 		best = wlr_output_preferred_mode(output);
-	} else {
 	}
 	wlr_output_set_mode(output, best);
 }
