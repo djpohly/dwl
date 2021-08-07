@@ -192,6 +192,7 @@ typedef struct {
 	int resx;
 	int resy;
 	int rate;
+	bool adaptive_true;
 	bool custom_mode;
 } MonitorRule;
 
@@ -852,6 +853,7 @@ createmon(struct wl_listener *listener, void *data)
 	struct wlr_output *wlr_output = data;
 	const struct wlr_output_mode *wlr_output_mode;
 	int32_t resx,resy,rate;
+	bool adaptive_true;
 	bool custom_mode;
 	const MonitorRule *r;
 	Monitor *m = wlr_output->data = calloc(1, sizeof(*m));
@@ -898,7 +900,8 @@ createmon(struct wl_listener *listener, void *data)
 		}
 	}
 
-	wlr_output_enable_adaptive_sync(wlr_output, 1);
+	if (adaptive_true)
+			wlr_output_enable_adaptive_sync(wlr_output, 1);
 
 	/* Set up event listeners */
 	LISTEN(&wlr_output->events.frame, &m->frame, rendermon);

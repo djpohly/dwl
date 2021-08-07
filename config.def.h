@@ -28,12 +28,12 @@ static const Layout layouts[] = {
  * The order in which monitors are defined determines their position.
  * Non-configured monitors are always added to the left. */
 static const MonitorRule monrules[] = {
-	/* name       mfact nmaster scale layout       rotate/reflect x y resx resy rate      custom*/
+	/* name       mfact nmaster scale layout       rotate/reflect x y resx resy rate adaptive  custom*/
 	/* example of a HiDPI laptop monitor at 120Hz:
-	{ "eDP-1",    0.5,  1,      2,    &layouts[0], WL_OUTPUT_TRANSFORM_NORMAL, 0, 0, 0, 0, 120.000 , 0},
+	{ "eDP-1",    0.5,  1,      2,    &layouts[0], WL_OUTPUT_TRANSFORM_NORMAL, 0, 0, 0, 0, 120.000, 1, 0},
 	*/
 	/* defaults */
-	{ NULL,       0.55, 1,      1,    &layouts[0], WL_OUTPUT_TRANSFORM_NORMAL, 0, 0, 0, 0, 0, 0},
+	{ NULL,       0.55, 1,      1,    &layouts[0], WL_OUTPUT_TRANSFORM_NORMAL, 0, 0, 0, 0, 0, 0, 0},
 };
 
 /* keyboard */
