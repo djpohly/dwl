@@ -808,7 +808,8 @@ commitnotify(struct wl_listener *listener, void *data)
 		c->resize = 0;
 
 	// Damage the whole screen
-	wlr_output_damage_add_whole(c->mon->damage);
+	if (c->mon)
+		wlr_output_damage_add_whole(c->mon->damage);
 }
 
 void
