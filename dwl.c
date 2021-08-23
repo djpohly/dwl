@@ -553,7 +553,7 @@ arrangelayer(Monitor *m, struct wl_list *list, struct wlr_box *usable_area, int 
 			box.y -= state->margin.bottom;
 		}
 		if (box.width < 0 || box.height < 0) {
-			wlr_layer_surface_v1_close(wlr_layer_surface);
+			wlr_layer_surface_v1_destroy(wlr_layer_surface);
 			continue;
 		}
 		layersurface->geo = box;
