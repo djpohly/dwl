@@ -480,6 +480,11 @@ applyrules(Client *c)
 					mon = m;
 		}
 	}
+
+	// Insert floating clients at the beginning of stack, and tiled ones at the
+	// end.
+	wl_list_insert(c->isfloating ? &stack : stack.prev, &c->slink);
+
 	setmon(c, mon, newtags);
 }
 
@@ -1034,10 +1039,17 @@ setfullscreen(Client *c, int fullscreen)
 		c->prevheight = c->geom.height;
 		c->prevwidth = c->geom.width;
 		resize(c, c->mon->m.x, c->mon->m.y, c->mon->m.width, c->mon->m.height, 0);
+		wl_list_remove(&c->slink);
+		wl_list_insert(&stack, &c->slink);
+		motionnotify(0);
 	} else {
 		/* restore previous size instead of arrange for floating windows since
 		 * client positions are set by the user and cannot be recalculated */
 		resize(c, c->prevx, c->prevy, c->prevwidth, c->prevheight, 0);
+		if (!c->isfloating) {
+			wl_list_remove(&c->slink);
+			wl_list_insert(stack.prev, &c->slink);
+		}
 		arrange(c->mon);
 	}
 }
@@ -1070,7 +1082,9 @@ focusclient(Client *c, int lift)
 	struct wlr_keyboard *kb;
 
 	/* Raise client in stacking order if requested */
-	if (c && lift) {
+	if (c && lift && (c->isfloating || c->isfullscreen
+				|| !selmon->lt[selmon->sellt]->arrange
+				|| selmon->lt[selmon->sellt]->arrange == monocle)) {
 		wl_list_remove(&c->slink);
 		wl_list_insert(&stack, &c->slink);
 	}
@@ -1309,7 +1323,6 @@ mapnotify(struct wl_listener *listener, void *data)
 	/* Insert this client into client lists. */
 	wl_list_insert(&clients, &c->link);
 	wl_list_insert(&fstack, &c->flink);
-	wl_list_insert(&stack, &c->slink);
 
 	client_get_geometry(c, &c->geom);
 	c->geom.width += 2 * c->bw;
@@ -1332,6 +1345,8 @@ monocle(Monitor *m)
 			continue;
 		resize(c, m->w.x, m->w.y, m->w.width, m->w.height, 0);
 	}
+	// Lift the focused client.
+	focusclient(selclient(), 1);
 }
 
 void
@@ -1906,6 +1921,11 @@ setcursor(struct wl_listener *listener, void *data)
 void
 setfloating(Client *c, int floating)
 {
+	if (c->isfloating != floating) {
+		wl_list_remove(&c->slink);
+		wl_list_insert(floating ? &stack : stack.prev, &c->slink);
+	}
+
 	c->isfloating = floating;
 	arrange(c->mon);
 }
