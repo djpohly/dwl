@@ -1697,8 +1697,9 @@ renderclients(Monitor *m, struct timespec *now)
 			color = (c == sel) ? focuscolor : bordercolor;
 			for (i = 0; i < 4; i++) {
 				scalebox(&borders[i], m->wlr_output->scale);
-				wlr_render_rect(drw, &borders[i], color,
-						m->wlr_output->transform_matrix);
+				if (borders[i].width > 0 && borders[i].height > 0)
+					wlr_render_rect(drw, &borders[i], color,
+							m->wlr_output->transform_matrix);
 			}
 		}
 
