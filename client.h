@@ -5,7 +5,7 @@
  * that they will simply compile out if the chosen #defines leave them unused.
  */
 
-/* Leave this function first; it's used in the others */
+/* Leave these functions first; they're used in the others */
 static inline int
 client_is_x11(Client *c)
 {
@@ -14,6 +14,16 @@ client_is_x11(Client *c)
 #else
 	return 0;
 #endif
+}
+
+static inline struct wlr_surface *
+client_surface(Client *c)
+{
+#ifdef XWAYLAND
+	if (client_is_x11(c))
+		return c->surface.xwayland->surface;
+#endif
+	return c->surface.xdg->surface;
 }
 
 /* The others */
@@ -35,14 +45,12 @@ client_activate_surface(struct wlr_surface *s, int activated)
 static inline void
 client_for_each_surface(Client *c, wlr_surface_iterator_func_t fn, void *data)
 {
+	wlr_surface_for_each_surface(client_surface(c), fn, data);
 #ifdef XWAYLAND
-	if (client_is_x11(c)) {
-		wlr_surface_for_each_surface(c->surface.xwayland->surface,
-				fn, data);
+	if (client_is_x11(c))
 		return;
-	}
 #endif
-	wlr_xdg_surface_for_each_surface(c->surface.xdg, fn, data);
+	wlr_xdg_surface_for_each_popup_surface(c->surface.xdg, fn, data);
 }
 
 static inline const char *
@@ -150,16 +158,6 @@ client_set_tiled(Client *c, uint32_t edges)
 #endif
 	wlr_xdg_toplevel_set_tiled(c->surface.xdg, WLR_EDGE_TOP |
 			WLR_EDGE_BOTTOM | WLR_EDGE_LEFT | WLR_EDGE_RIGHT);
-}
-
-static inline struct wlr_surface *
-client_surface(Client *c)
-{
-#ifdef XWAYLAND
-	if (client_is_x11(c))
-		return c->surface.xwayland->surface;
-#endif
-	return c->surface.xdg->surface;
 }
 
 static inline struct wlr_surface *
