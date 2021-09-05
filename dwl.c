@@ -156,7 +156,6 @@ typedef struct {
 	struct wl_listener surface_commit;
 
 	struct wlr_box geo;
-	enum zwlr_layer_shell_v1_layer layer;
 } LayerSurface;
 
 typedef struct {
@@ -764,16 +763,14 @@ commitlayersurfacenotify(struct wl_listener *listener, void *data)
 
 	if (!wlr_output)
 		return;
-
 	m = wlr_output->data;
-	arrangelayers(m);
 
-	if (layersurface->layer != wlr_layer_surface->current.layer) {
+	if (layers[wlr_layer_surface->current.layer] != layersurface->scene) {
 		wl_list_remove(&layersurface->link);
 		wl_list_insert(&m->layers[wlr_layer_surface->current.layer],
 			&layersurface->link);
-		layersurface->layer = wlr_layer_surface->current.layer;
 	}
+	arrangelayers(m);
 }
 
 void
