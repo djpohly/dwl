@@ -65,10 +65,10 @@
 
 /* enums */
 enum { CurNormal, CurMove, CurResize }; /* cursor */
+enum { XDGShell, LayerShell, X11Managed, X11Unmanaged }; /* client types */
 #ifdef XWAYLAND
 enum { NetWMWindowTypeDialog, NetWMWindowTypeSplash, NetWMWindowTypeToolbar,
 	NetWMWindowTypeUtility, NetLast }; /* EWMH atoms */
-enum { XDGShell, X11Managed, X11Unmanaged }; /* client types */
 #endif
 
 typedef union {
@@ -87,6 +87,8 @@ typedef struct {
 
 typedef struct Monitor Monitor;
 typedef struct {
+	/* Must be first */
+	unsigned int type; /* XDGShell or X11* */
 	struct wl_list link;
 	struct wl_list flink;
 	struct wl_list slink;
@@ -103,7 +105,6 @@ typedef struct {
 	struct wlr_box geom;  /* layout-relative, includes border */
 	Monitor *mon;
 #ifdef XWAYLAND
-	unsigned int type;
 	struct wl_listener activate;
 	struct wl_listener configure;
 #endif
@@ -140,6 +141,8 @@ typedef struct {
 } Keyboard;
 
 typedef struct {
+	/* Must be first */
+	unsigned int type; /* LayerShell */
 	struct wlr_layer_surface_v1 *layer_surface;
 	struct wl_list link;
 
@@ -917,6 +920,7 @@ createlayersurface(struct wl_listener *listener, void *data)
 	}
 
 	layersurface = calloc(1, sizeof(LayerSurface));
+	layersurface->type = LayerShell;
 	LISTEN(&wlr_layer_surface->surface->events.commit,
 		&layersurface->surface_commit, commitlayersurfacenotify);
 	LISTEN(&wlr_layer_surface->events.destroy, &layersurface->destroy,
