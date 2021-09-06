@@ -141,6 +141,17 @@ client_set_size(Client *c, uint32_t width, uint32_t height)
 	return wlr_xdg_toplevel_set_size(c->surface.xdg, width, height);
 }
 
+static inline void
+client_set_tiled(Client *c, uint32_t edges)
+{
+#ifdef XWAYLAND
+	if (client_is_x11(c))
+		return;
+#endif
+	wlr_xdg_toplevel_set_tiled(c->surface.xdg, WLR_EDGE_TOP |
+			WLR_EDGE_BOTTOM | WLR_EDGE_LEFT | WLR_EDGE_RIGHT);
+}
+
 static inline struct wlr_surface *
 client_surface(Client *c)
 {
