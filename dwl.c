@@ -174,6 +174,7 @@ typedef struct {
 struct Monitor {
 	struct wl_list link;
 	struct wlr_output *wlr_output;
+	struct wlr_scene_output *scene_output;
 	struct wl_listener frame;
 	struct wl_listener destroy;
 	struct wlr_box m;      /* monitor area, layout-relative */
@@ -862,20 +863,8 @@ createmon(struct wl_listener *listener, void *data)
 	 * display, which Wayland clients can see to find out information about the
 	 * output (such as DPI, scale factor, manufacturer, etc).
 	 */
-	wlr_output_layout_add(output_layout, wlr_output, r->x, r->y);
-	sgeom = *wlr_output_layout_get_box(output_layout, NULL);
-
-	/* When adding monitors, the geometries of all monitors must be updated */
-	wl_list_for_each(m, &mons, link) {
-		/* The first monitor in the list is the most recently added */
-		Client *c;
-		wl_list_for_each(c, &clients, link) {
-			if (c->isfloating)
-				resize(c, c->geom.x + m->w.width, c->geom.y,
-						c->geom.width, c->geom.height, 0);
-		}
-		return;
-	}
+	m->scene_output = wlr_scene_output_create(scene, wlr_output);
+	wlr_output_layout_add_auto(output_layout, wlr_output);
 }
 
 void
@@ -1602,44 +1591,21 @@ quitsignal(int signo)
 void
 rendermon(struct wl_listener *listener, void *data)
 {
-	Client *c;
-	int skip = 0;
-
 	/* This function is called every time an output is ready to display a frame,
 	 * generally at the output's refresh rate (e.g. 60Hz). */
 	Monitor *m = wl_container_of(listener, m, frame);
-
+	Client *c;
+	int skip = 0;
 	struct timespec now;
-	clock_gettime(CLOCK_MONOTONIC, &now);
 
-	/* Skip rendering if any XDG clients have an outstanding resize. */
+	/* Render if no XDG clients have an outstanding resize. */
 	wl_list_for_each(c, &clients, link)
 		skip = skip || c->resize;
-
-	/* HACK: This loop is the simplest way to handle ephemeral pageflip
-	 * failures but probably not the best. Revisit if damage tracking is
-	 * added. */
-	do {
-		/* wlr_output_attach_render makes the OpenGL context current. */
-		if (!wlr_output_attach_render(m->wlr_output, NULL))
-			return;
-
-		if (!skip) {
-			/* Begin the renderer (calls glViewport and some other GL sanity checks) */
-			wlr_renderer_begin(drw, m->wlr_output->width, m->wlr_output->height);
-			wlr_renderer_clear(drw, rootcolor);
-
-			/* Render the scene at (-mx, -my) to get this monitor's view.
-			 * wlroots will not render windows falling outside the box. */
-			wlr_scene_render_output(scene, m->wlr_output, -m->m.x, -m->m.y, NULL);
-
-			/* Conclude rendering and swap the buffers, showing the final frame
-			 * on-screen. */
-			wlr_renderer_end(drw);
-		}
-	} while (!wlr_output_commit(m->wlr_output));
+	if (!skip && !wlr_scene_output_commit(m->scene_output))
+		return;
 
 	/* Let clients know a frame has been rendered */
+	clock_gettime(CLOCK_MONOTONIC, &now);
 	wl_list_for_each(c, &clients, link)
 		wlr_surface_send_frame_done(client_surface(c), &now);
 }
@@ -2186,6 +2152,7 @@ updatemons(struct wl_listener *listener, void *data)
 
 		/* Get the effective monitor geometry to use for surfaces */
 		m->m = m->w = *wlr_output_layout_get_box(output_layout, m->wlr_output);
+		wlr_scene_output_set_position(m->scene_output, m->m.x, m->m.y);
 		/* Calculate the effective monitor geometry to use for clients */
 		arrangelayers(m);
 		/* Don't move clients to the left output when plugging monitors */
