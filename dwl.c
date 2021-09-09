@@ -1025,7 +1025,7 @@ void
 setfullscreen(Client *c, int fullscreen)
 {
 	c->isfullscreen = fullscreen;
-	c->bw = (1 - fullscreen) * borderpx;
+	c->bw = fullscreen ? 0 : borderpx;
 	client_set_fullscreen(c, fullscreen);
 
 	if (fullscreen) {
