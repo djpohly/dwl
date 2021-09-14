@@ -383,7 +383,9 @@ static void activatex11(struct wl_listener *listener, void *data);
 static void configurex11(struct wl_listener *listener, void *data);
 static void createnotifyx11(struct wl_listener *listener, void *data);
 void commitnotifyx11(struct wl_listener *listener, void *data);
+static void damageallmons();
 static Atom getatom(xcb_connection_t *xc, const char *name);
+static void mapnotify_unmanaged(struct wl_listener *listener, void *data);
 static void renderindependents(struct wlr_output *output, struct timespec *now);
 static void xwaylandready(struct wl_listener *listener, void *data);
 static Client *xytoindependent(double x, double y);
@@ -2584,6 +2586,7 @@ createnotifyx11(struct wl_listener *listener, void *data)
 {
 	struct wlr_xwayland_surface *xwayland_surface = data;
 	Client *c;
+	wlr_xwayland_surface_ping(xwayland_surface);
 	wl_list_for_each(c, &clients, link)
 		if (c->isfullscreen && VISIBLEON(c, c->mon))
 			setfullscreen(c, 0);
@@ -2596,7 +2599,10 @@ createnotifyx11(struct wl_listener *listener, void *data)
 	c->isfullscreen = 0;
 
 	/* Listen to the various events it can emit */
-	LISTEN(&xwayland_surface->events.map, &c->map, mapnotify);
+	if (c->type == X11Managed)
+		LISTEN(&xwayland_surface->events.map, &c->map, mapnotify);
+	else
+		LISTEN(&xwayland_surface->events.map, &c->map, mapnotify_unmanaged);
 	LISTEN(&xwayland_surface->events.unmap, &c->unmap, unmapnotify);
 	LISTEN(&xwayland_surface->events.request_activate, &c->activate,
 			activatex11);
@@ -2614,7 +2620,20 @@ commitnotifyx11(struct wl_listener *listener, void *data)
 	Client *c = wl_container_of(listener, c, commit);
 
 	// Damage the whole screen
-	wlr_output_damage_add_whole(c->mon->damage);
+	if (c->type == X11Managed)
+		wlr_output_damage_add_whole(c->mon->damage);
+	else
+		damageallmons();
+}
+
+void
+damageallmons()
+{
+	Monitor *m;
+
+	wl_list_for_each(m, &mons, link)
+		if (m && m->wlr_output && m->damage)
+			wlr_output_damage_add_whole(m->damage);
 }
 
 Atom
@@ -2629,6 +2648,19 @@ getatom(xcb_connection_t *xc, const char *name)
 
 	return atom;
 }
+
+void
+mapnotify_unmanaged(struct wl_listener *listener, void *data)
+{
+	Client *c = wl_container_of(listener, c, map);
+	struct wlr_xwayland_surface *xwayland_surface = c->surface.xwayland;
+
+	wl_list_insert(&independents, &c->link);
+	LISTEN(&xwayland_surface->surface->events.commit, &c->commit, commitnotifyx11);
+	client_get_geometry(c, &c->geom);
+	damageallmons();
+}
+
 
 void
 renderindependents(struct wlr_output *output, struct timespec *now)
