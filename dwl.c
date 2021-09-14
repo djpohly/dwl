@@ -1024,8 +1024,10 @@ destroylayersurfacenotify(struct wl_listener *listener, void *data)
 	wl_list_remove(&layersurface->surface_commit.link);
 	if (layersurface->layer_surface->output) {
 		Monitor *m = layersurface->layer_surface->output->data;
-		if (m)
+		if (m) {
 			arrangelayers(m);
+			wlr_output_damage_add_whole(m->damage);
+		}
 		layersurface->layer_surface->output = NULL;
 	}
 	free(layersurface);
