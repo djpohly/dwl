@@ -1357,12 +1357,6 @@ mapnotify(struct wl_listener *listener, void *data)
 	/* Called when the surface is mapped, or ready to display on-screen. */
 	Client *c = wl_container_of(listener, c, map);
 
-	if (client_is_unmanaged(c)) {
-		/* Insert this independent into independents lists. */
-		wl_list_insert(&independents, &c->link);
-		return;
-	}
-
 	/* Insert this client into client lists. */
 	wl_list_insert(&clients, &c->link);
 	wl_list_insert(&fstack, &c->flink);
@@ -2586,7 +2580,6 @@ createnotifyx11(struct wl_listener *listener, void *data)
 {
 	struct wlr_xwayland_surface *xwayland_surface = data;
 	Client *c;
-	wlr_xwayland_surface_ping(xwayland_surface);
 	wl_list_for_each(c, &clients, link)
 		if (c->isfullscreen && VISIBLEON(c, c->mon))
 			setfullscreen(c, 0);
@@ -2653,11 +2646,8 @@ void
 mapnotify_unmanaged(struct wl_listener *listener, void *data)
 {
 	Client *c = wl_container_of(listener, c, map);
-	struct wlr_xwayland_surface *xwayland_surface = c->surface.xwayland;
-
 	wl_list_insert(&independents, &c->link);
-	LISTEN(&xwayland_surface->surface->events.commit, &c->commit, commitnotifyx11);
-	client_get_geometry(c, &c->geom);
+	LISTEN(&c->surface.xwayland->surface->events.commit, &c->commit, commitnotifyx11);
 	damageallmons();
 }
 
