@@ -1048,16 +1048,14 @@ destroynotify(struct wl_listener *listener, void *data)
 	wl_list_remove(&c->map.link);
 	wl_list_remove(&c->unmap.link);
 	wl_list_remove(&c->destroy.link);
-	if (c->type && c->type != XDGShell) {
+	if (client_is_unmanaged(c)) {
 #ifdef XWAYLAND
-		if (c->type == X11Managed) {
-			wl_list_remove(&c->activate.link);
-			wl_list_remove(&c->configure.link);
-		} else {
-			wl_list_remove(&c->configure.link);
-			free(c);
-			return;
-		}
+		wl_list_remove(&c->configure.link);
+		free(c);
+		return;
+	} else if (c->type == X11Managed) {
+		wl_list_remove(&c->activate.link);
+		wl_list_remove(&c->configure.link);
 #endif
 	} else {
 		wl_list_remove(&c->commit.link);
