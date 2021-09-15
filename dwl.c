@@ -1048,14 +1048,22 @@ destroynotify(struct wl_listener *listener, void *data)
 	wl_list_remove(&c->map.link);
 	wl_list_remove(&c->unmap.link);
 	wl_list_remove(&c->destroy.link);
+	if (c->type && c->type != XDGShell) {
+#ifdef XWAYLAND
+		if (c->type == X11Managed) {
+			wl_list_remove(&c->activate.link);
+			wl_list_remove(&c->configure.link);
+		} else {
+			wl_list_remove(&c->configure.link);
+			free(c);
+			return;
+		}
+#endif
+	} else {
+		wl_list_remove(&c->commit.link);
+	}
 	wl_list_remove(&c->set_title.link);
 	wl_list_remove(&c->fullscreen.link);
-#ifdef XWAYLAND
-	if (c->type == X11Managed)
-		wl_list_remove(&c->activate.link);
-	else if (c->type == XDGShell)
-#endif
-		wl_list_remove(&c->commit.link);
 	free(c);
 }
 
@@ -2592,19 +2600,21 @@ createnotifyx11(struct wl_listener *listener, void *data)
 	c->isfullscreen = 0;
 
 	/* Listen to the various events it can emit */
-	if (c->type == X11Managed)
+	if (c->type == X11Managed) {
 		LISTEN(&xwayland_surface->events.map, &c->map, mapnotify);
-	else
+		LISTEN(&xwayland_surface->events.request_activate, &c->activate,
+				activatex11);
+		LISTEN(&xwayland_surface->events.set_title, &c->set_title, updatetitle);
+		LISTEN(&xwayland_surface->events.request_fullscreen, &c->fullscreen,
+				fullscreennotify);
+	}
+	else {
 		LISTEN(&xwayland_surface->events.map, &c->map, mapnotify_unmanaged);
+	}
 	LISTEN(&xwayland_surface->events.unmap, &c->unmap, unmapnotify);
-	LISTEN(&xwayland_surface->events.request_activate, &c->activate,
-			activatex11);
 	LISTEN(&xwayland_surface->events.request_configure, &c->configure,
 			configurex11);
-	LISTEN(&xwayland_surface->events.set_title, &c->set_title, updatetitle);
 	LISTEN(&xwayland_surface->events.destroy, &c->destroy, destroynotify);
-	LISTEN(&xwayland_surface->events.request_fullscreen, &c->fullscreen,
-			fullscreennotify);
 }
 
 void
