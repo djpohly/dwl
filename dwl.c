@@ -818,7 +818,8 @@ void
 commitnotify_sub(struct wl_listener *listener, void *data)
 {
 	Subsurface *s = wl_container_of(listener, s, commit);
-	wlr_output_damage_add_whole(s->c->mon->damage);
+	if (s->c->mon)
+		wlr_output_damage_add_whole(s->c->mon->damage);
 }
 
 void
