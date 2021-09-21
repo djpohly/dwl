@@ -920,7 +920,7 @@ createlayersurface(struct wl_listener *listener, void *data)
 	wlr_layer_surface->data = layersurface;
 	m = wlr_layer_surface->output->data;
 
-	layersurface->scene = wlr_scene_surface_tree_create(
+	layersurface->scene = wlr_scene_subsurface_tree_create(
 			layers[wlr_layer_surface->client_pending.layer],
 			wlr_layer_surface->surface);
 	layersurface->scene->data = layersurface;
@@ -1299,7 +1299,7 @@ mapnotify(struct wl_listener *listener, void *data)
 
 	/* Create scene tree for this client and its border */
 	c->scene = &wlr_scene_tree_create(layers[LyrTile])->node;
-	c->scene_surface = wlr_scene_surface_tree_create(c->scene, client_surface(c));
+	c->scene_surface = wlr_scene_subsurface_tree_create(c->scene, client_surface(c));
 	c->scene_surface->data = c;
 	for (i = 0; i < 4; i++) {
 		c->border[i] = wlr_scene_rect_create(c->scene, 0, 0, bordercolor);
