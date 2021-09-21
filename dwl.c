@@ -261,6 +261,7 @@ static void pointerfocus(Client *c, struct wlr_surface *surface,
 static void printstatus(void);
 static void quit(const Arg *arg);
 static void quitsignal(int signo);
+static void rendered(struct wlr_surface *surface, int sx, int sy, void *data);
 static void rendermon(struct wl_listener *listener, void *data);
 static void resize(Client *c, int x, int y, int w, int h, int interact);
 static void run(char *startup_cmd);
@@ -1589,6 +1590,13 @@ quitsignal(int signo)
 }
 
 void
+rendered(struct wlr_surface *surface, int sx, int sy, void *data)
+{
+	struct timespec *now = data;
+	wlr_surface_send_frame_done(surface, now);
+}
+
+void
 rendermon(struct wl_listener *listener, void *data)
 {
 	/* This function is called every time an output is ready to display a frame,
@@ -1607,7 +1615,8 @@ rendermon(struct wl_listener *listener, void *data)
 	/* Let clients know a frame has been rendered */
 	clock_gettime(CLOCK_MONOTONIC, &now);
 	wl_list_for_each(c, &clients, link)
-		wlr_surface_send_frame_done(client_surface(c), &now);
+		if (VISIBLEON(c, c->mon))
+			client_for_each_surface(c, rendered, &now);
 }
 
 void
