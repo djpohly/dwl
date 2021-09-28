@@ -120,11 +120,6 @@ typedef struct {
 } Client;
 
 typedef struct {
-	struct wl_listener request_mode;
-	struct wl_listener destroy;
-} Decoration;
-
-typedef struct {
 	uint32_t mod;
 	xkb_keysym_t keysym;
 	void (*func)(const Arg *);
