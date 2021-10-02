@@ -895,7 +895,6 @@ createnotify(struct wl_listener *listener, void *data)
 		return;
 	}
 
-
 	/* Allocate a Client for this surface */
 	c = xdg_surface->data = calloc(1, sizeof(*c));
 	c->surface.xdg = xdg_surface;
