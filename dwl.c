@@ -267,7 +267,7 @@ static void renderclients(Monitor *m, struct timespec *now);
 static void renderlayer(struct wl_list *layer_surfaces, struct timespec *now);
 static void rendermon(struct wl_listener *listener, void *data);
 static void resize(Client *c, int x, int y, int w, int h, int interact);
-static void run(char *startup_cmd);
+static void run(char *startup_cmd, int quiet);
 static void scalebox(struct wlr_box *box, float scale);
 static Client *selclient(void);
 static void setcursor(struct wl_listener *listener, void *data);
@@ -1804,7 +1804,7 @@ resize(Client *c, int x, int y, int w, int h, int interact)
 }
 
 void
-run(char *startup_cmd)
+run(char *startup_cmd, int quiet)
 {
 	pid_t startup_pid = -1;
 
@@ -1817,19 +1817,27 @@ run(char *startup_cmd)
 	/* Now that the socket exists, run the startup command */
 	if (startup_cmd) {
 		int piperw[2];
-		pipe(piperw);
+		if (!quiet)
+			pipe(piperw);
 		startup_pid = fork();
 		if (startup_pid < 0)
 			EBARF("startup: fork");
 		if (startup_pid == 0) {
-			dup2(piperw[0], STDIN_FILENO);
-			close(piperw[1]);
+			if (!quiet) {
+				dup2(piperw[0], STDIN_FILENO);
+				close(piperw[1]);
+			} else
+				close(STDIN_FILENO);
 			execl("/bin/sh", "/bin/sh", "-c", startup_cmd, NULL);
 			EBARF("startup: execl");
 		}
-		dup2(piperw[1], STDOUT_FILENO);
-		close(piperw[0]);
+		if (!quiet) {
+			dup2(piperw[1], STDOUT_FILENO);
+			close(piperw[0]);
+		}
 	}
+	if (quiet)
+		close(STDOUT_FILENO);
 	/* If nobody is reading the status output, don't terminate */
 	signal(SIGPIPE, SIG_IGN);
 	printstatus();
@@ -2583,11 +2591,13 @@ int
 main(int argc, char *argv[])
 {
 	char *startup_cmd = NULL;
-	int c;
+	int c, q = 0;
 
-	while ((c = getopt(argc, argv, "s:h")) != -1) {
+	while ((c = getopt(argc, argv, "qs:h")) != -1) {
 		if (c == 's')
 			startup_cmd = optarg;
+		else if (c == 'q')
+			++q;
 		else
 			goto usage;
 	}
@@ -2599,10 +2609,10 @@ main(int argc, char *argv[])
 	if (!getenv("XDG_RUNTIME_DIR"))
 		BARF("XDG_RUNTIME_DIR must be set");
 	setup();
-	run(startup_cmd);
+	run(startup_cmd, q);
 	cleanup();
 	return EXIT_SUCCESS;
 
 usage:
-	BARF("Usage: %s [-s startup command]", argv[0]);
+	BARF("Usage: %s [-q] [-s startup command]", argv[0]);
 }

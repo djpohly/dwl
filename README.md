@@ -56,6 +56,8 @@ When dwl is run with no arguments, it will launch the server and begin handling 
 
 If you would like to run a script or command automatically at startup, you can specify the command using the `-s` option. The argument to this option will be parsed as a shell command (using `sh -c`) and can serve a similar function to `.xinitrc`. Unlike `.xinitrc`, the display server will not shut down when this process terminates. Instead, as dwl is shutting down, it will send this process a SIGTERM and wait for it to terminate (if it hasn't already). This makes it ideal for execing into a user service manager like [s6](https://skarnet.org/software/s6/), [anopa](https://jjacky.com/anopa/), [runit](http://smarden.org/runit/faq.html#userservices), or [`systemd --user`](https://wiki.archlinux.org/title/Systemd/User).
 
+While dwl is running, it prints status information to stdout or, if `-s` is given, to a pipe connected to stdin of that process. That is disabled by the `-q` option, which closes the child process's stdin instead.
+
 Note: The `-s` command is run as a *child process* of dwl, which means that it does not have the ability to affect the environment of dwl or of any processes that it spawns. If you need to set environment variables that affect the entire dwl session (such as `XDG_RUNTIME_DIR` in the note below), these must be set prior to running dwl.
 
 Note: Wayland requires a valid `XDG_RUNTIME_DIR`, which is usually set up by a session manager such as `elogind` or `systemd-logind`.  If your system doesn't do this automatically, you will need to configure it prior to launching `dwl`, e.g.:
