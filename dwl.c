@@ -343,10 +343,6 @@ static struct wlr_virtual_keyboard_manager_v1 *virtual_keyboard_mgr;
 
 static struct wlr_cursor *cursor;
 static struct wlr_xcursor_manager *cursor_mgr;
-#ifdef XWAYLAND
-static struct wlr_xcursor *xcursor;
-static struct wlr_xcursor_manager *xcursor_mgr;
-#endif
 
 static struct wlr_seat *seat;
 static struct wl_list keyboards;
@@ -384,6 +380,7 @@ static void configurex11(struct wl_listener *listener, void *data);
 static void createnotifyx11(struct wl_listener *listener, void *data);
 void commitnotifyx11(struct wl_listener *listener, void *data);
 static Atom getatom(xcb_connection_t *xc, const char *name);
+static void mapnotify_unmanaged(struct wl_listener *listener, void *data);
 static void renderindependents(struct wlr_output *output, struct timespec *now);
 static void xwaylandready(struct wl_listener *listener, void *data);
 static Client *xytoindependent(double x, double y);
@@ -816,7 +813,8 @@ void
 commitnotify_sub(struct wl_listener *listener, void *data)
 {
 	Subsurface *s = wl_container_of(listener, s, commit);
-	wlr_output_damage_add_whole(s->c->mon->damage);
+	if (s->c->mon)
+		wlr_output_damage_add_whole(s->c->mon->damage);
 }
 
 void
@@ -829,7 +827,7 @@ createkeyboard(struct wlr_input_device *device)
 
 	/* Prepare an XKB keymap and assign it to the keyboard. */
 	context = xkb_context_new(XKB_CONTEXT_NO_FLAGS);
-	keymap = xkb_map_new_from_names(context, &xkb_rules,
+	keymap = xkb_keymap_new_from_names(context, &xkb_rules,
 		XKB_KEYMAP_COMPILE_NO_FLAGS);
 
 	wlr_keyboard_set_keymap(device->keyboard, keymap);
@@ -1024,8 +1022,10 @@ destroylayersurfacenotify(struct wl_listener *listener, void *data)
 	wl_list_remove(&layersurface->surface_commit.link);
 	if (layersurface->layer_surface->output) {
 		Monitor *m = layersurface->layer_surface->output->data;
-		if (m)
+		if (m) {
 			arrangelayers(m);
+			wlr_output_damage_add_whole(m->damage);
+		}
 		layersurface->layer_surface->output = NULL;
 	}
 	free(layersurface);
@@ -1044,14 +1044,20 @@ destroynotify(struct wl_listener *listener, void *data)
 	wl_list_remove(&c->map.link);
 	wl_list_remove(&c->unmap.link);
 	wl_list_remove(&c->destroy.link);
+	if (client_is_unmanaged(c)) {
+#ifdef XWAYLAND
+		wl_list_remove(&c->configure.link);
+		free(c);
+		return;
+	} else if (c->type == X11Managed) {
+		wl_list_remove(&c->activate.link);
+		wl_list_remove(&c->configure.link);
+#endif
+	} else {
+		wl_list_remove(&c->commit.link);
+	}
 	wl_list_remove(&c->set_title.link);
 	wl_list_remove(&c->fullscreen.link);
-#ifdef XWAYLAND
-	if (c->type == X11Managed)
-		wl_list_remove(&c->activate.link);
-	else if (c->type == XDGShell)
-#endif
-		wl_list_remove(&c->commit.link);
 	free(c);
 }
 
@@ -1352,12 +1358,6 @@ mapnotify(struct wl_listener *listener, void *data)
 {
 	/* Called when the surface is mapped, or ready to display on-screen. */
 	Client *c = wl_container_of(listener, c, map);
-
-	if (client_is_unmanaged(c)) {
-		/* Insert this independent into independents lists. */
-		wl_list_insert(&independents, &c->link);
-		return;
-	}
 
 	/* Insert this client into client lists. */
 	wl_list_insert(&clients, &c->link);
@@ -2224,18 +2224,6 @@ setup(void)
 		wl_signal_add(&xwayland->events.ready, &xwayland_ready);
 		wl_signal_add(&xwayland->events.new_surface, &new_xwayland_surface);
 
-		/*
-		 * Create the XWayland cursor manager at scale 1, setting its default
-		 * pointer to match the rest of dwl.
-		 */
-		xcursor_mgr = wlr_xcursor_manager_create(NULL, 24);
-		wlr_xcursor_manager_load(xcursor_mgr, 1);
-		if ((xcursor = wlr_xcursor_manager_get_xcursor(xcursor_mgr, "left_ptr", 1)))
-			wlr_xwayland_set_cursor(xwayland,
-					xcursor->images[0]->buffer, xcursor->images[0]->width * 4,
-					xcursor->images[0]->width, xcursor->images[0]->height,
-					xcursor->images[0]->hotspot_x, xcursor->images[0]->hotspot_y);
-
 		setenv("DISPLAY", xwayland->display_name, 1);
 	} else {
 		fprintf(stderr, "failed to setup XWayland X server, continuing without it\n");
@@ -2594,16 +2582,21 @@ createnotifyx11(struct wl_listener *listener, void *data)
 	c->isfullscreen = 0;
 
 	/* Listen to the various events it can emit */
-	LISTEN(&xwayland_surface->events.map, &c->map, mapnotify);
+	if (c->type == X11Managed) {
+		LISTEN(&xwayland_surface->events.map, &c->map, mapnotify);
+		LISTEN(&xwayland_surface->events.request_activate, &c->activate,
+				activatex11);
+		LISTEN(&xwayland_surface->events.set_title, &c->set_title, updatetitle);
+		LISTEN(&xwayland_surface->events.request_fullscreen, &c->fullscreen,
+				fullscreennotify);
+	}
+	else {
+		LISTEN(&xwayland_surface->events.map, &c->map, mapnotify_unmanaged);
+	}
 	LISTEN(&xwayland_surface->events.unmap, &c->unmap, unmapnotify);
-	LISTEN(&xwayland_surface->events.request_activate, &c->activate,
-			activatex11);
 	LISTEN(&xwayland_surface->events.request_configure, &c->configure,
 			configurex11);
-	LISTEN(&xwayland_surface->events.set_title, &c->set_title, updatetitle);
 	LISTEN(&xwayland_surface->events.destroy, &c->destroy, destroynotify);
-	LISTEN(&xwayland_surface->events.request_fullscreen, &c->fullscreen,
-			fullscreennotify);
 }
 
 void
@@ -2627,6 +2620,18 @@ getatom(xcb_connection_t *xc, const char *name)
 
 	return atom;
 }
+
+void
+mapnotify_unmanaged(struct wl_listener *listener, void *data)
+{
+	Client *c = wl_container_of(listener, c, map);
+	wl_list_insert(&independents, &c->link);
+	client_get_geometry(c, &c->geom);
+	c->mon = xytomon(c->geom.x, c->geom.y);
+	LISTEN(&c->surface.xwayland->surface->events.commit, &c->commit, commitnotifyx11);
+	wlr_output_damage_add_whole(c->mon->damage);
+}
+
 
 void
 renderindependents(struct wlr_output *output, struct timespec *now)
