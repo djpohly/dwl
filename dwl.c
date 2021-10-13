@@ -1823,11 +1823,13 @@ run(char *startup_cmd)
 			EBARF("startup: fork");
 		if (startup_pid == 0) {
 			dup2(piperw[0], STDIN_FILENO);
+			close(piperw[0]);
 			close(piperw[1]);
 			execl("/bin/sh", "/bin/sh", "-c", startup_cmd, NULL);
 			EBARF("startup: execl");
 		}
 		dup2(piperw[1], STDOUT_FILENO);
+		close(piperw[1]);
 		close(piperw[0]);
 	}
 	/* If nobody is reading the status output, don't terminate */
