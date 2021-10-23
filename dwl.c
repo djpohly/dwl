@@ -2376,8 +2376,8 @@ xytoclient(double x, double y)
 		struct wlr_box p = {
 			.y = c->geom.y + borderpx,
 			.x = c->geom.x + borderpx,
-			.height = c->geom.height - 2*borderpx,
-			.width = c->geom.width - 2*borderpx,
+			.height = c->geom.height - 2 * borderpx,
+			.width = c->geom.width - 2 * borderpx,
 		};
 		if (VISIBLEON(c, c->mon) && wlr_box_contains_point(&p, x, y))
 			return c;
