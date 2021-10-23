@@ -2372,9 +2372,16 @@ xytoclient(double x, double y)
 	/* Find the topmost visible client (if any) at point (x, y), including
 	 * borders. This relies on stack being ordered from top to bottom. */
 	Client *c;
-	wl_list_for_each(c, &stack, slink)
-		if (VISIBLEON(c, c->mon) && wlr_box_contains_point(&c->geom, x, y))
+	wl_list_for_each(c, &stack, slink) {
+		struct wlr_box p = {
+			.y = c->geom.y + borderpx,
+			.x = c->geom.x + borderpx,
+			.height = c->geom.height - 2*borderpx,
+			.width = c->geom.width - 2*borderpx,
+		};
+		if (VISIBLEON(c, c->mon) && wlr_box_contains_point(&p, x, y))
 			return c;
+	}
 	return NULL;
 }
 
