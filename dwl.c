@@ -2369,7 +2369,7 @@ virtualkeyboard(struct wl_listener *listener, void *data)
 Client *
 xytoclient(double x, double y)
 {
-	/* Find the topmost visible client (if any) at point (x, y), including
+	/* Find the topmost visible client (if any) at point (x, y), excluding
 	 * borders. This relies on stack being ordered from top to bottom. */
 	Client *c;
 	wl_list_for_each(c, &stack, slink) {
