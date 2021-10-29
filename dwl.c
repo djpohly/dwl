@@ -875,7 +875,11 @@ createnotify(struct wl_listener *listener, void *data)
 	struct wlr_xdg_surface *xdg_surface = data;
 	Client *c;
 
-	if (xdg_surface->role != WLR_XDG_SURFACE_ROLE_TOPLEVEL)
+	if (xdg_surface->role == WLR_XDG_SURFACE_ROLE_POPUP) {
+		xdg_surface->surface->data = wlr_scene_xdg_surface_create(
+				xdg_surface->popup->parent->data, xdg_surface);
+		return;
+	} else if (xdg_surface->role == WLR_XDG_SURFACE_ROLE_NONE)
 		return;
 
 	/* Allocate a Client for this surface */
@@ -1311,7 +1315,8 @@ mapnotify(struct wl_listener *listener, void *data)
 
 	/* Create scene tree for this client and its border */
 	c->scene = &wlr_scene_tree_create(layers[LyrTile])->node;
-	c->scene_surface = wlr_scene_subsurface_tree_create(c->scene, client_surface(c));
+	c->scene_surface = client_surface(c)->data =
+		wlr_scene_subsurface_tree_create(c->scene, client_surface(c));
 	c->scene_surface->data = c;
 	for (i = 0; i < 4; i++) {
 		c->border[i] = wlr_scene_rect_create(c->scene, 0, 0, bordercolor);
