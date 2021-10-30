@@ -253,7 +253,6 @@ static void motionabsolute(struct wl_listener *listener, void *data);
 static void motionnotify(uint32_t time);
 static void motionrelative(struct wl_listener *listener, void *data);
 static void moveresize(const Arg *arg);
-static Client *popupgetclient(struct wlr_xdg_popup *popup);
 static void outputmgrapply(struct wl_listener *listener, void *data);
 static void outputmgrapplyortest(struct wlr_output_configuration_v1 *config, int test);
 static void outputmgrtest(struct wl_listener *listener, void *data);
@@ -878,11 +877,8 @@ createnotify(struct wl_listener *listener, void *data)
 	Client *c;
 
 	if (xdg_surface->role == WLR_XDG_SURFACE_ROLE_POPUP) {
-		if (!(c = popupgetclient(xdg_surface->popup)))
-			return;
-
-		wlr_scene_xdg_popup_create(c->scene_surface, xdg_surface->popup);
-
+		xdg_surface->surface->data = wlr_scene_xdg_popup_create(
+				xdg_surface->popup->parent->data, xdg_surface->popup);
 		return;
 	} else if (xdg_surface->role == WLR_XDG_SURFACE_ROLE_NONE)
 		return;
@@ -1308,7 +1304,8 @@ mapnotify(struct wl_listener *listener, void *data)
 
 	/* Create scene tree for this client and its border */
 	c->scene = &wlr_scene_tree_create(layers[LyrTile])->node;
-	c->scene_surface = wlr_scene_subsurface_tree_create(c->scene, client_surface(c));
+	c->scene_surface = client_surface(c)->data =
+		wlr_scene_subsurface_tree_create(c->scene, client_surface(c));
 	c->scene_surface->data = c;
 	for (i = 0; i < 4; i++) {
 		c->border[i] = wlr_scene_rect_create(c->scene, 0, 0, bordercolor);
@@ -1450,27 +1447,6 @@ moveresize(const Arg *arg)
 		wlr_xcursor_manager_set_cursor_image(cursor_mgr,
 				"bottom_right_corner", cursor);
 		break;
-	}
-}
-
-Client *
-popupgetclient(struct wlr_xdg_popup *popup)
-{
-	struct wlr_xdg_surface *surface = popup->base;
-
-	while (true) {
-		switch (surface->role) {
-			case WLR_XDG_SURFACE_ROLE_POPUP:
-				if (!wlr_surface_is_xdg_surface(surface->popup->parent)) {
-					return NULL;
-				}
-				surface = wlr_xdg_surface_from_wlr_surface(surface->popup->parent);
-				break;
-			case WLR_XDG_SURFACE_ROLE_TOPLEVEL:
-				return surface->data;
-			case WLR_XDG_SURFACE_ROLE_NONE:
-				return NULL;
-		}
 	}
 }
 
