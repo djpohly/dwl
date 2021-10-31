@@ -1067,11 +1067,8 @@ focusclient(Client *c, int lift)
 	int i;
 
 	/* Raise client in stacking order if requested */
-	if (c && lift) {
-		/* This isn't easy to do via the current API */
-		wl_list_remove(&c->scene->state.link);
-		wl_list_insert(c->scene->parent->state.children.prev, &c->scene->state.link);
-	}
+	if (c && lift)
+		wlr_scene_node_raise_to_top(c->scene);
 
 	if (c && client_surface(c) == old)
 		return;
