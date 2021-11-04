@@ -720,10 +720,11 @@ cleanupmon(struct wl_listener *listener, void *data)
 	wl_list_remove(&m->link);
 	wlr_output_layout_remove(output_layout, m->wlr_output);
 
-	nmons = wl_list_length(&mons);
-	do // don't switch to disabled mons
-		selmon = wl_container_of(mons.prev, selmon, link);
-	while (!selmon->wlr_output->enabled && i++ < nmons);
+	if ((nmons = wl_list_length(&mons)))
+		do // don't switch to disabled mons
+			selmon = wl_container_of(mons.prev, selmon, link);
+		while (!selmon->wlr_output->enabled && i++ < nmons);
+
 	focusclient(focustop(selmon), 1);
 	closemon(m);
 	free(m);
