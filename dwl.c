@@ -57,7 +57,7 @@
 #define MAX(A, B)               ((A) > (B) ? (A) : (B))
 #define MIN(A, B)               ((A) < (B) ? (A) : (B))
 #define CLEANMASK(mask)         (mask & ~WLR_MODIFIER_CAPS)
-#define VISIBLEON(C, M)         ((C)->mon == (M) && ((C)->tags & (M)->tagset[(M)->seltags]))
+#define VISIBLEON(C, M)         ((M) && (C)->mon == (M) && ((C)->tags & (M)->tagset[(M)->seltags]))
 #define LENGTH(X)               (sizeof X / sizeof X[0])
 #define END(A)                  ((A) + LENGTH(A))
 #define TAGMASK                 ((1 << LENGTH(tags)) - 1)
@@ -720,10 +720,11 @@ cleanupmon(struct wl_listener *listener, void *data)
 	wl_list_remove(&m->link);
 	wlr_output_layout_remove(output_layout, m->wlr_output);
 
-	nmons = wl_list_length(&mons);
-	do // don't switch to disabled mons
-		selmon = wl_container_of(mons.prev, selmon, link);
-	while (!selmon->wlr_output->enabled && i++ < nmons);
+	if ((nmons = wl_list_length(&mons)))
+		do // don't switch to disabled mons
+			selmon = wl_container_of(mons.prev, selmon, link);
+		while (!selmon->wlr_output->enabled && i++ < nmons);
+
 	focusclient(focustop(selmon), 1);
 	closemon(m);
 	free(m);
@@ -859,6 +860,16 @@ createmon(struct wl_listener *listener, void *data)
 	 */
 	wlr_output_layout_add(output_layout, wlr_output, r->x, r->y);
 	sgeom = *wlr_output_layout_get_box(output_layout, NULL);
+
+	/* If length == 1 we need update selmon.
+	 * Maybe it will change in run(). */
+	if (wl_list_length(&mons) == 1) {
+		Client *c;
+		selmon = m;
+		/* If there is any client, set c->mon to this monitor */
+		wl_list_for_each(c, &clients, link)
+			setmon(c, m, c->tags);
+	}
 
 	/* When adding monitors, the geometries of all monitors must be updated */
 	wl_list_for_each(m, &mons, link) {
