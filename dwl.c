@@ -150,6 +150,7 @@ typedef struct {
 
 	struct wlr_box geo;
 	enum zwlr_layer_shell_v1_layer layer;
+	bool mapped;
 } LayerSurface;
 
 typedef struct {
@@ -754,6 +755,12 @@ commitlayersurfacenotify(struct wl_listener *listener, void *data)
 	struct wlr_layer_surface_v1 *wlr_layer_surface = layersurface->layer_surface;
 	struct wlr_output *wlr_output = wlr_layer_surface->output;
 	Monitor *m;
+
+	if (wlr_layer_surface->current.committed == 0 &&
+		layersurface->mapped == wlr_layer_surface->mapped)
+		return;
+
+	layersurface->mapped = wlr_layer_surface->mapped;
 
 	if (!wlr_output)
 		return;
