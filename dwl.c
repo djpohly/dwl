@@ -140,6 +140,7 @@ typedef struct {
 typedef struct {
 	/* Must be first */
 	unsigned int type; /* LayerShell */
+	int mapped;
 	struct wlr_scene_node *scene;
 	struct wl_list link;
 	struct wlr_layer_surface_v1 *layer_surface;
@@ -757,6 +758,12 @@ commitlayersurfacenotify(struct wl_listener *listener, void *data)
 
 	if (!wlr_output || !(m = wlr_output->data))
 		return;
+
+	if (wlr_layer_surface->current.committed == 0
+			&& layersurface->mapped == wlr_layer_surface->mapped)
+		return;
+
+	layersurface->mapped = wlr_layer_surface->mapped;
 
 	if (layers[wlr_layer_surface->current.layer] != layersurface->scene) {
 		wl_list_remove(&layersurface->link);
