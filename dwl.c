@@ -926,13 +926,13 @@ createlayersurface(struct wl_listener *listener, void *data)
 			wlr_layer_surface->surface);
 	layersurface->scene->data = layersurface;
 
-	wl_list_insert(&m->layers[wlr_layer_surface->client_pending.layer],
+	wl_list_insert(&m->layers[wlr_layer_surface->pending.layer],
 			&layersurface->link);
 
-	// Temporarily set the layer's current state to client_pending
+	// Temporarily set the layer's current state to pending
 	// so that we can easily arrange it
 	old_state = wlr_layer_surface->current;
-	wlr_layer_surface->current = wlr_layer_surface->client_pending;
+	wlr_layer_surface->current = wlr_layer_surface->pending;
 	arrangelayers(m);
 	wlr_layer_surface->current = old_state;
 }
