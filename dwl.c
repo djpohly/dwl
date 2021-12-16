@@ -781,7 +781,7 @@ commitnotify(struct wl_listener *listener, void *data)
 	Client *c = wl_container_of(listener, c, commit);
 
 	/* mark a pending resize as completed */
-	if (c->resize && c->resize <= c->surface.xdg->configure_serial)
+	if (c->resize && c->resize <= c->surface.xdg->current.configure_serial)
 		c->resize = 0;
 }
 
@@ -922,7 +922,7 @@ createlayersurface(struct wl_listener *listener, void *data)
 	m = wlr_layer_surface->output->data;
 
 	layersurface->scene = wlr_scene_subsurface_tree_create(
-			layers[wlr_layer_surface->client_pending.layer],
+			layers[wlr_layer_surface->pending.layer],
 			wlr_layer_surface->surface);
 	layersurface->scene->data = layersurface;
 
