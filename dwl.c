@@ -13,6 +13,7 @@
 #include <libinput.h>
 #include <wayland-server-core.h>
 #include <wlr/backend.h>
+#include <wlr/render/allocator.h>
 #include <wlr/render/wlr_renderer.h>
 #include <wlr/types/wlr_compositor.h>
 #include <wlr/types/wlr_cursor.h>
@@ -307,6 +308,7 @@ static const char broken[] = "broken";
 static struct wl_display *dpy;
 static struct wlr_backend *backend;
 static struct wlr_renderer *drw;
+static struct wlr_allocator *alloc;
 static struct wlr_compositor *compositor;
 
 static struct wlr_xdg_shell *xdg_shell;
@@ -551,7 +553,7 @@ arrangelayer(Monitor *m, struct wl_list *list, struct wlr_box *usable_area, int 
 			box.y -= state->margin.bottom;
 		}
 		if (box.width < 0 || box.height < 0) {
-			wlr_layer_surface_v1_close(wlr_layer_surface);
+			wlr_layer_surface_v1_destroy(wlr_layer_surface);
 			continue;
 		}
 		layersurface->geo = box;
@@ -775,7 +777,7 @@ commitnotify(struct wl_listener *listener, void *data)
 	Client *c = wl_container_of(listener, c, commit);
 
 	/* mark a pending resize as completed */
-	if (c->resize && c->resize <= c->surface.xdg->configure_serial)
+	if (c->resize && c->resize <= c->surface.xdg->current.configure_serial)
 		c->resize = 0;
 }
 
@@ -817,6 +819,8 @@ createmon(struct wl_listener *listener, void *data)
 	const MonitorRule *r;
 	Monitor *m = wlr_output->data = calloc(1, sizeof(*m));
 	m->wlr_output = wlr_output;
+
+	wlr_output_init_render(wlr_output, alloc, drw);
 
 	/* Initialize monitor state using configured rules */
 	for (size_t i = 0; i < LENGTH(m->layers); i++)
@@ -926,13 +930,13 @@ createlayersurface(struct wl_listener *listener, void *data)
 	wlr_layer_surface->data = layersurface;
 
 	m = wlr_layer_surface->output->data;
-	wl_list_insert(&m->layers[wlr_layer_surface->client_pending.layer],
+	wl_list_insert(&m->layers[wlr_layer_surface->pending.layer],
 			&layersurface->link);
 
-	// Temporarily set the layer's current state to client_pending
+	// Temporarily set the layer's current state to pending
 	// so that we can easily arrange it
 	old_state = wlr_layer_surface->current;
-	wlr_layer_surface->current = wlr_layer_surface->client_pending;
+	wlr_layer_surface->current = wlr_layer_surface->pending;
 	arrangelayers(m);
 	wlr_layer_surface->current = old_state;
 }
@@ -2002,11 +2006,14 @@ setup(void)
 	if (!(backend = wlr_backend_autocreate(dpy)))
 		BARF("couldn't create backend");
 
-	/* If we don't provide a renderer, autocreate makes a GLES2 renderer for us.
-	 * The renderer is responsible for defining the various pixel formats it
-	 * supports for shared memory, this configures that for clients. */
-	drw = wlr_backend_get_renderer(backend);
+	/* Create a renderer with the default implementation */
+	if (!(drw = wlr_renderer_autocreate(backend)))
+		BARF("couldn't create renderer");
 	wlr_renderer_init_wl_display(drw, dpy);
+
+	/* Create a default allocator */
+	if (!(alloc = wlr_allocator_autocreate(backend, drw)))
+		BARF("couldn't create allocator");
 
 	/* This creates some hands-off wlroots interfaces. The compositor is
 	 * necessary for clients to allocate surfaces and the data device manager
