@@ -15,10 +15,11 @@ clean:
 	rm -f dwl *.o *-protocol.h *-protocol.c
 
 install: dwl
-	install -D dwl $(PREFIX)/bin/dwl
+	install -Dm755 dwl $(PREFIX)/bin/dwl
+	install -Dm644 dwl.1 $(MANDIR)/man1/dwl.1
 
 uninstall:
-	rm -f $(PREFIX)/bin/dwl
+	rm -f $(PREFIX)/bin/dwl $(MANDIR)/man1/dwl.1
 
 .PHONY: all clean install uninstall
 
