@@ -156,8 +156,7 @@ client_set_tiled(Client *c, uint32_t edges)
 	if (client_is_x11(c))
 		return;
 #endif
-	wlr_xdg_toplevel_set_tiled(c->surface.xdg, WLR_EDGE_TOP |
-			WLR_EDGE_BOTTOM | WLR_EDGE_LEFT | WLR_EDGE_RIGHT);
+	wlr_xdg_toplevel_set_tiled(c->surface.xdg, edges);
 }
 
 static inline struct wlr_surface *
