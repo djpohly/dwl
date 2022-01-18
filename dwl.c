@@ -887,12 +887,12 @@ createnotify(struct wl_listener *listener, void *data)
 	Client *c;
 
 	if (xdg_surface->role == WLR_XDG_SURFACE_ROLE_POPUP) {
-		Client *c = wlr_xdg_surface_from_wlr_surface(xdg_surface->popup->parent)->data;
+		Monitor *selmon = xytomon(cursor->x, cursor->y);
 		struct wlr_box pop_box = {
 			.x = 0,
 			.y = 0,
-			.width = c->geom.width,
-			.height = c->geom.height,
+			.width = selmon->m.width,
+			.height = selmon->m.height,
 		};
 		wlr_xdg_popup_unconstrain_from_box(xdg_surface->popup, &pop_box);
 		return;
