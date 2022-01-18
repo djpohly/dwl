@@ -887,7 +887,6 @@ createnotify(struct wl_listener *listener, void *data)
 	Client *c;
 
 	if (xdg_surface->role == WLR_XDG_SURFACE_ROLE_POPUP) {
-		Monitor *selmo = xytomon(cursor->x, cursor->y);
 		Client *c = wlr_xdg_surface_from_wlr_surface(xdg_surface->popup->parent)->data;
 		struct wlr_box pop_box = {
 			.x = 0,
