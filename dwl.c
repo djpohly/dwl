@@ -885,17 +885,15 @@ createnotify(struct wl_listener *listener, void *data)
 	 * client, either a toplevel (application window) or popup. */
 	struct wlr_xdg_surface *xdg_surface = data;
 	Client *c;
-	Arg tags;
-	Arg oldtags;
 
 	if (xdg_surface->role == WLR_XDG_SURFACE_ROLE_POPUP) {
-		Client *sel = selclient();
 		Monitor *selmo = xytomon(cursor->x, cursor->y);
+		Client *c = wlr_xdg_surface_from_wlr_surface(xdg_surface->popup->parent)->data;
 		struct wlr_box pop_box = {
-			.x = sel->geom.x - selmo->m.x,
-			.y = sel->geom.y - selmo->m.y,
-			.width = sel->geom.width,
-			.height = sel->geom.height,
+			.x = 0,
+			.y = 0,
+			.width = c->geom.width,
+			.height = c->geom.height,
 		};
 		wlr_xdg_popup_unconstrain_from_box(xdg_surface->popup, &pop_box);
 		return;
@@ -917,10 +915,6 @@ createnotify(struct wl_listener *listener, void *data)
 	LISTEN(&xdg_surface->toplevel->events.request_fullscreen, &c->fullscreen,
 			fullscreennotify);
 	c->isfullscreen = 0;
-	oldtags.ui = c->tags;
-	tags.ui = c->tags;
-	view(&tags);
-	view(&oldtags);
 }
 
 void
