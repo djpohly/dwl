@@ -560,6 +560,7 @@ arrangelayer(Monitor *m, struct wl_list *list, struct wlr_box *usable_area, int 
 void
 arrangelayers(Monitor *m)
 {
+	int i;
 	struct wlr_box usable_area = m->m;
 	uint32_t layers_above_shell[] = {
 		ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY,
@@ -568,30 +569,18 @@ arrangelayers(Monitor *m)
 	LayerSurface *layersurface;
 	struct wlr_keyboard *kb = wlr_seat_get_keyboard(seat);
 
-	// Arrange exclusive surfaces from top->bottom
-	arrangelayer(m, &m->layers[ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY],
-			&usable_area, 1);
-	arrangelayer(m, &m->layers[ZWLR_LAYER_SHELL_V1_LAYER_TOP],
-			&usable_area, 1);
-	arrangelayer(m, &m->layers[ZWLR_LAYER_SHELL_V1_LAYER_BOTTOM],
-			&usable_area, 1);
-	arrangelayer(m, &m->layers[ZWLR_LAYER_SHELL_V1_LAYER_BACKGROUND],
-			&usable_area, 1);
+	/* Arrange exclusive surfaces from top->bottom */
+	for (i = 3; i >= 0; i--)
+		arrangelayer(m, &m->layers[i], &usable_area, 1);
 
 	if (memcmp(&usable_area, &m->w, sizeof(struct wlr_box))) {
 		m->w = usable_area;
 		arrange(m);
 	}
 
-	// Arrange non-exlusive surfaces from top->bottom
-	arrangelayer(m, &m->layers[ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY],
-			&usable_area, 0);
-	arrangelayer(m, &m->layers[ZWLR_LAYER_SHELL_V1_LAYER_TOP],
-			&usable_area, 0);
-	arrangelayer(m, &m->layers[ZWLR_LAYER_SHELL_V1_LAYER_BOTTOM],
-			&usable_area, 0);
-	arrangelayer(m, &m->layers[ZWLR_LAYER_SHELL_V1_LAYER_BACKGROUND],
-			&usable_area, 0);
+	/* Arrange non-exlusive surfaces from top->bottom */
+	for (i = 3; i >= 0; i--)
+		arrangelayer(m, &m->layers[i], &usable_area, 0);
 
 	// Find topmost keyboard interactive layer, if such a layer exists
 	for (size_t i = 0; i < LENGTH(layers_above_shell); i++) {
