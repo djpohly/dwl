@@ -1084,7 +1084,7 @@ focusclient(Client *c, int lift)
 		return;
 
 	/* Put the new client atop the focus stack and select its monitor */
-	if (c) {
+	if (c && c->type != X11Unmanaged) {
 		wl_list_remove(&c->flink);
 		wl_list_insert(&fstack, &c->flink);
 		selmon = c->mon;
@@ -1108,7 +1108,8 @@ focusclient(Client *c, int lift)
 						))
 				return;
 		} else {
-			client_activate_surface(old, 0);
+			/* If client is unmanaged then we shoudn't deactivate old surface */
+			client_activate_surface(old, c && c->type == X11Unmanaged);
 		}
 	}
 
@@ -1317,8 +1318,10 @@ mapnotify(struct wl_listener *listener, void *data)
 	}
 
 	if (client_is_unmanaged(c)) {
+		client_get_geometry(c, &c->geom);
 		/* Floating, no border */
 		wlr_scene_node_reparent(c->scene, layers[LyrFloat]);
+		wlr_scene_node_set_position(c->scene, c->geom.x, c->geom.y);
 		c->bw = 0;
 
 		/* Insert this independent into independents lists. */
@@ -1431,7 +1434,7 @@ moveresize(const Arg *arg)
 	if (cursor_mode != CurNormal)
 		return;
 	xytonode(cursor->x, cursor->y, NULL, &grabc, NULL, NULL, NULL);
-	if (!grabc)
+	if (!grabc || grabc->type == X11Unmanaged)
 		return;
 
 	/* Float the window and tell motionnotify to grab it */
