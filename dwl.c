@@ -645,7 +645,8 @@ buttonpress(struct wl_listener *listener, void *data)
 	case WLR_BUTTON_PRESSED:;
 		/* Change focus if the button was _pressed_ over a client */
 		xytonode(cursor->x, cursor->y, NULL, &c, NULL, NULL, NULL);
-		if (c)
+		/* Don't focus unmanaged clients */
+		if (c && !client_is_unmanaged(c))
 			focusclient(c, 1);
 
 		keyboard = wlr_seat_get_keyboard(seat);
@@ -1328,9 +1329,12 @@ mapnotify(struct wl_listener *listener, void *data)
 	}
 
 	if (client_is_unmanaged(c)) {
+		client_get_geometry(c, &c->geom);
 		/* Floating, no border */
 		wlr_scene_node_reparent(c->scene, layers[LyrFloat]);
 		c->bw = 0;
+		wlr_scene_node_set_position(c->scene, c->geom.x + borderpx,
+			c->geom.y + borderpx);
 
 		/* Insert this independent into independents lists. */
 		wl_list_insert(&independents, &c->link);
@@ -1442,7 +1446,7 @@ moveresize(const Arg *arg)
 	if (cursor_mode != CurNormal)
 		return;
 	xytonode(cursor->x, cursor->y, NULL, &grabc, NULL, NULL, NULL);
-	if (!grabc)
+	if (!grabc || client_is_unmanaged(grabc))
 		return;
 
 	/* Float the window and tell motionnotify to grab it */
