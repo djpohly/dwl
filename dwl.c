@@ -871,7 +871,10 @@ void
 createnotify(struct wl_listener *listener, void *data)
 {
 	/* This event is raised when wlr_xdg_shell receives a new xdg surface from a
-	 * client, either a toplevel (application window) or popup. */
+	 * client, either a toplevel (application window) or popup,
+	 * or when wlr_layer_shell receives a new popup from a layer.
+	 * If you want to do something tricky with popups you should check if
+	 * its parent is wlr_xdg_shell or wlr_layer_shell */
 	struct wlr_xdg_surface *xdg_surface = data;
 	Client *c;
 
@@ -924,8 +927,8 @@ createlayersurface(struct wl_listener *listener, void *data)
 	wlr_layer_surface->data = layersurface;
 	m = wlr_layer_surface->output->data;
 
-	layersurface->scene = wlr_scene_subsurface_tree_create(
-			layers[wlr_layer_surface->pending.layer],
+	layersurface->scene = wlr_layer_surface->surface->data =
+			wlr_scene_subsurface_tree_create(layers[wlr_layer_surface->pending.layer],
 			wlr_layer_surface->surface);
 	layersurface->scene->data = layersurface;
 
