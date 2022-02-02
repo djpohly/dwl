@@ -96,7 +96,7 @@ static const Key keys[] = {
 	TAGKEYS(          XKB_KEY_3, XKB_KEY_numbersign,                 2),
 	TAGKEYS(          XKB_KEY_4, XKB_KEY_dollar,                     3),
 	TAGKEYS(          XKB_KEY_5, XKB_KEY_percent,                    4),
-	TAGKEYS(          XKB_KEY_6, XKB_KEY_caret,                      5),
+	TAGKEYS(          XKB_KEY_6, XKB_KEY_asciicircum,                5),
 	TAGKEYS(          XKB_KEY_7, XKB_KEY_ampersand,                  6),
 	TAGKEYS(          XKB_KEY_8, XKB_KEY_asterisk,                   7),
 	TAGKEYS(          XKB_KEY_9, XKB_KEY_parenleft,                  8),
