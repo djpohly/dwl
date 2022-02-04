@@ -864,7 +864,7 @@ createmon(struct wl_listener *listener, void *data)
 	 * output (such as DPI, scale factor, manufacturer, etc).
 	 */
 	wlr_output_layout_add(output_layout, wlr_output, r->x, r->y);
-	sgeom = *wlr_output_layout_get_box(output_layout, NULL);
+	wlr_output_layout_get_box(output_layout, NULL, &sgeom);
 
 	/* When adding monitors, the geometries of all monitors must be updated */
 	wl_list_for_each(m, &mons, link) {
@@ -2307,7 +2307,7 @@ updatemons(struct wl_listener *listener, void *data)
 	struct wlr_output_configuration_v1 *config =
 		wlr_output_configuration_v1_create();
 	Monitor *m;
-	sgeom = *wlr_output_layout_get_box(output_layout, NULL);
+	wlr_output_layout_get_box(output_layout, NULL, &sgeom);
 	wl_list_for_each(m, &mons, link) {
 		struct wlr_output_configuration_head_v1 *config_head =
 			wlr_output_configuration_head_v1_create(config, m->wlr_output);
@@ -2316,7 +2316,8 @@ updatemons(struct wl_listener *listener, void *data)
 		/* TODO: move focus if selmon is disabled */
 
 		/* Get the effective monitor geometry to use for surfaces */
-		m->m = m->w = *wlr_output_layout_get_box(output_layout, m->wlr_output);
+		wlr_output_layout_get_box(output_layout, m->wlr_output, &(m->m));
+		wlr_output_layout_get_box(output_layout, m->wlr_output, &(m->w));
 		/* Calculate the effective monitor geometry to use for clients */
 		arrangelayers(m);
 		/* Don't move clients to the left output when plugging monitors */
