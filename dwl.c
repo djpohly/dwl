@@ -144,6 +144,7 @@ typedef struct {
 	/* Must be first */
 	unsigned int type; /* LayerShell */
 	struct wlr_scene_node *scene;
+	struct wlr_scene_layer_surface_v1 *scene_layer;
 	struct wl_list link;
 	struct wlr_layer_surface_v1 *layer_surface;
 
@@ -151,17 +152,7 @@ typedef struct {
 	struct wl_listener map;
 	struct wl_listener unmap;
 	struct wl_listener surface_commit;
-
-	struct wlr_box geo;
 } LayerSurface;
-
-typedef struct {
-	uint32_t singular_anchor;
-	uint32_t anchor_triplet;
-	int *positive_axis;
-	int *negative_axis;
-	int margin;
-} Edge;
 
 typedef struct {
 	const char *symbol;
@@ -206,9 +197,6 @@ typedef struct {
 
 /* function declarations */
 static void applybounds(Client *c, struct wlr_box *bbox);
-static void applyexclusive(struct wlr_box *usable_area, uint32_t anchor,
-		int32_t exclusive, int32_t margin_top, int32_t margin_right,
-		int32_t margin_bottom, int32_t margin_left);
 static void applyrules(Client *c);
 static void arrange(Monitor *m);
 static void arrangelayer(Monitor *m, struct wl_list *list,
@@ -387,61 +375,6 @@ applybounds(Client *c, struct wlr_box *bbox)
 }
 
 void
-applyexclusive(struct wlr_box *usable_area,
-		uint32_t anchor, int32_t exclusive,
-		int32_t margin_top, int32_t margin_right,
-		int32_t margin_bottom, int32_t margin_left) {
-	Edge edges[] = {
-		{ // Top
-			.singular_anchor = ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP,
-			.anchor_triplet = ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT |
-				ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT |
-				ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP,
-			.positive_axis = &usable_area->y,
-			.negative_axis = &usable_area->height,
-			.margin = margin_top,
-		},
-		{ // Bottom
-			.singular_anchor = ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM,
-			.anchor_triplet = ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT |
-				ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT |
-				ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM,
-			.positive_axis = NULL,
-			.negative_axis = &usable_area->height,
-			.margin = margin_bottom,
-		},
-		{ // Left
-			.singular_anchor = ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT,
-			.anchor_triplet = ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT |
-				ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP |
-				ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM,
-			.positive_axis = &usable_area->x,
-			.negative_axis = &usable_area->width,
-			.margin = margin_left,
-		},
-		{ // Right
-			.singular_anchor = ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT,
-			.anchor_triplet = ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT |
-				ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP |
-				ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM,
-			.positive_axis = NULL,
-			.negative_axis = &usable_area->width,
-			.margin = margin_right,
-		}
-	};
-	for (size_t i = 0; i < LENGTH(edges); i++) {
-		if ((anchor == edges[i].singular_anchor || anchor == edges[i].anchor_triplet)
-				&& exclusive + edges[i].margin > 0) {
-			if (edges[i].positive_axis)
-				*edges[i].positive_axis += exclusive + edges[i].margin;
-			if (edges[i].negative_axis)
-				*edges[i].negative_axis -= exclusive + edges[i].margin;
-			break;
-		}
-	}
-}
-
-void
 applyrules(Client *c)
 {
 	/* rule matching */
@@ -492,72 +425,11 @@ arrangelayer(Monitor *m, struct wl_list *list, struct wlr_box *usable_area, int 
 	wl_list_for_each(layersurface, list, link) {
 		struct wlr_layer_surface_v1 *wlr_layer_surface = layersurface->layer_surface;
 		struct wlr_layer_surface_v1_state *state = &wlr_layer_surface->current;
-		struct wlr_box bounds;
-		struct wlr_box box = {
-			.width = state->desired_width,
-			.height = state->desired_height
-		};
-		const uint32_t both_horiz = ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT
-			| ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT;
-		const uint32_t both_vert = ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP
-			| ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM;
 
 		if (exclusive != (state->exclusive_zone > 0))
 			continue;
 
-		bounds = state->exclusive_zone == -1 ? full_area : *usable_area;
-
-		// Horizontal axis
-		if ((state->anchor & both_horiz) && box.width == 0) {
-			box.x = bounds.x;
-			box.width = bounds.width;
-		} else if ((state->anchor & ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT)) {
-			box.x = bounds.x;
-		} else if ((state->anchor & ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT)) {
-			box.x = bounds.x + (bounds.width - box.width);
-		} else {
-			box.x = bounds.x + ((bounds.width / 2) - (box.width / 2));
-		}
-		// Vertical axis
-		if ((state->anchor & both_vert) && box.height == 0) {
-			box.y = bounds.y;
-			box.height = bounds.height;
-		} else if ((state->anchor & ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP)) {
-			box.y = bounds.y;
-		} else if ((state->anchor & ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM)) {
-			box.y = bounds.y + (bounds.height - box.height);
-		} else {
-			box.y = bounds.y + ((bounds.height / 2) - (box.height / 2));
-		}
-		// Margin
-		if ((state->anchor & both_horiz) == both_horiz) {
-			box.x += state->margin.left;
-			box.width -= state->margin.left + state->margin.right;
-		} else if ((state->anchor & ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT)) {
-			box.x += state->margin.left;
-		} else if ((state->anchor & ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT)) {
-			box.x -= state->margin.right;
-		}
-		if ((state->anchor & both_vert) == both_vert) {
-			box.y += state->margin.top;
-			box.height -= state->margin.top + state->margin.bottom;
-		} else if ((state->anchor & ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP)) {
-			box.y += state->margin.top;
-		} else if ((state->anchor & ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM)) {
-			box.y -= state->margin.bottom;
-		}
-		if (box.width < 0 || box.height < 0) {
-			wlr_layer_surface_v1_destroy(wlr_layer_surface);
-			continue;
-		}
-		layersurface->geo = box;
-
-		if (state->exclusive_zone > 0)
-			applyexclusive(usable_area, state->anchor, state->exclusive_zone,
-					state->margin.top, state->margin.right,
-					state->margin.bottom, state->margin.left);
-		wlr_scene_node_set_position(layersurface->scene, box.x, box.y);
-		wlr_layer_surface_v1_configure(wlr_layer_surface, box.width, box.height);
+		wlr_scene_layer_surface_v1_configure(layersurface->scene_layer, &full_area, usable_area);
 	}
 }
 
@@ -916,9 +788,9 @@ createlayersurface(struct wl_listener *listener, void *data)
 	wlr_layer_surface->data = layersurface;
 	m = wlr_layer_surface->output->data;
 
-	layersurface->scene = wlr_scene_subsurface_tree_create(
-			layers[wlr_layer_surface->pending.layer],
-			wlr_layer_surface->surface);
+	layersurface->scene_layer = wlr_scene_layer_surface_v1_create(
+			layers[wlr_layer_surface->pending.layer], wlr_layer_surface);
+	layersurface->scene = layersurface->scene_layer->node;
 	layersurface->scene->data = layersurface;
 
 	wl_list_insert(&m->layers[wlr_layer_surface->pending.layer],
