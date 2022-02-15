@@ -92,7 +92,7 @@ typedef struct {
 	/* Must be first */
 	unsigned int type; /* XDGShell or X11* */
 	struct wlr_scene_node *scene;
-	struct wlr_scene_rect *border[4];
+	struct wlr_scene_rect *border[4]; /* top, bottom, left, right */
 	struct wlr_scene_node *scene_surface;
 	struct wl_list link;
 	struct wl_list flink;
@@ -1641,6 +1641,7 @@ resize(Client *c, int x, int y, int w, int h, int interact)
 	wlr_scene_rect_set_size(c->border[2], c->bw, c->geom.height - 2 * c->bw);
 	wlr_scene_rect_set_size(c->border[3], c->bw, c->geom.height - 2 * c->bw);
 	wlr_scene_node_set_position(&c->border[1]->node, 0, c->geom.height - c->bw);
+	wlr_scene_node_set_position(&c->border[2]->node, 0, c->bw);
 	wlr_scene_node_set_position(&c->border[3]->node, c->geom.width - c->bw, c->bw);
 
 	/* wlroots makes this a no-op if size hasn't changed */
