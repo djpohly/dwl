@@ -1064,6 +1064,8 @@ focusclient(Client *c, int lift)
 {
 	struct wlr_surface *old = seat->keyboard_state.focused_surface;
 	struct wlr_keyboard *kb;
+	Client *w;
+	int i;
 
 	/* Raise client in stacking order if requested */
 	if (c && lift) {
@@ -1081,6 +1083,9 @@ focusclient(Client *c, int lift)
 		wl_list_insert(&fstack, &c->flink);
 		selmon = c->mon;
 		c->isurgent = 0;
+
+		for (i = 0; i < 4; i++)
+			wlr_scene_rect_set_color(c->border[i], focuscolor);
 	}
 
 	/* Deactivate old client if focus is changing */
@@ -1100,6 +1105,16 @@ focusclient(Client *c, int lift)
 						))
 				return;
 		} else {
+#ifdef XWAYLAND
+			if (wlr_surface_is_xwayland_surface(old))
+				w = wlr_xwayland_surface_from_wlr_surface(old)->data;
+			else
+#endif
+				w = wlr_xdg_surface_from_wlr_surface(old)->data;
+
+			for (i = 0; i < 4; i++)
+				wlr_scene_rect_set_color(w->border[i], bordercolor);
+
 			client_activate_surface(old, 0);
 		}
 	}
@@ -1305,6 +1320,7 @@ mapnotify(struct wl_listener *listener, void *data)
 	for (i = 0; i < 4; i++) {
 		c->border[i] = wlr_scene_rect_create(c->scene, 0, 0, bordercolor);
 		c->border[i]->node.data = c;
+		wlr_scene_rect_set_color(c->border[i], bordercolor);
 	}
 
 	if (client_is_unmanaged(c)) {
