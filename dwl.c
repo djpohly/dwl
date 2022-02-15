@@ -1603,7 +1603,8 @@ rendermon(struct wl_listener *listener, void *data)
 	 * generally at the output's refresh rate (e.g. 60Hz). */
 	Monitor *m = wl_container_of(listener, m, frame);
 	Client *c;
-	int skip = 0;
+	LayerSurface *layer;
+	int i, skip = 0;
 	struct timespec now;
 
 	/* Render if no XDG clients have an outstanding resize. */
@@ -1617,6 +1618,11 @@ rendermon(struct wl_listener *listener, void *data)
 	wl_list_for_each(c, &clients, link)
 		if (VISIBLEON(c, c->mon))
 			client_for_each_surface(c, rendered, &now);
+
+	for (i = 0; i < LENGTH(m->layers); i++)
+		wl_list_for_each(layer, &m->layers[i], link)
+			wlr_layer_surface_v1_for_each_surface(layer->layer_surface, rendered, &now);
+
 }
 
 void
