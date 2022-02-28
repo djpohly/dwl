@@ -170,6 +170,7 @@ struct Monitor {
 	unsigned int tagset[2];
 	double mfact;
 	int nmaster;
+	int un_map; /* If a map/unmap happened on this monitor, then this should be true */
 };
 
 typedef struct {
@@ -1252,6 +1253,8 @@ mapnotify(struct wl_listener *listener, void *data)
 
 	if (c->isfullscreen)
 		setfullscreen(c, 1);
+
+	c->mon->un_map = 1;
 }
 
 void
@@ -1521,17 +1524,27 @@ rendermon(struct wl_listener *listener, void *data)
 	int skip = 0;
 	struct timespec now;
 
+	clock_gettime(CLOCK_MONOTONIC, &now);
+
 	/* Render if no XDG clients have an outstanding resize and are visible on
-	 * this monitor.
-	 */
-	wl_list_for_each(c, &clients, link)
-		skip = skip || (c->resize && VISIBLEON(c, m));
+	 * this monitor. */
+	/* Checking m->un_map for every client is not optimal but works */
+	wl_list_for_each(c, &clients, link) {
+		if ((c->resize && m->un_map) || (c->type == XDGShell
+				&& (c->surface.xdg->pending.geometry.width !=
+				c->surface.xdg->current.geometry.width
+				|| c->surface.xdg->pending.geometry.height !=
+				c->surface.xdg->current.geometry.height))) {
+			/* Lie */
+			wlr_surface_send_frame_done(client_surface(c), &now);
+			skip = 1;
+		}
+	}
 	if (!skip && !wlr_scene_output_commit(m->scene_output))
 		return;
-
 	/* Let clients know a frame has been rendered */
-	clock_gettime(CLOCK_MONOTONIC, &now);
 	wlr_scene_output_send_frame_done(m->scene_output, &now);
+	m->un_map = 0;
 }
 
 void
@@ -2069,6 +2082,9 @@ unmapnotify(struct wl_listener *listener, void *data)
 		cursor_mode = CurNormal;
 		grabc = NULL;
 	}
+
+	if (c->mon)
+		c->mon->un_map = 1;
 
 	if (client_is_unmanaged(c)) {
 		wlr_scene_node_destroy(c->scene);
