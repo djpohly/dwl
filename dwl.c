@@ -1315,6 +1315,7 @@ mapnotify(struct wl_listener *listener, void *data)
 
 	/* Set initial monitor, tags, floating status, and focus */
 	applyrules(c);
+	printstatus();
 }
 
 void
@@ -2291,6 +2292,7 @@ unmapnotify(struct wl_listener *listener, void *data)
 	setmon(c, NULL, 0);
 	wl_list_remove(&c->flink);
 	wl_list_remove(&c->slink);
+	printstatus();
 }
 
 void
