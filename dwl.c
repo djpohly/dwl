@@ -101,7 +101,7 @@ typedef struct {
 	struct wl_listener destroy;
 	struct wl_listener set_title;
 	struct wl_listener fullscreen;
-	struct wlr_box geom;  /* layout-relative, includes border */
+	struct wlr_box geom, prev;  /* layout-relative, includes border */
 	Monitor *mon;
 #ifdef XWAYLAND
 	unsigned int type;
@@ -112,10 +112,6 @@ typedef struct {
 	unsigned int tags;
 	int isfloating, isurgent;
 	uint32_t resize; /* configure serial of a pending resize */
-	int prevx;
-	int prevy;
-	int prevwidth;
-	int prevheight;
 	int isfullscreen;
 } Client;
 
@@ -1035,15 +1031,12 @@ setfullscreen(Client *c, int fullscreen)
 	client_set_fullscreen(c, fullscreen);
 
 	if (fullscreen) {
-		c->prevx = c->geom.x;
-		c->prevy = c->geom.y;
-		c->prevheight = c->geom.height;
-		c->prevwidth = c->geom.width;
+		c->prev = c->geom;
 		resize(c, c->mon->m.x, c->mon->m.y, c->mon->m.width, c->mon->m.height, 0);
 	} else {
 		/* restore previous size instead of arrange for floating windows since
 		 * client positions are set by the user and cannot be recalculated */
-		resize(c, c->prevx, c->prevy, c->prevwidth, c->prevheight, 0);
+		resize(c, c->prev.x, c->prev.y, c->prev.width, c->prev.height, 0);
 		arrange(c->mon);
 	}
 }
