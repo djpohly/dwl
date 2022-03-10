@@ -121,11 +121,6 @@ typedef struct {
 } Client;
 
 typedef struct {
-	struct wl_listener request_mode;
-	struct wl_listener destroy;
-} Decoration;
-
-typedef struct {
 	uint32_t mod;
 	xkb_keysym_t keysym;
 	void (*func)(const Arg *);
@@ -1321,6 +1316,7 @@ mapnotify(struct wl_listener *listener, void *data)
 
 	/* Set initial monitor, tags, floating status, and focus */
 	applyrules(c);
+	printstatus();
 }
 
 void
@@ -1828,11 +1824,13 @@ run(char *startup_cmd)
 			EBARF("startup: fork");
 		if (startup_pid == 0) {
 			dup2(piperw[0], STDIN_FILENO);
+			close(piperw[0]);
 			close(piperw[1]);
 			execl("/bin/sh", "/bin/sh", "-c", startup_cmd, NULL);
 			EBARF("startup: execl");
 		}
 		dup2(piperw[1], STDOUT_FILENO);
+		close(piperw[1]);
 		close(piperw[0]);
 	}
 	/* If nobody is reading the status output, don't terminate */
@@ -2285,6 +2283,10 @@ unmapnotify(struct wl_listener *listener, void *data)
 {
 	/* Called when the surface is unmapped, and should no longer be shown. */
 	Client *c = wl_container_of(listener, c, unmap);
+	if (c == grabc) {
+		cursor_mode = CurNormal;
+		grabc = NULL;
+	}
 	wl_list_remove(&c->link);
 	if (client_is_unmanaged(c))
 		return;
@@ -2292,6 +2294,7 @@ unmapnotify(struct wl_listener *listener, void *data)
 	setmon(c, NULL, 0);
 	wl_list_remove(&c->flink);
 	wl_list_remove(&c->slink);
+	printstatus();
 }
 
 void
