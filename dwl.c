@@ -37,6 +37,7 @@
 #include <wlr/types/wlr_scene.h>
 #include <wlr/types/wlr_server_decoration.h>
 #include <wlr/types/wlr_seat.h>
+#include <wlr/types/wlr_subcompositor.h>
 #include <wlr/types/wlr_viewporter.h>
 #include <wlr/types/wlr_virtual_keyboard_v1.h>
 #include <wlr/types/wlr_xcursor_manager.h>
@@ -122,11 +123,6 @@ typedef struct {
 	int prevheight;
 	int isfullscreen;
 } Client;
-
-typedef struct {
-	struct wl_listener request_mode;
-	struct wl_listener destroy;
-} Decoration;
 
 typedef struct {
 	uint32_t mod;
@@ -1342,6 +1338,7 @@ mapnotify(struct wl_listener *listener, void *data)
 	/* Set initial monitor, tags, floating status, and focus */
 	applyrules(c);
 	resize(c, c->geom.x, c->geom.y, c->geom.width, c->geom.height, 0);
+	printstatus();
 }
 
 void
@@ -1669,11 +1666,13 @@ run(char *startup_cmd)
 			EBARF("startup: fork");
 		if (startup_pid == 0) {
 			dup2(piperw[0], STDIN_FILENO);
+			close(piperw[0]);
 			close(piperw[1]);
 			execl("/bin/sh", "/bin/sh", "-c", startup_cmd, NULL);
 			EBARF("startup: execl");
 		}
 		dup2(piperw[1], STDOUT_FILENO);
+		close(piperw[1]);
 		close(piperw[0]);
 	}
 	/* If nobody is reading the status output, don't terminate */
@@ -1872,6 +1871,7 @@ setup(void)
 	wlr_gamma_control_manager_v1_create(dpy);
 	wlr_primary_selection_v1_device_manager_create(dpy);
 	wlr_viewporter_create(dpy);
+	wlr_subcompositor_create(dpy);
 
 	/* Initializes the interface used to implement urgency hints */
 	activation = wlr_xdg_activation_v1_create(dpy);
@@ -2125,6 +2125,10 @@ unmapnotify(struct wl_listener *listener, void *data)
 {
 	/* Called when the surface is unmapped, and should no longer be shown. */
 	Client *c = wl_container_of(listener, c, unmap);
+	if (c == grabc) {
+		cursor_mode = CurNormal;
+		grabc = NULL;
+	}
 	wl_list_remove(&c->link);
 	if (client_is_unmanaged(c))
 		return;
@@ -2132,6 +2136,7 @@ unmapnotify(struct wl_listener *listener, void *data)
 	setmon(c, NULL, 0);
 	wl_list_remove(&c->flink);
 	wlr_scene_node_destroy(c->scene);
+	printstatus();
 }
 
 void
@@ -2147,7 +2152,7 @@ updatemons(struct wl_listener *listener, void *data)
 	struct wlr_output_configuration_v1 *config =
 		wlr_output_configuration_v1_create();
 	Monitor *m;
-	sgeom = *wlr_output_layout_get_box(output_layout, NULL);
+	wlr_output_layout_get_box(output_layout, NULL, &sgeom);
 	wl_list_for_each(m, &mons, link) {
 		struct wlr_output_configuration_head_v1 *config_head =
 			wlr_output_configuration_head_v1_create(config, m->wlr_output);
@@ -2156,7 +2161,8 @@ updatemons(struct wl_listener *listener, void *data)
 		/* TODO: move focus if selmon is disabled */
 
 		/* Get the effective monitor geometry to use for surfaces */
-		m->m = m->w = *wlr_output_layout_get_box(output_layout, m->wlr_output);
+		wlr_output_layout_get_box(output_layout, m->wlr_output, &(m->m));
+		wlr_output_layout_get_box(output_layout, m->wlr_output, &(m->w));
 		wlr_scene_output_set_position(m->scene_output, m->m.x, m->m.y);
 		/* Calculate the effective monitor geometry to use for clients */
 		arrangelayers(m);
@@ -2212,7 +2218,7 @@ void
 virtualkeyboard(struct wl_listener *listener, void *data)
 {
 	struct wlr_virtual_keyboard_v1 *keyboard = data;
-	struct wlr_input_device *device = &keyboard->input_device;
+	struct wlr_input_device *device = &keyboard->keyboard.base;
 	createkeyboard(device);
 }
 

@@ -39,7 +39,7 @@ client_activate_surface(struct wlr_surface *s, int activated)
 #endif
 	if (wlr_surface_is_xdg_surface(s))
 		wlr_xdg_toplevel_set_activated(
-				wlr_xdg_surface_from_wlr_surface(s), activated);
+				wlr_xdg_surface_from_wlr_surface(s)->toplevel, activated);
 }
 
 static inline void
@@ -121,7 +121,7 @@ client_send_close(Client *c)
 		return;
 	}
 #endif
-	wlr_xdg_toplevel_send_close(c->surface.xdg);
+	wlr_xdg_toplevel_send_close(c->surface.xdg->toplevel);
 }
 
 static inline void
@@ -133,7 +133,7 @@ client_set_fullscreen(Client *c, int fullscreen)
 		return;
 	}
 #endif
-	wlr_xdg_toplevel_set_fullscreen(c->surface.xdg, fullscreen);
+	wlr_xdg_toplevel_set_fullscreen(c->surface.xdg->toplevel, fullscreen);
 }
 
 static inline uint32_t
@@ -146,7 +146,7 @@ client_set_size(Client *c, uint32_t width, uint32_t height)
 		return 0;
 	}
 #endif
-	return wlr_xdg_toplevel_set_size(c->surface.xdg, width, height);
+	return wlr_xdg_toplevel_set_size(c->surface.xdg->toplevel, width, height);
 }
 
 static inline void
@@ -156,8 +156,7 @@ client_set_tiled(Client *c, uint32_t edges)
 	if (client_is_x11(c))
 		return;
 #endif
-	wlr_xdg_toplevel_set_tiled(c->surface.xdg, WLR_EDGE_TOP |
-			WLR_EDGE_BOTTOM | WLR_EDGE_LEFT | WLR_EDGE_RIGHT);
+	wlr_xdg_toplevel_set_tiled(c->surface.xdg->toplevel, edges);
 }
 
 static inline struct wlr_surface *
