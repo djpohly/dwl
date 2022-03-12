@@ -623,7 +623,7 @@ buttonpress(struct wl_listener *listener, void *data)
 	wlr_idle_notify_activity(idle, seat);
 
 	switch (event->state) {
-	case WLR_BUTTON_PRESSED:;
+	case WLR_BUTTON_PRESSED:
 		/* Change focus if the button was _pressed_ over a client */
 		if ((c = xytoclient(cursor->x, cursor->y)))
 			focusclient(c, 1);
@@ -642,8 +642,7 @@ buttonpress(struct wl_listener *listener, void *data)
 		/* If you released any buttons, we exit interactive move/resize mode. */
 		/* TODO should reset to the pointer focus's current setcursor */
 		if (cursor_mode != CurNormal) {
-			wlr_xcursor_manager_set_cursor_image(cursor_mgr,
-					"left_ptr", cursor);
+			wlr_xcursor_manager_set_cursor_image(cursor_mgr, "left_ptr", cursor);
 			cursor_mode = CurNormal;
 			/* Drop the window off on its new monitor */
 			selmon = xytomon(cursor->x, cursor->y);
@@ -1278,16 +1277,16 @@ void
 killclient(const Arg *arg)
 {
 	Client *sel = selclient();
-	if (!sel)
-		return;
-	client_send_close(sel);
+	if (sel)
+		client_send_close(sel);
 }
 
 void
 maplayersurfacenotify(struct wl_listener *listener, void *data)
 {
 	LayerSurface *layersurface = wl_container_of(listener, layersurface, map);
-	wlr_surface_send_enter(layersurface->layer_surface->surface, layersurface->layer_surface->output);
+	wlr_surface_send_enter(layersurface->layer_surface->surface,
+		layersurface->layer_surface->output);
 	motionnotify(0);
 }
 
@@ -1406,8 +1405,7 @@ motionnotify(uint32_t time)
 	 * default. This is what makes the cursor image appear when you move it
 	 * off of a client or over its border. */
 	if (!surface && time)
-		wlr_xcursor_manager_set_cursor_image(cursor_mgr,
-				"left_ptr", cursor);
+		wlr_xcursor_manager_set_cursor_image(cursor_mgr, "left_ptr", cursor);
 
 	pointerfocus(c, surface, sx, sy, time);
 }
@@ -1423,8 +1421,7 @@ motionrelative(struct wl_listener *listener, void *data)
 	 * special configuration applied for the specific input device which
 	 * generated the event. You can pass NULL for the device if you want to move
 	 * the cursor around without any input. */
-	wlr_cursor_move(cursor, event->device,
-			event->delta_x, event->delta_y);
+	wlr_cursor_move(cursor, event->device, event->delta_x, event->delta_y);
 	motionnotify(event->time_msec);
 }
 
@@ -1644,8 +1641,7 @@ render(struct wlr_surface *surface, int sx, int sy, void *data)
 	 * compositor.
 	 */
 	transform = wlr_output_transform_invert(surface->current.transform);
-	wlr_matrix_project_box(matrix, &obox, transform, 0,
-		output->transform_matrix);
+	wlr_matrix_project_box(matrix, &obox, transform, 0, output->transform_matrix);
 
 	/* This takes our matrix, the texture, and an alpha, and performs the actual
 	 * rendering on the GPU. */
@@ -1678,8 +1674,7 @@ renderclients(Monitor *m, struct timespec *now)
 
 		surface = client_surface(c);
 		ox = c->geom.x, oy = c->geom.y;
-		wlr_output_layout_output_coords(output_layout, m->wlr_output,
-				&ox, &oy);
+		wlr_output_layout_output_coords(output_layout, m->wlr_output, &ox, &oy);
 
 		if (c->bw) {
 			w = surface->current.width;
@@ -1695,8 +1690,7 @@ renderclients(Monitor *m, struct timespec *now)
 			color = (c == sel) ? focuscolor : bordercolor;
 			for (i = 0; i < 4; i++) {
 				scalebox(&borders[i], m->wlr_output->scale);
-				wlr_render_rect(drw, &borders[i], color,
-						m->wlr_output->transform_matrix);
+				wlr_render_rect(drw, &borders[i], color, m->wlr_output->transform_matrix);
 			}
 		}
 
@@ -2113,12 +2107,9 @@ setup(void)
 	wl_signal_add(&virtual_keyboard_mgr->events.new_virtual_keyboard,
 			&new_virtual_keyboard);
 	seat = wlr_seat_create(dpy, "seat0");
-	wl_signal_add(&seat->events.request_set_cursor,
-			&request_cursor);
-	wl_signal_add(&seat->events.request_set_selection,
-			&request_set_sel);
-	wl_signal_add(&seat->events.request_set_primary_selection,
-			&request_set_psel);
+	wl_signal_add(&seat->events.request_set_cursor, &request_cursor);
+	wl_signal_add(&seat->events.request_set_selection, &request_set_sel);
+	wl_signal_add(&seat->events.request_set_primary_selection, &request_set_psel);
 
 	output_mgr = wlr_output_manager_v1_create(dpy);
 	wl_signal_add(&output_mgr->events.apply, &output_mgr_apply);
@@ -2226,10 +2217,9 @@ void
 togglefloating(const Arg *arg)
 {
 	Client *sel = selclient();
-	if (!sel)
-		return;
 	/* return if fullscreen */
-	setfloating(sel, !sel->isfloating /* || sel->isfixed */);
+	if (sel && !sel->isfullscreen)
+		setfloating(sel, !sel->isfloating);
 }
 
 void
@@ -2491,8 +2481,7 @@ createnotifyx11(struct wl_listener *listener, void *data)
 	/* Listen to the various events it can emit */
 	LISTEN(&xwayland_surface->events.map, &c->map, mapnotify);
 	LISTEN(&xwayland_surface->events.unmap, &c->unmap, unmapnotify);
-	LISTEN(&xwayland_surface->events.request_activate, &c->activate,
-			activatex11);
+	LISTEN(&xwayland_surface->events.request_activate, &c->activate, activatex11);
 	LISTEN(&xwayland_surface->events.request_configure, &c->configure,
 			configurex11);
 	LISTEN(&xwayland_surface->events.set_title, &c->set_title, updatetitle);
