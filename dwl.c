@@ -164,7 +164,7 @@ struct Monitor {
 	struct wl_listener destroy;
 	struct wlr_box m;      /* monitor area, layout-relative */
 	struct wlr_box w;      /* window area, layout-relative */
-	struct wl_list layers[4]; // LayerSurface::link
+	struct wl_list layers[4]; /* LayerSurface::link */
 	const Layout *lt[2];
 	unsigned int seltags;
 	unsigned int sellt;
@@ -394,7 +394,7 @@ applyexclusive(struct wlr_box *usable_area,
 		int32_t margin_top, int32_t margin_right,
 		int32_t margin_bottom, int32_t margin_left) {
 	Edge edges[] = {
-		{ // Top
+		{ /* Top */
 			.singular_anchor = ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP,
 			.anchor_triplet = ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT |
 				ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT |
@@ -403,7 +403,7 @@ applyexclusive(struct wlr_box *usable_area,
 			.negative_axis = &usable_area->height,
 			.margin = margin_top,
 		},
-		{ // Bottom
+		{ /* Bottom */
 			.singular_anchor = ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM,
 			.anchor_triplet = ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT |
 				ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT |
@@ -412,7 +412,7 @@ applyexclusive(struct wlr_box *usable_area,
 			.negative_axis = &usable_area->height,
 			.margin = margin_bottom,
 		},
-		{ // Left
+		{ /* Left */
 			.singular_anchor = ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT,
 			.anchor_triplet = ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT |
 				ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP |
@@ -421,7 +421,7 @@ applyexclusive(struct wlr_box *usable_area,
 			.negative_axis = &usable_area->width,
 			.margin = margin_left,
 		},
-		{ // Right
+		{ /* Right */
 			.singular_anchor = ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT,
 			.anchor_triplet = ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT |
 				ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP |
@@ -504,7 +504,7 @@ arrangelayer(Monitor *m, struct wl_list *list, struct wlr_box *usable_area, int 
 
 		bounds = state->exclusive_zone == -1 ? full_area : *usable_area;
 
-		// Horizontal axis
+		/* Horizontal axis */
 		if ((state->anchor & both_horiz) && box.width == 0) {
 			box.x = bounds.x;
 			box.width = bounds.width;
@@ -515,7 +515,7 @@ arrangelayer(Monitor *m, struct wl_list *list, struct wlr_box *usable_area, int 
 		} else {
 			box.x = bounds.x + ((bounds.width / 2) - (box.width / 2));
 		}
-		// Vertical axis
+		/* Vertical axis */
 		if ((state->anchor & both_vert) && box.height == 0) {
 			box.y = bounds.y;
 			box.height = bounds.height;
@@ -526,7 +526,7 @@ arrangelayer(Monitor *m, struct wl_list *list, struct wlr_box *usable_area, int 
 		} else {
 			box.y = bounds.y + ((bounds.height / 2) - (box.height / 2));
 		}
-		// Margin
+		/* Margin */
 		if ((state->anchor & both_horiz) == both_horiz) {
 			box.x += state->margin.left;
 			box.width -= state->margin.left + state->margin.right;
@@ -582,13 +582,13 @@ arrangelayers(Monitor *m)
 	for (i = 3; i >= 0; i--)
 		arrangelayer(m, &m->layers[i], &usable_area, 0);
 
-	// Find topmost keyboard interactive layer, if such a layer exists
+	/* Find topmost keyboard interactive layer, if such a layer exists */
 	for (size_t i = 0; i < LENGTH(layers_above_shell); i++) {
 		wl_list_for_each_reverse(layersurface,
 				&m->layers[layers_above_shell[i]], link) {
 			if (layersurface->layer_surface->current.keyboard_interactive &&
 					layersurface->layer_surface->mapped) {
-				// Deactivate the focused client.
+				/* Deactivate the focused client. */
 				focusclient(NULL, 0);
 				wlr_seat_keyboard_notify_enter(seat, layersurface->layer_surface->surface,
 						kb->keycodes, kb->num_keycodes, &kb->modifiers);
@@ -706,7 +706,7 @@ cleanupmon(struct wl_listener *listener, void *data)
 	wlr_output_layout_remove(output_layout, m->wlr_output);
 
 	if ((nmons = wl_list_length(&mons)))
-		do // don't switch to disabled mons
+		do /* don't switch to disabled mons */
 			selmon = wl_container_of(mons.prev, selmon, link);
 		while (!selmon->wlr_output->enabled && i++ < nmons);
 
@@ -718,7 +718,7 @@ cleanupmon(struct wl_listener *listener, void *data)
 void
 closemon(Monitor *m)
 {
-	// move closed monitor's clients to the focused one
+	/* move closed monitor's clients to the focused one */
 	Client *c;
 
 	wl_list_for_each(c, &clients, link) {
@@ -932,8 +932,9 @@ createlayersurface(struct wl_listener *listener, void *data)
 	wl_list_insert(&m->layers[wlr_layer_surface->pending.layer],
 			&layersurface->link);
 
-	// Temporarily set the layer's current state to pending
-	// so that we can easily arrange it
+	/* Temporarily set the layer's current state to pending
+	 * so that we can easily arrange it
+	 */
 	old_state = wlr_layer_surface->current;
 	wlr_layer_surface->current = wlr_layer_surface->pending;
 	arrangelayers(m);
@@ -1352,7 +1353,7 @@ motionnotify(uint32_t time)
 	struct wlr_surface *surface = NULL;
 	Client *c = NULL;
 
-	// time is 0 in internal calls meant to restore pointer focus.
+	/* time is 0 in internal calls meant to restore pointer focus. */
 	if (time) {
 		wlr_idle_notify_activity(idle, seat);
 
@@ -2607,8 +2608,7 @@ main(int argc, char *argv[])
 	if (optind < argc)
 		goto usage;
 
-	// Wayland requires XDG_RUNTIME_DIR for creating its communications
-	// socket
+	/* Wayland requires XDG_RUNTIME_DIR for creating its communications socket */
 	if (!getenv("XDG_RUNTIME_DIR"))
 		BARF("XDG_RUNTIME_DIR must be set");
 	setup();
