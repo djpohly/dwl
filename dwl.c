@@ -1036,6 +1036,7 @@ setfullscreen(Client *c, int fullscreen)
 		resize(c, c->prev.x, c->prev.y, c->prev.width, c->prev.height, 0);
 		arrange(c->mon);
 	}
+	printstatus();
 }
 
 void
@@ -1568,10 +1569,14 @@ printstatus(void)
 				urg |= c->tags;
 		}
 		if ((c = focustop(m))) {
-			printf("%s title %s\n", m->wlr_output->name, client_get_title(focustop(m)));
+			printf("%s title %s\n", m->wlr_output->name, client_get_title(c));
+			printf("%s fullscreen %u\n", m->wlr_output->name, c->isfullscreen);
+			printf("%s floating %u\n", m->wlr_output->name, c->isfloating);
 			sel = c->tags;
 		} else {
 			printf("%s title \n", m->wlr_output->name);
+			printf("%s fullscreen \n", m->wlr_output->name);
+			printf("%s floating \n", m->wlr_output->name);
 			sel = 0;
 		}
 
@@ -1902,6 +1907,7 @@ setfloating(Client *c, int floating)
 {
 	c->isfloating = floating;
 	arrange(c->mon);
+	printstatus();
 }
 
 void
