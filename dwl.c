@@ -1034,8 +1034,8 @@ setfullscreen(Client *c, int fullscreen)
 		/* restore previous size instead of arrange for floating windows since
 		 * client positions are set by the user and cannot be recalculated */
 		resize(c, c->prev.x, c->prev.y, c->prev.width, c->prev.height, 0);
-		arrange(c->mon);
 	}
+	arrange(c->mon);
 	printstatus();
 }
 
@@ -2193,7 +2193,7 @@ tile(Monitor *m)
 	Client *c;
 
 	wl_list_for_each(c, &clients, link)
-		if (VISIBLEON(c, m) && !c->isfloating)
+		if (VISIBLEON(c, m) && !c->isfloating && !c->isfullscreen)
 			n++;
 	if (n == 0)
 		return;
