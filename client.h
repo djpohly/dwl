@@ -96,6 +96,16 @@ client_is_float_type(Client *c)
 }
 
 static inline int
+client_wants_fullscreen(Client *c)
+{
+#ifdef XWAYLAND
+	if (client_is_x11(c))
+		return c->surface.xwayland->fullscreen;
+#endif
+	return c->surface.xdg->toplevel->requested.fullscreen;
+}
+
+static inline int
 client_is_unmanaged(Client *c)
 {
 #ifdef XWAYLAND

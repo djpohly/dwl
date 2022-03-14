@@ -1042,13 +1042,14 @@ void
 fullscreennotify(struct wl_listener *listener, void *data)
 {
 	Client *c = wl_container_of(listener, c, fullscreen);
-	struct wlr_xdg_toplevel_set_fullscreen_event *event = data;
+	int fullscreen = client_wants_fullscreen(c);
+
 	if (!c->mon) {
 		/* if the client is not mapped yet, let mapnotify() call setfullscreen() */
-		c->isfullscreen = event->fullscreen;
+		c->isfullscreen = fullscreen;
 		return;
 	}
-	setfullscreen(c, event->fullscreen);
+	setfullscreen(c, fullscreen);
 }
 
 Monitor *
