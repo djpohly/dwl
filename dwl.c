@@ -1692,8 +1692,13 @@ renderclients(Monitor *m, struct timespec *now)
 		wlr_output_layout_output_coords(output_layout, m->wlr_output, &ox, &oy);
 
 		if (c->bw) {
-			w = surface->current.width;
-			h = surface->current.height;
+			if (wlr_surface_is_xdg_surface(surface)) {
+				w = c->surface.xdg->current.geometry.width;
+				h = c->surface.xdg->current.geometry.height;
+			} else {
+				w = surface->current.width;
+				h = surface->current.height;
+			}
 			borders = (struct wlr_box[4]) {
 				{ox, oy, w + 2 * c->bw, c->bw},             /* top */
 				{ox, oy + c->bw, c->bw, h},                 /* left */
@@ -1715,6 +1720,10 @@ renderclients(Monitor *m, struct timespec *now)
 		rdata.when = now;
 		rdata.x = c->geom.x + c->bw;
 		rdata.y = c->geom.y + c->bw;
+		if (wlr_surface_is_xdg_surface(surface)) {
+			rdata.x -= c->surface.xdg->current.geometry.x;
+			rdata.y -= c->surface.xdg->current.geometry.y;
+		}
 		client_for_each_surface(c, render, &rdata);
 	}
 }
