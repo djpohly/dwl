@@ -1878,8 +1878,8 @@ run(char *startup_cmd)
 void
 scalebox(struct wlr_box *box, float scale)
 {
-	box->width =  ROUND((box->x + box->width) * scale) -  ROUND(box->x * scale);
-	box->height = ROUND((box->y + box->height) * scale) - ROUND(box->y * scale);
+	box->width =  MAX(1, ROUND((box->x + box->width) * scale) -  ROUND(box->x * scale));
+	box->height = MAX(1, ROUND((box->y + box->height) * scale) - ROUND(box->y * scale));
 	box->x = ROUND(box->x * scale);
 	box->y = ROUND(box->y * scale);
 }
