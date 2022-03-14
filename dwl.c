@@ -1043,7 +1043,14 @@ void
 fullscreennotify(struct wl_listener *listener, void *data)
 {
 	Client *c = wl_container_of(listener, c, fullscreen);
-	setfullscreen(c, !c->isfullscreen);
+	int fullscreen = client_wants_fullscreen(c);
+
+	if (!c->mon) {
+		/* if the client is not mapped yet, let mapnotify() call setfullscreen() */
+		c->isfullscreen = fullscreen;
+		return;
+	}
+	setfullscreen(c, fullscreen);
 }
 
 Monitor *
@@ -1318,6 +1325,9 @@ mapnotify(struct wl_listener *listener, void *data)
 	/* Set initial monitor, tags, floating status, and focus */
 	applyrules(c);
 	printstatus();
+
+	if (c->isfullscreen)
+		setfullscreen(c, 1);
 }
 
 void
