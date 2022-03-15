@@ -54,9 +54,9 @@
 #include <wlr/xwayland.h>
 #endif
 
+#include "util.h"
+
 /* macros */
-#define BARF(fmt, ...)		do { fprintf(stderr, fmt "\n", ##__VA_ARGS__); exit(EXIT_FAILURE); } while (0)
-#define EBARF(fmt, ...)		BARF(fmt ": %s", ##__VA_ARGS__, strerror(errno))
 #define MAX(A, B)               ((A) > (B) ? (A) : (B))
 #define MIN(A, B)               ((A) < (B) ? (A) : (B))
 #define CLEANMASK(mask)         (mask & ~WLR_MODIFIER_CAPS)
@@ -790,9 +790,7 @@ createkeyboard(struct wlr_input_device *device)
 {
 	struct xkb_context *context;
 	struct xkb_keymap *keymap;
-	Keyboard *kb = device->data = calloc(1, sizeof(*kb));
-	if (!kb)
-		EBARF("createkeyboard: calloc");
+	Keyboard *kb = device->data = ecalloc(1, sizeof(*kb));
 	kb->device = device;
 
 	/* Prepare an XKB keymap and assign it to the keyboard. */
@@ -823,9 +821,7 @@ createmon(struct wl_listener *listener, void *data)
 	 * monitor) becomes available. */
 	struct wlr_output *wlr_output = data;
 	const MonitorRule *r;
-	Monitor *m = wlr_output->data = calloc(1, sizeof(*m));
-	if (!m)
-		EBARF("createmon: calloc");
+	Monitor *m = wlr_output->data = ecalloc(1, sizeof(*m));
 	m->wlr_output = wlr_output;
 
 	wlr_output_init_render(wlr_output, alloc, drw);
@@ -910,9 +906,7 @@ createnotify(struct wl_listener *listener, void *data)
 		return;
 
 	/* Allocate a Client for this surface */
-	c = xdg_surface->data = calloc(1, sizeof(*c));
-	if (!c)
-		EBARF("createnotify: calloc");
+	c = xdg_surface->data = ecalloc(1, sizeof(*c));
 	c->surface.xdg = xdg_surface;
 	c->bw = borderpx;
 
@@ -938,9 +932,7 @@ createlayersurface(struct wl_listener *listener, void *data)
 		wlr_layer_surface->output = selmon->wlr_output;
 	}
 
-	layersurface = calloc(1, sizeof(LayerSurface));
-	if (!layersurface)
-		EBARF("layersurface: calloc");
+	layersurface = ecalloc(1, sizeof(LayerSurface));
 	layersurface->type = LayerShell;
 	LISTEN(&wlr_layer_surface->surface->events.commit,
 		&layersurface->surface_commit, commitlayersurfacenotify);
@@ -1744,7 +1736,7 @@ run(char *startup_cmd)
 	/* Add a Unix socket to the Wayland display. */
 	const char *socket = wl_display_add_socket_auto(dpy);
 	if (!socket)
-		BARF("startup: display_add_socket_auto");
+		die("startup: display_add_socket_auto");
 	setenv("WAYLAND_DISPLAY", socket, 1);
 
 	/* Now that the socket exists, run the startup command */
@@ -1753,13 +1745,13 @@ run(char *startup_cmd)
 		pipe(piperw);
 		startup_pid = fork();
 		if (startup_pid < 0)
-			EBARF("startup: fork");
+			die("startup: fork:");
 		if (startup_pid == 0) {
 			dup2(piperw[0], STDIN_FILENO);
 			close(piperw[0]);
 			close(piperw[1]);
 			execl("/bin/sh", "/bin/sh", "-c", startup_cmd, NULL);
-			EBARF("startup: execl");
+			die("startup: execl:");
 		}
 		dup2(piperw[1], STDOUT_FILENO);
 		close(piperw[1]);
@@ -1772,7 +1764,7 @@ run(char *startup_cmd)
 	/* Start the backend. This will enumerate outputs and inputs, become the DRM
 	 * master, etc */
 	if (!wlr_backend_start(backend))
-		BARF("startup: backend_start");
+		die("startup: backend_start");
 
 	/* Now that outputs are initialized, choose initial selmon based on
 	 * cursor position, and set default cursor image */
@@ -1928,7 +1920,7 @@ setup(void)
 	 * if the backend does not support hardware cursors (some older GPUs
 	 * don't). */
 	if (!(backend = wlr_backend_autocreate(dpy)))
-		BARF("couldn't create backend");
+		die("couldn't create backend");
 
 	/* Initialize the scene graph used to lay out windows */
 	scene = wlr_scene_create();
@@ -1942,12 +1934,12 @@ setup(void)
 
 	/* Create a renderer with the default implementation */
 	if (!(drw = wlr_renderer_autocreate(backend)))
-		BARF("couldn't create renderer");
+		die("couldn't create renderer");
 	wlr_renderer_init_wl_display(drw, dpy);
 
 	/* Create a default allocator */
 	if (!(alloc = wlr_allocator_autocreate(backend, drw)))
-		BARF("couldn't create allocator");
+		die("couldn't create allocator");
 
 	/* This creates some hands-off wlroots interfaces. The compositor is
 	 * necessary for clients to allocate surfaces and the data device manager
@@ -2088,7 +2080,7 @@ sigchld(int unused)
 	 * setting our own disposition for SIGCHLD.
 	 */
 	if (signal(SIGCHLD, sigchld) == SIG_ERR)
-		EBARF("can't install SIGCHLD handler");
+		die("can't install SIGCHLD handler:");
 	while (0 < waitpid(-1, NULL, WNOHANG))
 		;
 }
@@ -2100,7 +2092,7 @@ spawn(const Arg *arg)
 		dup2(STDERR_FILENO, STDOUT_FILENO);
 		setsid();
 		execvp(((char **)arg->v)[0], (char **)arg->v);
-		EBARF("dwl: execvp %s failed", ((char **)arg->v)[0]);
+		die("dwl: execvp %s failed:", ((char **)arg->v)[0]);
 	}
 }
 
@@ -2435,9 +2427,7 @@ createnotifyx11(struct wl_listener *listener, void *data)
 			setfullscreen(c, 0);
 
 	/* Allocate a Client for this surface */
-	c = xwayland_surface->data = calloc(1, sizeof(*c));
-	if (!c)
-		EBARF("createnotifyx11: calloc");
+	c = xwayland_surface->data = ecalloc(1, sizeof(*c));
 	c->surface.xwayland = xwayland_surface;
 	c->type = xwayland_surface->override_redirect ? X11Unmanaged : X11Managed;
 	c->bw = borderpx;
@@ -2517,12 +2507,12 @@ main(int argc, char *argv[])
 
 	/* Wayland requires XDG_RUNTIME_DIR for creating its communications socket */
 	if (!getenv("XDG_RUNTIME_DIR"))
-		BARF("XDG_RUNTIME_DIR must be set");
+		die("XDG_RUNTIME_DIR must be set");
 	setup();
 	run(startup_cmd);
 	cleanup();
 	return EXIT_SUCCESS;
 
 usage:
-	BARF("Usage: %s [-s startup command]", argv[0]);
+	die("Usage: %s [-s startup command]", argv[0]);
 }
