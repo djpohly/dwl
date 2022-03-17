@@ -882,9 +882,11 @@ createnotify(struct wl_listener *listener, void *data)
 
 	if (xdg_surface->role == WLR_XDG_SURFACE_ROLE_POPUP) {
 		struct wlr_box box;
-		if (!(c = client_from_popup(xdg_surface->popup)))
+		if (!(c = client_from_popup(xdg_surface->popup)) || !c->mon)
 			return;
-		client_get_geometry(c, &box);
+		box = c->mon->m;
+		box.x -= c->geom.x;
+		box.y -= c->geom.y;
 		wlr_xdg_popup_unconstrain_from_box(xdg_surface->popup, &box);
 		return;
 	} else if (xdg_surface->role == WLR_XDG_SURFACE_ROLE_NONE)
