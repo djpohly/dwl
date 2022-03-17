@@ -880,7 +880,14 @@ createnotify(struct wl_listener *listener, void *data)
 	struct wlr_xdg_surface *xdg_surface = data;
 	Client *c;
 
-	if (xdg_surface->role != WLR_XDG_SURFACE_ROLE_TOPLEVEL)
+	if (xdg_surface->role == WLR_XDG_SURFACE_ROLE_POPUP) {
+		struct wlr_box box;
+		if (!(c = client_from_popup(xdg_surface->popup)))
+			return;
+		client_get_geometry(c, &box);
+		wlr_xdg_popup_unconstrain_from_box(xdg_surface->popup, &box);
+		return;
+	} else if (xdg_surface->role == WLR_XDG_SURFACE_ROLE_NONE)
 		return;
 
 	/* Allocate a Client for this surface */

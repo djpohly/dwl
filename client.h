@@ -179,3 +179,24 @@ client_surface_at(Client *c, double cx, double cy, double *sx, double *sy)
 #endif
 	return wlr_xdg_surface_surface_at(c->surface.xdg, cx, cy, sx, sy);
 }
+
+static inline Client *
+client_from_popup(struct wlr_xdg_popup *popup)
+{
+	struct wlr_xdg_surface *surface = popup->base;
+
+	while (1) {
+		switch (surface->role) {
+		case WLR_XDG_SURFACE_ROLE_POPUP:
+			if (!wlr_surface_is_xdg_surface(surface->popup->parent))
+				return NULL;
+
+			surface = wlr_xdg_surface_from_wlr_surface(surface->popup->parent);
+			break;
+		case WLR_XDG_SURFACE_ROLE_TOPLEVEL:
+				return surface->data;
+		case WLR_XDG_SURFACE_ROLE_NONE:
+			return NULL;
+		}
+	}
+}
