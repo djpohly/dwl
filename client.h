@@ -104,6 +104,16 @@ client_is_float_type(Client *c)
 }
 
 static inline int
+client_wants_fullscreen(Client *c)
+{
+#ifdef XWAYLAND
+	if (client_is_x11(c))
+		return c->surface.xwayland->fullscreen;
+#endif
+	return c->surface.xdg->toplevel->requested.fullscreen;
+}
+
+static inline int
 client_is_unmanaged(Client *c)
 {
 #ifdef XWAYLAND
@@ -156,8 +166,7 @@ client_set_tiled(Client *c, uint32_t edges)
 	if (client_is_x11(c))
 		return;
 #endif
-	wlr_xdg_toplevel_set_tiled(c->surface.xdg, WLR_EDGE_TOP |
-			WLR_EDGE_BOTTOM | WLR_EDGE_LEFT | WLR_EDGE_RIGHT);
+	wlr_xdg_toplevel_set_tiled(c->surface.xdg, edges);
 }
 
 static inline struct wlr_surface *
