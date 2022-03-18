@@ -19,15 +19,14 @@ dwl is not meant to provide every feature under the sun. Instead, like dwm, it s
 - Various Wayland protocols
 - XWayland support as provided by wlroots (can be enabled in `config.mk`)
 - Zero flickering - Wayland users naturally expect that "every frame is perfect"
+- Layer shell popups (used by Waybar)
+- Damage tracking provided by scenegraph API
 
 Features under consideration (possibly as patches) are:
 
 - Protocols made trivial by wlroots
-- Implement the input-inhibitor protocol to support screen lockers
-- Implement the idle-inhibit protocol which lets applications such as mpv disable idle monitoring
-- Layer shell popups (used by Waybar)
-- Basic yes/no damage tracking to avoid needless redraws
-- More in-depth damage region tracking ([which may improve power usage](https://mozillagfx.wordpress.com/2019/10/22/dramatically-reduced-power-usage-in-firefox-70-on-macos-with-core-animation/))
+- Implement the input-inhibitor protocol to support screen lockers (see https://github.com/djpohly/dwl/pull/132)
+- Implement the idle-inhibit protocol which lets applications such as mpv disable idle monitoring (see https://github.com/djpohly/dwl/pull/133)
 - Implement the text-input and input-method protocols to support IME once ibus implements input-method v2 (see https://github.com/ibus/ibus/pull/2256 and https://github.com/djpohly/dwl/pull/12)
 
 Feature *non-goals* for the main codebase include:
