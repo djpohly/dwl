@@ -1319,8 +1319,9 @@ mapnotify(struct wl_listener *listener, void *data)
 
 	/* Create scene tree for this client and its border */
 	c->scene = &wlr_scene_tree_create(layers[LyrTile])->node;
-	c->scene_surface = client_surface(c)->data =
-		wlr_scene_subsurface_tree_create(c->scene, client_surface(c));
+	c->scene_surface = client_surface(c)->data = c->type == XDGShell
+			? wlr_scene_xdg_surface_create(c->scene, c->surface.xdg)
+			: wlr_scene_subsurface_tree_create(c->scene, client_surface(c));
 	c->scene_surface->data = c;
 	for (i = 0; i < 4; i++) {
 		c->border[i] = wlr_scene_rect_create(c->scene, 0, 0, bordercolor);
