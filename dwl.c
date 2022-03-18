@@ -1986,6 +1986,7 @@ setup(void)
 	wl_signal_add(&output_mgr->events.test, &output_mgr_test);
 
 	presentation = wlr_presentation_create(dpy, backend);
+	wlr_scene_set_presentation(scene, presentation);
 
 #ifdef XWAYLAND
 	/*
