@@ -1076,7 +1076,6 @@ focusclient(Client *c, int lift)
 {
 	struct wlr_surface *old = seat->keyboard_state.focused_surface;
 	struct wlr_keyboard *kb;
-	Client *w;
 	int i;
 
 	/* Raise client in stacking order if requested */
@@ -1114,15 +1113,11 @@ focusclient(Client *c, int lift)
 						))
 				return;
 		} else {
-#ifdef XWAYLAND
-			if (wlr_surface_is_xwayland_surface(old))
-				w = wlr_xwayland_surface_from_wlr_surface(old)->data;
-			else
-#endif
-				w = wlr_xdg_surface_from_wlr_surface(old)->data;
-
-			for (i = 0; i < 4; i++)
-				wlr_scene_rect_set_color(w->border[i], bordercolor);
+			Client *w;
+			struct wlr_scene_node *node = old->data;
+			if ((w = node->data))
+				for (i = 0; i < 4; i++)
+					wlr_scene_rect_set_color(w->border[i], bordercolor);
 
 			client_activate_surface(old, 0);
 		}
