@@ -179,3 +179,23 @@ client_surface_at(Client *c, double cx, double cy, double *sx, double *sy)
 #endif
 	return wlr_xdg_surface_surface_at(c->surface.xdg, cx, cy, sx, sy);
 }
+
+static inline void
+client_min_size(Client *c, int *width, int *height)
+{
+	struct wlr_xdg_toplevel *toplevel;
+	struct wlr_xdg_toplevel_state *state;
+#ifdef XWAYLAND
+	if (client_is_x11(c)) {
+		struct wlr_xwayland_surface_size_hints *size_hints;
+		size_hints = c->surface.xwayland->size_hints;
+		*width = size_hints->min_width;
+		*height = size_hints->min_height;
+		return;
+	}
+#endif
+	toplevel = c->surface.xdg->toplevel;
+	state = &toplevel->current;
+	*width = state->min_width;
+	*height = state->min_height;
+}

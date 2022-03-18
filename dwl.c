@@ -1636,11 +1636,13 @@ rendermon(struct wl_listener *listener, void *data)
 void
 resize(Client *c, int x, int y, int w, int h, int interact)
 {
+	int min_width = 0, min_height = 0;
 	struct wlr_box *bbox = interact ? &sgeom : &c->mon->w;
+	client_min_size(c, &min_width, &min_height);
 	c->geom.x = x;
 	c->geom.y = y;
-	c->geom.width = w;
-	c->geom.height = h;
+	c->geom.width = MAX(min_width + 2 * c->bw, w);
+	c->geom.height = MAX(min_height + 2 * c->bw, h);
 	applybounds(c, bbox);
 
 	/* Update scene-graph, including borders */
