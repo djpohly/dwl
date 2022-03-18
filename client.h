@@ -199,3 +199,24 @@ client_min_size(Client *c, int *width, int *height)
 	*width = state->min_width;
 	*height = state->min_height;
 }
+
+static inline Client *
+client_from_popup(struct wlr_xdg_popup *popup)
+{
+	struct wlr_xdg_surface *surface = popup->base;
+
+	while (1) {
+		switch (surface->role) {
+		case WLR_XDG_SURFACE_ROLE_POPUP:
+			if (!wlr_surface_is_xdg_surface(surface->popup->parent))
+				return NULL;
+
+			surface = wlr_xdg_surface_from_wlr_surface(surface->popup->parent);
+			break;
+		case WLR_XDG_SURFACE_ROLE_TOPLEVEL:
+				return surface->data;
+		case WLR_XDG_SURFACE_ROLE_NONE:
+			return NULL;
+		}
+	}
+}
