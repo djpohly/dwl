@@ -1625,8 +1625,7 @@ rendermon(struct wl_listener *listener, void *data)
 	 * generally at the output's refresh rate (e.g. 60Hz). */
 	Monitor *m = wl_container_of(listener, m, frame);
 	Client *c;
-	LayerSurface *layer;
-	int i, skip = 0;
+	int skip = 0;
 	struct timespec now;
 
 	/* Render if no XDG clients have an outstanding resize. */
