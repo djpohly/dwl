@@ -2139,8 +2139,10 @@ unmapnotify(struct wl_listener *listener, void *data)
 		grabc = NULL;
 	}
 	wl_list_remove(&c->link);
-	if (client_is_unmanaged(c))
+	if (client_is_unmanaged(c)) {
+		wlr_scene_node_destroy(c->scene);
 		return;
+	}
 
 	setmon(c, NULL, 0);
 	wl_list_remove(&c->flink);
