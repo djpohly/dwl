@@ -1323,23 +1323,24 @@ mapnotify(struct wl_listener *listener, void *data)
 			? wlr_scene_xdg_surface_create(c->scene, c->surface.xdg)
 			: wlr_scene_subsurface_tree_create(c->scene, client_surface(c));
 	c->scene_surface->data = c;
-	for (i = 0; i < 4; i++) {
-		c->border[i] = wlr_scene_rect_create(c->scene, 0, 0, bordercolor);
-		c->border[i]->node.data = c;
-		wlr_scene_rect_set_color(c->border[i], bordercolor);
-	}
 
 	if (client_is_unmanaged(c)) {
 		client_get_geometry(c, &c->geom);
-		/* Floating, no border */
+		/* Floating */
 		wlr_scene_node_reparent(c->scene, layers[LyrFloat]);
-		c->bw = 0;
 		wlr_scene_node_set_position(c->scene, c->geom.x + borderpx,
 			c->geom.y + borderpx);
 
 		/* Insert this independent into independents lists. */
 		wl_list_insert(&independents, &c->link);
 		return;
+	}
+
+	for (i = 0; i < 4; i++) {
+		c->border[i] = wlr_scene_rect_create(c->scene, 0, 0, bordercolor);
+		c->border[i]->node.data = c;
+		wlr_scene_rect_set_color(c->border[i], bordercolor);
+		wlr_scene_node_lower_to_bottom(&c->border[i]->node);
 	}
 
 	/* Initialize client geometry with room for border */
