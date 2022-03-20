@@ -104,6 +104,16 @@ client_is_float_type(Client *c)
 }
 
 static inline int
+client_wants_fullscreen(Client *c)
+{
+#ifdef XWAYLAND
+	if (client_is_x11(c))
+		return c->surface.xwayland->fullscreen;
+#endif
+	return c->surface.xdg->toplevel->requested.fullscreen;
+}
+
+static inline int
 client_is_unmanaged(Client *c)
 {
 #ifdef XWAYLAND
@@ -168,4 +178,45 @@ client_surface_at(Client *c, double cx, double cy, double *sx, double *sy)
 				cx, cy, sx, sy);
 #endif
 	return wlr_xdg_surface_surface_at(c->surface.xdg, cx, cy, sx, sy);
+}
+
+static inline void
+client_min_size(Client *c, int *width, int *height)
+{
+	struct wlr_xdg_toplevel *toplevel;
+	struct wlr_xdg_toplevel_state *state;
+#ifdef XWAYLAND
+	if (client_is_x11(c)) {
+		struct wlr_xwayland_surface_size_hints *size_hints;
+		size_hints = c->surface.xwayland->size_hints;
+		*width = size_hints->min_width;
+		*height = size_hints->min_height;
+		return;
+	}
+#endif
+	toplevel = c->surface.xdg->toplevel;
+	state = &toplevel->current;
+	*width = state->min_width;
+	*height = state->min_height;
+}
+
+static inline Client *
+client_from_popup(struct wlr_xdg_popup *popup)
+{
+	struct wlr_xdg_surface *surface = popup->base;
+
+	while (1) {
+		switch (surface->role) {
+		case WLR_XDG_SURFACE_ROLE_POPUP:
+			if (!wlr_surface_is_xdg_surface(surface->popup->parent))
+				return NULL;
+
+			surface = wlr_xdg_surface_from_wlr_surface(surface->popup->parent);
+			break;
+		case WLR_XDG_SURFACE_ROLE_TOPLEVEL:
+				return surface->data;
+		case WLR_XDG_SURFACE_ROLE_NONE:
+			return NULL;
+		}
+	}
 }
