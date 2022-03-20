@@ -302,7 +302,6 @@ static struct wlr_xdg_shell *xdg_shell;
 static struct wlr_xdg_activation_v1 *activation;
 static struct wl_list clients; /* tiling order */
 static struct wl_list fstack;  /* focus order */
-static struct wl_list independents;
 static struct wlr_idle *idle;
 static struct wlr_layer_shell_v1 *layer_shell;
 static struct wlr_output_manager_v1 *output_mgr;
@@ -1337,9 +1336,6 @@ mapnotify(struct wl_listener *listener, void *data)
 		wlr_scene_node_reparent(c->scene, layers[LyrFloat]);
 		wlr_scene_node_set_position(c->scene, c->geom.x + borderpx,
 			c->geom.y + borderpx);
-
-		/* Insert this independent into independents lists. */
-		wl_list_insert(&independents, &c->link);
 		return;
 	}
 
@@ -1917,7 +1913,6 @@ setup(void)
 	 */
 	wl_list_init(&clients);
 	wl_list_init(&fstack);
-	wl_list_init(&independents);
 
 	idle = wlr_idle_create(dpy);
 
@@ -2147,12 +2142,13 @@ unmapnotify(struct wl_listener *listener, void *data)
 		cursor_mode = CurNormal;
 		grabc = NULL;
 	}
-	wl_list_remove(&c->link);
+
 	if (client_is_unmanaged(c)) {
 		wlr_scene_node_destroy(c->scene);
 		return;
 	}
 
+	wl_list_remove(&c->link);
 	setmon(c, NULL, 0);
 	wl_list_remove(&c->flink);
 	wlr_scene_node_destroy(c->scene);
