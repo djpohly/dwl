@@ -91,16 +91,37 @@ client_get_title(Client *c)
 static inline int
 client_is_float_type(Client *c)
 {
+	struct wlr_xdg_toplevel *toplevel;
+	struct wlr_xdg_toplevel_state state;
+
 #ifdef XWAYLAND
-	if (client_is_x11(c))
-		for (size_t i = 0; i < c->surface.xwayland->window_type_len; i++)
-			if (c->surface.xwayland->window_type[i] == netatom[NetWMWindowTypeDialog] ||
-					c->surface.xwayland->window_type[i] == netatom[NetWMWindowTypeSplash] ||
-					c->surface.xwayland->window_type[i] == netatom[NetWMWindowTypeToolbar] ||
-					c->surface.xwayland->window_type[i] == netatom[NetWMWindowTypeUtility])
+	if (client_is_x11(c)) {
+		struct wlr_xwayland_surface *surface = c->surface.xwayland;
+		struct wlr_xwayland_surface_size_hints *size_hints;
+		if (surface->modal)
+			return 1;
+
+		for (size_t i = 0; i < surface->window_type_len; i++)
+			if (surface->window_type[i] == netatom[NetWMWindowTypeDialog] ||
+					surface->window_type[i] == netatom[NetWMWindowTypeSplash] ||
+					surface->window_type[i] == netatom[NetWMWindowTypeToolbar] ||
+					surface->window_type[i] == netatom[NetWMWindowTypeUtility])
 				return 1;
+
+		size_hints = surface->size_hints;
+		if (size_hints && size_hints->min_width > 0 && size_hints->min_height > 0
+				&& (size_hints->max_width == size_hints->min_width ||
+				size_hints->max_height == size_hints->min_height))
+			return 1;
+	}
 #endif
-	return 0;
+
+	toplevel = c->surface.xdg->toplevel;
+	state = toplevel->current;
+	return (state.min_width != 0 && state.min_height != 0
+		&& (state.min_width == state.max_width
+		|| state.min_height == state.max_height))
+		|| toplevel->parent;
 }
 
 static inline int
