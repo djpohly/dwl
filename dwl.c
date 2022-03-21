@@ -1359,7 +1359,6 @@ mapnotify(struct wl_listener *listener, void *data)
 
 	/* Set initial monitor, tags, floating status, and focus */
 	applyrules(c);
-	resize(c, c->geom.x, c->geom.y, c->geom.width, c->geom.height, 0);
 	printstatus();
 
 	if (c->isfullscreen)
