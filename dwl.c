@@ -227,6 +227,7 @@ static void cursorframe(struct wl_listener *listener, void *data);
 static void destroylayersurfacenotify(struct wl_listener *listener, void *data);
 static void destroynotify(struct wl_listener *listener, void *data);
 static Monitor *dirtomon(enum wlr_direction dir);
+static void dragicondestroy(struct wl_listener *listener, void *data);
 static void focusclient(Client *c, int lift);
 static void focusmon(const Arg *arg);
 static void focusstack(const Arg *arg);
@@ -254,6 +255,7 @@ static void printstatus(void);
 static void quit(const Arg *arg);
 static void quitsignal(int signo);
 static void rendermon(struct wl_listener *listener, void *data);
+static void requeststartdrag(struct wl_listener *listener, void *data);
 static void resize(Client *c, int x, int y, int w, int h, int interact);
 static void run(char *startup_cmd);
 static Client *selclient(void);
@@ -268,6 +270,7 @@ static void setmon(Client *c, Monitor *m, unsigned int newtags);
 static void setup(void);
 static void sigchld(int unused);
 static void spawn(const Arg *arg);
+static void startdrag(struct wl_listener *listener, void *data);
 static void tag(const Arg *arg);
 static void tagmon(const Arg *arg);
 static void tile(Monitor *m);
@@ -340,6 +343,9 @@ static struct wl_listener request_activate = {.notify = urgent};
 static struct wl_listener request_cursor = {.notify = setcursor};
 static struct wl_listener request_set_psel = {.notify = setpsel};
 static struct wl_listener request_set_sel = {.notify = setsel};
+static struct wl_listener request_start_drag = {.notify = requeststartdrag};
+static struct wl_listener start_drag = {.notify = startdrag};
+static struct wl_listener drag_icon_destroy = {.notify = dragicondestroy};
 
 #ifdef XWAYLAND
 static void activatex11(struct wl_listener *listener, void *data);
@@ -1024,6 +1030,16 @@ destroynotify(struct wl_listener *listener, void *data)
 }
 
 void
+dragicondestroy(struct wl_listener *listener, void *data)
+{
+	struct wlr_drag_icon *icon = data;
+	wlr_scene_node_destroy(icon->data);
+	// Focus enter isn't sent during drag, so refocus the focused node.
+	focusclient(selclient(), 1);
+	motionnotify(0);
+}
+
+void
 togglefullscreen(const Arg *arg)
 {
 	Client *sel = selclient();
@@ -1400,11 +1416,16 @@ motionnotify(uint32_t time)
 
 	/* time is 0 in internal calls meant to restore pointer focus. */
 	if (time) {
+		struct wlr_drag_icon *icon;
 		wlr_idle_notify_activity(idle, seat);
 
 		/* Update selmon (even while dragging a window) */
 		if (sloppyfocus)
 			selmon = xytomon(cursor->x, cursor->y);
+
+		if (seat->drag && (icon = seat->drag->icon))
+			wlr_scene_node_set_position(icon->data, cursor->x + icon->surface->sx,
+					cursor->y + icon->surface->sy);
 	}
 
 	/* If we are currently grabbing the mouse, handle and return */
@@ -1663,6 +1684,18 @@ resize(Client *c, int x, int y, int w, int h, int interact)
 	/* wlroots makes this a no-op if size hasn't changed */
 	c->resize = client_set_size(c, c->geom.width - 2 * c->bw,
 			c->geom.height - 2 * c->bw);
+}
+
+void
+requeststartdrag(struct wl_listener *listener, void *data)
+{
+	struct wlr_seat_request_start_drag_event *event = data;
+
+	if (wlr_seat_validate_pointer_grab_serial(seat, event->origin,
+			event->serial))
+		wlr_seat_start_pointer_drag(seat, event->drag, event->serial);
+	else
+		wlr_data_source_destroy(event->drag->source);
 }
 
 void
@@ -1976,6 +2009,8 @@ setup(void)
 	wl_signal_add(&seat->events.request_set_cursor, &request_cursor);
 	wl_signal_add(&seat->events.request_set_selection, &request_set_sel);
 	wl_signal_add(&seat->events.request_set_primary_selection, &request_set_psel);
+	wl_signal_add(&seat->events.request_start_drag, &request_start_drag);
+	wl_signal_add(&seat->events.start_drag, &start_drag);
 
 	output_mgr = wlr_output_manager_v1_create(dpy);
 	wl_signal_add(&output_mgr->events.apply, &output_mgr_apply);
@@ -2024,6 +2059,19 @@ spawn(const Arg *arg)
 		execvp(((char **)arg->v)[0], (char **)arg->v);
 		EBARF("dwl: execvp %s failed", ((char **)arg->v)[0]);
 	}
+}
+
+void
+startdrag(struct wl_listener *listener, void *data)
+{
+	struct wlr_drag *drag = data;
+
+	if (!drag->icon)
+		return;
+
+	drag->icon->data = wlr_scene_subsurface_tree_create(layers[LyrTop], drag->icon->surface);
+	wlr_scene_node_raise_to_top(drag->icon->data);
+	wl_signal_add(&drag->icon->events.destroy, &drag_icon_destroy);
 }
 
 void
