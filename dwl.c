@@ -1624,9 +1624,11 @@ rendermon(struct wl_listener *listener, void *data)
 	int skip = 0;
 	struct timespec now;
 
-	/* Render if no XDG clients have an outstanding resize. */
+	/* Render if no XDG clients have an outstanding resize and are visible on
+	 * this monitor.
+	 */
 	wl_list_for_each(c, &clients, link)
-		skip = skip || c->resize;
+		skip = skip || (c->resize && VISIBLEON(c, m));
 	if (!skip && !wlr_scene_output_commit(m->scene_output))
 		return;
 
