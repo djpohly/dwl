@@ -208,7 +208,7 @@ static void cleanupmon(struct wl_listener *listener, void *data);
 static void closemon(Monitor *m);
 static void commitlayersurfacenotify(struct wl_listener *listener, void *data);
 static void commitnotify(struct wl_listener *listener, void *data);
-static void createkeyboard(struct wlr_input_device *device);
+static void createkeyboard(struct wlr_keyboard *keyboard);
 static void createmon(struct wl_listener *listener, void *data);
 static void createnotify(struct wl_listener *listener, void *data);
 static void createlayersurface(struct wl_listener *listener, void *data);
@@ -562,7 +562,7 @@ void
 cleanupkeyboard(struct wl_listener *listener, void *data)
 {
 	struct wlr_input_device *device = data;
-	Keyboard *kb = device->data;
+	Keyboard *kb = device->keyboard->data;
 
 	wl_list_remove(&kb->link);
 	wl_list_remove(&kb->modifiers.link);
@@ -643,31 +643,31 @@ commitnotify(struct wl_listener *listener, void *data)
 }
 
 void
-createkeyboard(struct wlr_input_device *device)
+createkeyboard(struct wlr_keyboard *keyboard)
 {
 	struct xkb_context *context;
 	struct xkb_keymap *keymap;
-	Keyboard *kb = device->data = calloc(1, sizeof(*kb));
+	Keyboard *kb = keyboard->data = calloc(1, sizeof(*kb));
 	if (!kb)
 		EBARF("createkeyboard: calloc");
-	kb->wlr_keyboard = device->keyboard;
+	kb->wlr_keyboard = keyboard;
 
 	/* Prepare an XKB keymap and assign it to the keyboard. */
 	context = xkb_context_new(XKB_CONTEXT_NO_FLAGS);
 	keymap = xkb_keymap_new_from_names(context, &xkb_rules,
 		XKB_KEYMAP_COMPILE_NO_FLAGS);
 
-	wlr_keyboard_set_keymap(device->keyboard, keymap);
+	wlr_keyboard_set_keymap(keyboard, keymap);
 	xkb_keymap_unref(keymap);
 	xkb_context_unref(context);
-	wlr_keyboard_set_repeat_info(device->keyboard, repeat_rate, repeat_delay);
+	wlr_keyboard_set_repeat_info(keyboard, repeat_rate, repeat_delay);
 
 	/* Here we set up listeners for keyboard events. */
-	LISTEN(&device->keyboard->events.modifiers, &kb->modifiers, keypressmod);
-	LISTEN(&device->keyboard->events.key, &kb->key, keypress);
-	LISTEN(&device->events.destroy, &kb->destroy, cleanupkeyboard);
+	LISTEN(&keyboard->events.modifiers, &kb->modifiers, keypressmod);
+	LISTEN(&keyboard->events.key, &kb->key, keypress);
+	LISTEN(&keyboard->base.events.destroy, &kb->destroy, cleanupkeyboard);
 
-	wlr_seat_set_keyboard(seat, device->keyboard);
+	wlr_seat_set_keyboard(seat, keyboard);
 
 	/* And add the keyboard to our list of keyboards */
 	wl_list_insert(&keyboards, &kb->link);
@@ -1099,7 +1099,7 @@ inputdevice(struct wl_listener *listener, void *data)
 
 	switch (device->type) {
 	case WLR_INPUT_DEVICE_KEYBOARD:
-		createkeyboard(device);
+		createkeyboard(device->keyboard);
 		break;
 	case WLR_INPUT_DEVICE_POINTER:
 		createpointer(device);
@@ -2174,7 +2174,7 @@ virtualkeyboard(struct wl_listener *listener, void *data)
 {
 	struct wlr_virtual_keyboard_v1 *keyboard = data;
 	struct wlr_input_device *device = &keyboard->keyboard.base;
-	createkeyboard(device);
+	createkeyboard(device->keyboard);
 }
 
 struct wlr_scene_node *
