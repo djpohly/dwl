@@ -67,7 +67,7 @@
 /* enums */
 enum { CurNormal, CurMove, CurResize }; /* cursor */
 enum { XDGShell, LayerShell, X11Managed, X11Unmanaged }; /* client types */
-enum { LyrBg, LyrBottom, LyrTop, LyrOverlay, LyrTile, LyrFloat, NUM_LAYERS }; /* scene layers */
+enum { LyrBg, LyrBottom, LyrTop, LyrOverlay, LyrTile, LyrFloat, LyrNoFocus, NUM_LAYERS }; /* scene layers */
 #ifdef XWAYLAND
 enum { NetWMWindowTypeDialog, NetWMWindowTypeSplash, NetWMWindowTypeToolbar,
 	NetWMWindowTypeUtility, NetLast }; /* EWMH atoms */
@@ -1911,6 +1911,7 @@ setup(void)
 	layers[LyrFloat] = &wlr_scene_tree_create(&scene->node)->node;
 	layers[LyrTop] = &wlr_scene_tree_create(&scene->node)->node;
 	layers[LyrOverlay] = &wlr_scene_tree_create(&scene->node)->node;
+	layers[LyrNoFocus] = &wlr_scene_tree_create(&scene->node)->node;
 
 	/* Create a renderer with the default implementation */
 	if (!(drw = wlr_renderer_autocreate(backend)))
@@ -2079,7 +2080,7 @@ startdrag(struct wl_listener *listener, void *data)
 	if (!drag->icon)
 		return;
 
-	drag->icon->data = wlr_scene_subsurface_tree_create(layers[LyrTop], drag->icon->surface);
+	drag->icon->data = wlr_scene_subsurface_tree_create(layers[LyrNoFocus], drag->icon->surface);
 	motionnotify(0);
 	wl_signal_add(&drag->icon->events.destroy, &drag_icon_destroy);
 }
@@ -2308,17 +2309,23 @@ xytonode(double x, double y, struct wlr_surface **psurface,
 	struct wlr_surface *surface = NULL;
 	Client *c = NULL;
 	LayerSurface *l = NULL;
+	int i;
+	int focus_order[] = { LyrOverlay, LyrTop, LyrFloat, LyrTile, LyrBottom, LyrBg };
 
-	if ((node = wlr_scene_node_at(&scene->node, x, y, nx, ny))) {
-		if (node->type == WLR_SCENE_NODE_SURFACE)
-			surface = wlr_scene_surface_from_node(node)->surface;
-		/* Walk the tree to find a node that knows the client */
-		for (pnode = node; pnode && !c; pnode = pnode->parent)
-			c = pnode->data;
-		if (c && c->type == LayerShell) {
-			c = NULL;
-			l = pnode->data;
+	for (i = 0; i < LENGTH(focus_order); i++) {
+		if ((node = wlr_scene_node_at(layers[focus_order[i]], x, y, nx, ny))) {
+			if (node->type == WLR_SCENE_NODE_SURFACE)
+				surface = wlr_scene_surface_from_node(node)->surface;
+			/* Walk the tree to find a node that knows the client */
+			for (pnode = node; pnode && !c; pnode = pnode->parent)
+				c = pnode->data;
+			if (c && c->type == LayerShell) {
+				c = NULL;
+				l = pnode->data;
+			}
 		}
+		if (surface)
+			break;
 	}
 
 	if (psurface) *psurface = surface;
