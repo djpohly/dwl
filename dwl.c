@@ -1291,11 +1291,16 @@ motionnotify(uint32_t time)
 
 	/* time is 0 in internal calls meant to restore pointer focus. */
 	if (time) {
+		struct wlr_drag_icon *icon;
 		wlr_idle_notify_activity(idle, seat);
 
 		/* Update selmon (even while dragging a window) */
 		if (sloppyfocus)
 			selmon = xytomon(cursor->x, cursor->y);
+
+		if (seat->drag && (icon = seat->drag->icon))
+			wlr_scene_node_set_position(icon->data, cursor->x + icon->surface->sx,
+					cursor->y + icon->surface->sy);
 	}
 
 	/* If we are currently grabbing the mouse, handle and return */
@@ -1434,7 +1439,6 @@ pointerfocus(Client *c, struct wlr_surface *surface, double sx, double sy,
 {
 	struct timespec now;
 	int internal_call = !time;
-	struct wlr_drag_icon *icon;
 
 	if (sloppyfocus && !internal_call && c && !client_is_unmanaged(c))
 		focusclient(c, 0);
@@ -1456,13 +1460,6 @@ pointerfocus(Client *c, struct wlr_surface *surface, double sx, double sy,
 	wlr_seat_pointer_notify_enter(seat, surface, sx, sy);
 	wlr_seat_pointer_notify_motion(seat, time, sx, sy);
 
-	/* If there are is a drag icon, update its position */
-	/* For anyone who wants to change this function: for some reason
-	 * (maybe a wlroots bug?, or is it intended?) if we change the node position
-	 * before telling the seat for a motion, the clients don't recognize the drag */
-	if (seat->drag && (icon = seat->drag->icon))
-		wlr_scene_node_set_position(icon->data, cursor->x + icon->surface->sx,
-				cursor->y + icon->surface->sy);
 }
 
 void
