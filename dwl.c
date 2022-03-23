@@ -129,7 +129,7 @@ typedef struct {
 
 typedef struct {
 	struct wl_list link;
-	struct wlr_input_device *device;
+	struct wlr_keyboard *wlr_keyboard;
 
 	struct wl_listener modifiers;
 	struct wl_listener key;
@@ -643,7 +643,7 @@ createkeyboard(struct wlr_input_device *device)
 	Keyboard *kb = device->data = calloc(1, sizeof(*kb));
 	if (!kb)
 		EBARF("createkeyboard: calloc");
-	kb->device = device;
+	kb->wlr_keyboard = device->keyboard;
 
 	/* Prepare an XKB keymap and assign it to the keyboard. */
 	context = xkb_context_new(XKB_CONTEXT_NO_FLAGS);
@@ -660,7 +660,7 @@ createkeyboard(struct wlr_input_device *device)
 	LISTEN(&device->keyboard->events.key, &kb->key, keypress);
 	LISTEN(&device->events.destroy, &kb->destroy, cleanupkeyboard);
 
-	wlr_seat_set_keyboard(seat, device);
+	wlr_seat_set_keyboard(seat, device->keyboard);
 
 	/* And add the keyboard to our list of keyboards */
 	wl_list_insert(&keyboards, &kb->link);
@@ -1135,10 +1135,10 @@ keypress(struct wl_listener *listener, void *data)
 	/* Get a list of keysyms based on the keymap for this keyboard */
 	const xkb_keysym_t *syms;
 	int nsyms = xkb_state_key_get_syms(
-			kb->device->keyboard->xkb_state, keycode, &syms);
+			kb->wlr_keyboard->xkb_state, keycode, &syms);
 
 	int handled = 0;
-	uint32_t mods = wlr_keyboard_get_modifiers(kb->device->keyboard);
+	uint32_t mods = wlr_keyboard_get_modifiers(kb->wlr_keyboard);
 
 	wlr_idle_notify_activity(idle, seat);
 
@@ -1149,7 +1149,7 @@ keypress(struct wl_listener *listener, void *data)
 
 	if (!handled) {
 		/* Pass unhandled keycodes along to the client. */
-		wlr_seat_set_keyboard(seat, kb->device);
+		wlr_seat_set_keyboard(seat, kb->wlr_keyboard);
 		wlr_seat_keyboard_notify_key(seat, event->time_msec,
 			event->keycode, event->state);
 	}
@@ -1167,10 +1167,10 @@ keypressmod(struct wl_listener *listener, void *data)
 	 * same seat. You can swap out the underlying wlr_keyboard like this and
 	 * wlr_seat handles this transparently.
 	 */
-	wlr_seat_set_keyboard(seat, kb->device);
+	wlr_seat_set_keyboard(seat, kb->wlr_keyboard);
 	/* Send modifiers to the client. */
 	wlr_seat_keyboard_notify_modifiers(seat,
-		&kb->device->keyboard->modifiers);
+		&kb->wlr_keyboard->modifiers);
 }
 
 void
