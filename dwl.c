@@ -212,7 +212,7 @@ static void createkeyboard(struct wlr_keyboard *keyboard);
 static void createmon(struct wl_listener *listener, void *data);
 static void createnotify(struct wl_listener *listener, void *data);
 static void createlayersurface(struct wl_listener *listener, void *data);
-static void createpointer(struct wlr_input_device *device);
+static void createpointer(struct wlr_pointer *pointer);
 static void cursorframe(struct wl_listener *listener, void *data);
 static void destroylayersurfacenotify(struct wl_listener *listener, void *data);
 static void destroynotify(struct wl_listener *listener, void *data);
@@ -831,11 +831,11 @@ createlayersurface(struct wl_listener *listener, void *data)
 }
 
 void
-createpointer(struct wlr_input_device *device)
+createpointer(struct wlr_pointer *pointer)
 {
-	if (wlr_input_device_is_libinput(device)) {
+	if (wlr_input_device_is_libinput(&pointer->base)) {
 		struct libinput_device *libinput_device =  (struct libinput_device*)
-			wlr_libinput_get_device_handle(device);
+			wlr_libinput_get_device_handle(&pointer->base);
 
 		if (tap_to_click && libinput_device_config_tap_get_finger_count(libinput_device))
 			libinput_device_config_tap_set_enabled(libinput_device, LIBINPUT_CONFIG_TAP_ENABLED);
@@ -848,7 +848,7 @@ createpointer(struct wlr_input_device *device)
 	 * is proxied through wlr_cursor. On another compositor, you might take this
 	 * opportunity to do libinput configuration on the device to set
 	 * acceleration, etc. */
-	wlr_cursor_attach_input_device(cursor, device);
+	wlr_cursor_attach_input_device(cursor, &pointer->base);
 }
 
 void
@@ -1102,7 +1102,7 @@ inputdevice(struct wl_listener *listener, void *data)
 		createkeyboard(device->keyboard);
 		break;
 	case WLR_INPUT_DEVICE_POINTER:
-		createpointer(device);
+		createpointer(device->pointer);
 		break;
 	default:
 		/* TODO handle other input device types */
