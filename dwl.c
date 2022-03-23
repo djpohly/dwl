@@ -1288,21 +1288,20 @@ motionnotify(uint32_t time)
 	double sx = 0, sy = 0;
 	Client *c = NULL;
 	struct wlr_surface *surface = NULL;
+	struct wlr_drag_icon *icon;
 
 	/* time is 0 in internal calls meant to restore pointer focus. */
 	if (time) {
-		struct wlr_drag_icon *icon;
 		wlr_idle_notify_activity(idle, seat);
 
 		/* Update selmon (even while dragging a window) */
 		if (sloppyfocus)
 			selmon = xytomon(cursor->x, cursor->y);
-
-		if (seat->drag && (icon = seat->drag->icon))
-			wlr_scene_node_set_position(icon->data, cursor->x + icon->surface->sx,
-					cursor->y + icon->surface->sy);
 	}
 
+	if (seat->drag && (icon = seat->drag->icon))
+		wlr_scene_node_set_position(icon->data, cursor->x + icon->surface->sx,
+				cursor->y + icon->surface->sy);
 	/* If we are currently grabbing the mouse, handle and return */
 	if (cursor_mode == CurMove) {
 		/* Move the grabbed client to the new position. */
@@ -1955,7 +1954,7 @@ startdrag(struct wl_listener *listener, void *data)
 		return;
 
 	drag->icon->data = wlr_scene_subsurface_tree_create(layers[LyrTop], drag->icon->surface);
-	wlr_scene_node_raise_to_top(drag->icon->data);
+	motionnotify(0);
 	wl_signal_add(&drag->icon->events.destroy, &drag_icon_destroy);
 }
 
