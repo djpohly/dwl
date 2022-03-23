@@ -309,7 +309,6 @@ static struct wl_list fstack;  /* focus order */
 static struct wlr_idle *idle;
 static struct wlr_layer_shell_v1 *layer_shell;
 static struct wlr_output_manager_v1 *output_mgr;
-static struct wlr_presentation *presentation;
 static struct wlr_virtual_keyboard_manager_v1 *virtual_keyboard_mgr;
 
 static struct wlr_cursor *cursor;
@@ -2032,8 +2031,7 @@ setup(void)
 	wl_signal_add(&output_mgr->events.apply, &output_mgr_apply);
 	wl_signal_add(&output_mgr->events.test, &output_mgr_test);
 
-	presentation = wlr_presentation_create(dpy, backend);
-	wlr_scene_set_presentation(scene, presentation);
+	wlr_scene_set_presentation(scene, wlr_presentation_create(dpy, backend));
 
 #ifdef XWAYLAND
 	/*
