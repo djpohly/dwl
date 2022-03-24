@@ -1689,9 +1689,7 @@ rendermon(struct wl_listener *listener, void *data)
 			skip = 1;
 		}
 	}
-	if (skip)
-		return;
-	if (!skip && !wlr_scene_output_commit(m->scene_output))
+	if (skip || !wlr_scene_output_commit(m->scene_output))
 		return;
 	/* Let clients know a frame has been rendered */
 	wlr_scene_output_send_frame_done(m->scene_output, &now);
