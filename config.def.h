@@ -49,7 +49,31 @@ static const int repeat_delay = 600;
 
 /* Trackpad */
 static const int tap_to_click = 1;
+static const int tap_and_drag = 1;
+static const int drag_lock = 1;
 static const int natural_scrolling = 0;
+static const int disable_while_typing = 1;
+static const int left_handed = 0;
+static const int middle_button_emulation = 0;
+/* You can choose between:
+LIBINPUT_CONFIG_SCROLL_NO_SCROLL
+LIBINPUT_CONFIG_SCROLL_2FG
+LIBINPUT_CONFIG_SCROLL_EDGE
+LIBINPUT_CONFIG_SCROLL_ON_BUTTON_DOWN
+*/
+static const enum libinput_config_scroll_method scroll_method = LIBINPUT_CONFIG_SCROLL_2FG;
+/* You can choose between:
+LIBINPUT_CONFIG_SEND_EVENTS_ENABLED
+LIBINPUT_CONFIG_SEND_EVENTS_DISABLED
+LIBINPUT_CONFIG_SEND_EVENTS_DISABLED_ON_EXTERNAL_MOUSE
+*/
+static const uint32_t send_events_mode = LIBINPUT_CONFIG_SEND_EVENTS_ENABLED;
+/* You can choose between:
+LIBINPUT_CONFIG_ACCEL_PROFILE_FLAT
+LIBINPUT_CONFIG_ACCEL_PROFILE_ADAPTIVE
+*/
+static const enum libinput_config_accel_profile accel_profile = LIBINPUT_CONFIG_ACCEL_PROFILE_ADAPTIVE;
+static const double accel_speed = 0.0;
 
 /* If you want to use the windows key change this to WLR_MODIFIER_LOGO */
 #define MODKEY WLR_MODIFIER_ALT

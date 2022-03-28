@@ -981,17 +981,36 @@ createpointer(struct wlr_input_device *device)
 		struct libinput_device *libinput_device =  (struct libinput_device*)
 			wlr_libinput_get_device_handle(device);
 
-		if (tap_to_click && libinput_device_config_tap_get_finger_count(libinput_device))
-			libinput_device_config_tap_set_enabled(libinput_device, LIBINPUT_CONFIG_TAP_ENABLED);
+		if (libinput_device_config_tap_get_finger_count(libinput_device)) {
+			libinput_device_config_tap_set_enabled(libinput_device, tap_to_click);
+			libinput_device_config_tap_set_drag_enabled(libinput_device, tap_and_drag);
+			libinput_device_config_tap_set_enabled(libinput_device, drag_lock);
+		}
 
 		if (libinput_device_config_scroll_has_natural_scroll(libinput_device))
 			libinput_device_config_scroll_set_natural_scroll_enabled(libinput_device, natural_scrolling);
+
+		if (libinput_device_config_dwt_is_available(libinput_device))
+			libinput_device_config_dwt_set_enabled(libinput_device, disable_while_typing);
+
+		if (libinput_device_config_left_handed_is_available(libinput_device))
+			libinput_device_config_left_handed_set(libinput_device, left_handed);
+
+		if (libinput_device_config_middle_emulation_is_available(libinput_device))
+			libinput_device_config_middle_emulation_set_enabled(libinput_device, middle_button_emulation);
+
+		if (libinput_device_config_scroll_get_methods(libinput_device) != LIBINPUT_CONFIG_SCROLL_NO_SCROLL)
+			libinput_device_config_scroll_set_method (libinput_device, scroll_method);
+
+		if (libinput_device_config_send_events_get_modes(libinput_device))
+			libinput_device_config_send_events_set_mode(libinput_device, send_events_mode);
+
+		if (libinput_device_config_accel_is_available(libinput_device)) {
+			libinput_device_config_accel_set_profile(libinput_device, accel_profile);
+			libinput_device_config_accel_set_speed(libinput_device, accel_speed);
+		}
 	}
 
-	/* We don't do anything special with pointers. All of our pointer handling
-	 * is proxied through wlr_cursor. On another compositor, you might take this
-	 * opportunity to do libinput configuration on the device to set
-	 * acceleration, etc. */
 	wlr_cursor_attach_input_device(cursor, device);
 }
 
