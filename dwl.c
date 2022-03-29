@@ -258,7 +258,6 @@ static void setlayout(const Arg *arg);
 static void setmfact(const Arg *arg);
 static void setmon(Client *c, Monitor *m, unsigned int newtags);
 static void setup(void);
-static void sigchld(int unused);
 static void spawn(const Arg *arg);
 static void startdrag(struct wl_listener *listener, void *data);
 static void tag(const Arg *arg);
@@ -341,6 +340,7 @@ static void activatex11(struct wl_listener *listener, void *data);
 static void configurex11(struct wl_listener *listener, void *data);
 static void createnotifyx11(struct wl_listener *listener, void *data);
 static Atom getatom(xcb_connection_t *xc, const char *name);
+static void sigchld(int unused);
 static void xwaylandready(struct wl_listener *listener, void *data);
 static struct wl_listener new_xwayland_surface = {.notify = createnotifyx11};
 static struct wl_listener xwayland_ready = {.notify = xwaylandready};
@@ -1762,7 +1762,11 @@ setup(void)
 	dpy = wl_display_create();
 
 	/* Set up signal handlers */
+#ifdef XWAYLAND
 	sigchld(0);
+#else
+	signal(SIGCHLD, SIG_IGN);
+#endif
 	signal(SIGINT, quitsignal);
 	signal(SIGTERM, quitsignal);
 
@@ -1920,25 +1924,6 @@ setup(void)
 		fprintf(stderr, "failed to setup XWayland X server, continuing without it\n");
 	}
 #endif
-}
-
-void
-sigchld(int unused)
-{
-	siginfo_t in;
-	/* We should be able to remove this function in favor of a simple
-	 *     signal(SIGCHLD, SIG_IGN);
-	 * but the Xwayland implementation in wlroots currently prevents us from
-	 * setting our own disposition for SIGCHLD.
-	 */
-	if (signal(SIGCHLD, sigchld) == SIG_ERR)
-		EBARF("can't install SIGCHLD handler");
-	/* WNOWAIT leaves the child in a waitable state, in case this is the
-	 * XWayland process
-	 */
-	while (!waitid(P_ALL, 0, &in, WEXITED|WNOHANG|WNOWAIT) && in.si_pid
-			&& in.si_pid != xwayland->server->pid)
-		waitpid(in.si_pid, NULL, 0);
 }
 
 void
@@ -2315,6 +2300,25 @@ getatom(xcb_connection_t *xc, const char *name)
 	free(reply);
 
 	return atom;
+}
+
+void
+sigchld(int unused)
+{
+	siginfo_t in;
+	/* We should be able to remove this function in favor of a simple
+	 *     signal(SIGCHLD, SIG_IGN);
+	 * but the Xwayland implementation in wlroots currently prevents us from
+	 * setting our own disposition for SIGCHLD.
+	 */
+	if (signal(SIGCHLD, sigchld) == SIG_ERR)
+		EBARF("can't install SIGCHLD handler");
+	/* WNOWAIT leaves the child in a waitable state, in case this is the
+	 * XWayland process
+	 */
+	while (!waitid(P_ALL, 0, &in, WEXITED|WNOHANG|WNOWAIT) && in.si_pid
+			&& in.si_pid != xwayland->server->pid)
+		waitpid(in.si_pid, NULL, 0);
 }
 
 void
