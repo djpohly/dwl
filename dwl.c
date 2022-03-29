@@ -273,7 +273,6 @@ static void setlayout(const Arg *arg);
 static void setmfact(const Arg *arg);
 static void setmon(Client *c, Monitor *m, unsigned int newtags);
 static void setup(void);
-static void sigchld(int unused);
 static void spawn(const Arg *arg);
 static void startdrag(struct wl_listener *listener, void *data);
 static void tag(const Arg *arg);
@@ -1915,7 +1914,6 @@ setup(void)
 	dpy = wl_display_create();
 
 	/* Set up signal handlers */
-	sigchld(0);
 	signal(SIGINT, quitsignal);
 	signal(SIGTERM, quitsignal);
 
@@ -2077,20 +2075,6 @@ setup(void)
 		fprintf(stderr, "failed to setup XWayland X server, continuing without it\n");
 	}
 #endif
-}
-
-void
-sigchld(int unused)
-{
-	/* We should be able to remove this function in favor of a simple
-	 *     signal(SIGCHLD, SIG_IGN);
-	 * but the Xwayland implementation in wlroots currently prevents us from
-	 * setting our own disposition for SIGCHLD.
-	 */
-	if (signal(SIGCHLD, sigchld) == SIG_ERR)
-		EBARF("can't install SIGCHLD handler");
-	while (0 < waitpid(-1, NULL, WNOHANG))
-		;
 }
 
 void
