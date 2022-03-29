@@ -1925,6 +1925,7 @@ setup(void)
 void
 sigchld(int unused)
 {
+	siginfo_t in;
 	/* We should be able to remove this function in favor of a simple
 	 *     signal(SIGCHLD, SIG_IGN);
 	 * but the Xwayland implementation in wlroots currently prevents us from
@@ -1932,8 +1933,12 @@ sigchld(int unused)
 	 */
 	if (signal(SIGCHLD, sigchld) == SIG_ERR)
 		EBARF("can't install SIGCHLD handler");
-	while (0 < waitpid(-1, NULL, WNOHANG))
-		;
+	/* WNOWAIT leaves the child in a waitable state, in case this is the
+	 * XWayland process
+	 */
+	while (!waitid(P_ALL, 0, &in, WEXITED|WNOHANG|WNOWAIT) && in.si_pid
+			&& in.si_pid != xwayland->server->pid)
+		waitpid(in.si_pid, NULL, 0);
 }
 
 void
