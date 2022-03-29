@@ -1748,22 +1748,31 @@ run(char *startup_cmd)
 
 	/* Now that the socket exists, run the startup command */
 	if (startup_cmd) {
+		/* For explanation about double-forking see spawn() */
 		int piperw[2];
 		pipe(piperw);
 		startup_pid = fork();
 		if (startup_pid < 0)
 			EBARF("startup: fork");
 		if (startup_pid == 0) {
-			dup2(piperw[0], STDIN_FILENO);
-			close(piperw[0]);
+			pid_t child;
 			close(piperw[1]);
-			execl("/bin/sh", "/bin/sh", "-c", startup_cmd, NULL);
-			EBARF("startup: execl");
+			if ((child = fork()) == 0) {
+				dup2(piperw[0], STDIN_FILENO);
+				close(piperw[0]);
+				execl("/bin/sh", "/bin/sh", "-c", startup_cmd, NULL);
+				EBARF("startup: execl");
+			}
+			close(piperw[0]);
+			_exit(0);
 		}
 		dup2(piperw[1], STDOUT_FILENO);
 		close(piperw[1]);
 		close(piperw[0]);
+
+		waitpid(startup_pid, NULL, 0);
 	}
+
 	/* If nobody is reading the status output, don't terminate */
 	signal(SIGPIPE, SIG_IGN);
 	printstatus();
@@ -1789,11 +1798,6 @@ run(char *startup_cmd)
 	 * loop configuration to listen to libinput events, DRM events, generate
 	 * frame events at the refresh rate, and so on. */
 	wl_display_run(dpy);
-
-	if (startup_cmd) {
-		kill(startup_pid, SIGTERM);
-		waitpid(startup_pid, NULL, 0);
-	}
 }
 
 Client *
@@ -2080,12 +2084,28 @@ setup(void)
 void
 spawn(const Arg *arg)
 {
-	if (fork() == 0) {
-		dup2(STDERR_FILENO, STDOUT_FILENO);
+	/* The simplest way to avoid zombie processes is `signal(SIGCHLD, SIG_IGN)`
+	 * but Xwayland implementation in wlroots currently prevent us from setting
+	 * our own disposition for SIGCHLD; to be able to spawn child processes
+	 * we do double-fork, so we spawn the command in the second fork and wait
+	 * for the first fork.
+	 */
+	pid_t pid = -1;
+	if ((pid = fork()) == 0) {
+		pid_t child = -1;
 		setsid();
-		execvp(((char **)arg->v)[0], (char **)arg->v);
-		EBARF("dwl: execvp %s failed", ((char **)arg->v)[0]);
+		signal(SIGPIPE, SIG_DFL);
+		/* Fork child process again */
+		if ((child = fork()) == 0) {
+			dup2(STDERR_FILENO, STDOUT_FILENO);
+			execvp(((char **)arg->v)[0], (char **)arg->v);
+			EBARF("dwl: execvp %s failed", ((char **)arg->v)[0]);
+		}
+		_exit(0); /* Close child process */
+	} else if (pid < 0) {
+		EBARF("spawn: fork");
 	}
+	waitpid(pid, NULL, 0);
 }
 
 void
