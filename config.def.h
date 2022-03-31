@@ -13,8 +13,8 @@ static const Rule rules[] = {
 	/* app_id     title       tags mask     isfloating   monitor */
 	/* examples:
 	{ "Gimp",     NULL,       0,            1,           -1 },
-	{ "firefox",  NULL,       1 << 8,       0,           -1 },
 	*/
+	{ "firefox",  NULL,       1 << 8,       0,           -1 },
 };
 
 /* layout(s) */
@@ -43,6 +43,7 @@ static const struct xkb_rule_names xkb_rules = {
 	/* example:
 	.options = "ctrl:nocaps",
 	*/
+	.options = "",
 };
 
 static const int repeat_rate = 25;
