@@ -1749,9 +1749,9 @@ run(char *startup_cmd)
 	/* Now that the socket exists, run the startup command */
 	if (startup_cmd) {
 		int piperw[2];
-		pipe(piperw);
-		startup_pid = fork();
-		if (startup_pid < 0)
+		if (pipe(piperw) < 0)
+			die("startup: pipe:");
+		if ((startup_pid = fork()) < 0)
 			die("startup: fork:");
 		if (startup_pid == 0) {
 			dup2(piperw[0], STDIN_FILENO);
