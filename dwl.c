@@ -982,7 +982,7 @@ createpointer(struct wlr_input_device *device)
 		if (tap_to_click && libinput_device_config_tap_get_finger_count(libinput_device))
 			libinput_device_config_tap_set_enabled(libinput_device, LIBINPUT_CONFIG_TAP_ENABLED);
 
-		if (libinput_device_config_scroll_has_natural_scroll(libinput_device))
+		if (natural_scrolling && libinput_device_config_scroll_has_natural_scroll(libinput_device))
 			libinput_device_config_scroll_set_natural_scroll_enabled(libinput_device, natural_scrolling);
 	}
 
