@@ -15,11 +15,11 @@ clean:
 	rm -f dwl *.o *-protocol.h *-protocol.c
 
 install: dwl
-	install -Dm755 dwl $(PREFIX)/bin/dwl
-	install -Dm644 dwl.1 $(MANDIR)/man1/dwl.1
+	install -Dm755 dwl $(DESTDIR)$(PREFIX)/bin/dwl
+	install -Dm644 dwl.1 $(DESTDIR)$(MANDIR)/man1/dwl.1
 
 uninstall:
-	rm -f $(PREFIX)/bin/dwl $(MANDIR)/man1/dwl.1
+	rm -f $(DESTDIR)$(PREFIX)/bin/dwl $(DESTDIR)$(MANDIR)/man1/dwl.1
 
 .PHONY: all clean install uninstall
 
