@@ -822,6 +822,7 @@ createmon(struct wl_listener *listener, void *data)
 	/* This event is raised by the backend when a new output (aka a display or
 	 * monitor) becomes available. */
 	struct wlr_output *wlr_output = data;
+	struct wlr_output_mode *preferred_mode, *mode;
 	const MonitorRule *r;
 	Monitor *m = wlr_output->data = calloc(1, sizeof(*m));
 	if (!m)
@@ -850,7 +851,17 @@ createmon(struct wl_listener *listener, void *data)
 	 * monitor supports only a specific set of modes. We just pick the
 	 * monitor's preferred mode; a more sophisticated compositor would let
 	 * the user configure it. */
-	wlr_output_set_mode(wlr_output, wlr_output_preferred_mode(wlr_output));
+	preferred_mode = wlr_output_preferred_mode(wlr_output);
+	wlr_output_set_mode(wlr_output, preferred_mode);
+	if (!wlr_output_test(wlr_output) && !wl_list_empty(&wlr_output->modes)) {
+		wl_list_for_each(mode, &wlr_output->modes, link) {
+			if (mode != preferred_mode) {
+				wlr_output_set_mode(wlr_output, mode);
+				if (wlr_output_test(wlr_output))
+					break;
+			}
+		}
+	}
 	wlr_output_enable_adaptive_sync(wlr_output, 1);
 
 	/* Set up event listeners */
