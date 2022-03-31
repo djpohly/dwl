@@ -56,9 +56,19 @@ idle-protocol.c:
 
 idle-protocol.o: idle-protocol.h
 
+pointer-constraints-unstable-v1-protocol.h:
+	$(WAYLAND_SCANNER) server-header \
+		$(WAYLAND_PROTOCOLS)/unstable/pointer-constraints/pointer-constraints-unstable-v1.xml $@
+
+pointer-constraints-unstable-v1-protocol.c:
+	$(WAYLAND_SCANNER) private-code \
+		$(WAYLAND_PROTOCOLS)/unstable/pointer-constraints/pointer-constraints-unstable-v1.xml $@
+
+pointer-constraints-unstable-v1-protocol.o: pointer-constraints-unstable-v1-protocol.h
+
 config.h: | config.def.h
 	cp config.def.h $@
 
-dwl.o: config.mk config.h client.h xdg-shell-protocol.h wlr-layer-shell-unstable-v1-protocol.h idle-protocol.h
+dwl.o: config.mk config.h client.h xdg-shell-protocol.h wlr-layer-shell-unstable-v1-protocol.h idle-protocol.h pointer-constraints-unstable-v1-protocol.h
 
-dwl: xdg-shell-protocol.o wlr-layer-shell-unstable-v1-protocol.o idle-protocol.o
+dwl: xdg-shell-protocol.o wlr-layer-shell-unstable-v1-protocol.o idle-protocol.o pointer-constraints-unstable-v1-protocol.o
