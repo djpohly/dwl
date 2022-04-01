@@ -790,6 +790,12 @@ void
 commitnotify(struct wl_listener *listener, void *data)
 {
 	Client *c = wl_container_of(listener, c, commit);
+	struct wlr_box box;
+	client_get_geometry(c, &box);
+
+	if (c->mon && !wlr_box_empty(&box) && (box.width != c->geom.width - 2 * c->bw
+			|| box.height != c->geom.height - 2 * c->bw))
+		arrange(c->mon);
 
 	/* mark a pending resize as completed */
 	if (c->resize && (c->resize <= c->surface.xdg->current.configure_serial
@@ -980,7 +986,6 @@ createnotify(struct wl_listener *listener, void *data)
 	c->surface.xdg = xdg_surface;
 	c->bw = borderpx;
 
-	LISTEN(&xdg_surface->surface->events.commit, &c->commit, commitnotify);
 	LISTEN(&xdg_surface->events.map, &c->map, mapnotify);
 	LISTEN(&xdg_surface->events.unmap, &c->unmap, unmapnotify);
 	LISTEN(&xdg_surface->events.destroy, &c->destroy, destroynotify);
@@ -1085,9 +1090,8 @@ destroynotify(struct wl_listener *listener, void *data)
 		wl_list_remove(&c->configure.link);
 		wl_list_remove(&c->set_hints.link);
 		wl_list_remove(&c->activate.link);
-	} else
+	}
 #endif
-		wl_list_remove(&c->commit.link);
 	free(c);
 }
 
@@ -1387,8 +1391,14 @@ mapnotify(struct wl_listener *listener, void *data)
 	c->scene_surface = c->type == XDGShell
 			? wlr_scene_xdg_surface_create(c->scene, c->surface.xdg)
 			: wlr_scene_subsurface_tree_create(c->scene, client_surface(c));
-	if (client_surface(c))
+	if (client_surface(c)) {
 		client_surface(c)->data = c->scene;
+		/* Ideally we should do this in createnotify{,x11} but at that moment
+		* wlr_xwayland_surface doesn't have wlr_surface yet
+		*/
+		LISTEN(&client_surface(c)->events.commit, &c->commit, commitnotify);
+
+	}
 	c->scene->data = c->scene_surface->data = c;
 
 	if (client_is_unmanaged(c)) {
@@ -2276,6 +2286,7 @@ unmapnotify(struct wl_listener *listener, void *data)
 	wl_list_remove(&c->link);
 	setmon(c, NULL, 0);
 	wl_list_remove(&c->flink);
+	wl_list_remove(&c->commit.link);
 	wlr_scene_node_destroy(c->scene);
 	printstatus();
 }
