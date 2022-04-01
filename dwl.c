@@ -181,7 +181,7 @@ struct Monitor {
 	unsigned int tagset[2];
 	double mfact;
 	int nmaster;
-	int un_map; /* If a map/unmap happened on this monitor, then this should be true */
+	int arr;
 };
 
 typedef struct {
@@ -490,6 +490,7 @@ arrange(Monitor *m)
 	if (m->lt[m->sellt]->arrange)
 		m->lt[m->sellt]->arrange(m);
 	/* TODO recheck pointer focus here... or in resize()? */
+	m->arr = 1;
 }
 
 void
@@ -1405,8 +1406,6 @@ mapnotify(struct wl_listener *listener, void *data)
 
 	if (c->isfullscreen)
 		setfullscreen(c, 1);
-
-	c->mon->un_map = 1;
 }
 
 void
@@ -1662,6 +1661,21 @@ quitsignal(int signo)
 	quit(NULL);
 }
 
+int
+pixelonmon(Client *c, Monitor *m)
+{
+		/* This is needed for when you don't want to check formal assignment,
+		 * but rather actual displaying of the pixels.
+		 * Usually VISIBLEON suffices and is also faster. */ 
+	struct wlr_surface_output *s = NULL;
+	if (!c->scene->state.enabled)
+		return 0;
+	wl_list_for_each(s, &client_surface(c)->current_outputs, link)
+		if (s->output == m->wlr_output)
+			return 1;
+	return 0;
+}
+
 void
 rendermon(struct wl_listener *listener, void *data)
 {
@@ -1676,23 +1690,15 @@ rendermon(struct wl_listener *listener, void *data)
 
 	/* Render if no XDG clients have an outstanding resize and are visible on
 	 * this monitor. */
-	/* Checking m->un_map for every client is not optimal but works */
-	wl_list_for_each(c, &clients, link) {
-		if ((c->resize && m->un_map) || (c->type == XDGShell
-				&& (c->surface.xdg->pending.geometry.width !=
-				c->surface.xdg->current.geometry.width
-				|| c->surface.xdg->pending.geometry.height !=
-				c->surface.xdg->current.geometry.height))) {
-			/* Lie */
-			wlr_surface_send_frame_done(client_surface(c), &now);
-			skip = 1;
-		}
-	}
-	if (skip || !wlr_scene_output_commit(m->scene_output))
+	wl_list_for_each(c, &clients, link)
+			if (pixelonmon(c,m) && (!c->isfloating && (c->resize))) goto skip;
+
+	if (!wlr_scene_output_commit(m->scene_output))
 		return;
 	/* Let clients know a frame has been rendered */
+skip:
 	wlr_scene_output_send_frame_done(m->scene_output, &now);
-	m->un_map = 0;
+	m->arr = 0;
 }
 
 void
@@ -2234,9 +2240,6 @@ unmapnotify(struct wl_listener *listener, void *data)
 		cursor_mode = CurNormal;
 		grabc = NULL;
 	}
-
-	if (c->mon)
-		c->mon->un_map = 1;
 
 	if (client_is_unmanaged(c)) {
 		wlr_scene_node_destroy(c->scene);
