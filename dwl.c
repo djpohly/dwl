@@ -191,8 +191,6 @@ typedef struct {
 	float scale;
 	const Layout *lt;
 	enum wl_output_transform rr;
-	int x;
-	int y;
 } MonitorRule;
 
 typedef struct {
