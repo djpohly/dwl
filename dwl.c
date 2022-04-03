@@ -1135,6 +1135,15 @@ focusclient(Client *c, int lift)
 		return;
 	}
 
+#ifdef XWAYLAND
+	/* This resolves an issue where the last spawned xwayland client
+	 * receives all pointer activity.
+	 */
+	if (c->type == X11Managed)
+		wlr_xwayland_surface_restack(c->surface.xwayland, NULL,
+				XCB_STACK_MODE_ABOVE);
+#endif
+
 	/* Have a client, so focus its top-level wlr_surface */
 	kb = wlr_seat_get_keyboard(seat);
 	wlr_seat_keyboard_notify_enter(seat, client_surface(c),
