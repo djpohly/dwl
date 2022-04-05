@@ -1122,16 +1122,13 @@ drop_permissions(void)
 {
 	if (getuid() != geteuid() || getgid() != getegid()) {
 		/* Set the gid and uid in the correct order. */
-		if (setgid(getgid()) != 0) {
+		if (setgid(getgid()) != 0)
 			die("Unable to drop root group, refusing to start");
-		}
-		if (setuid(getuid()) != 0) {
+		if (setuid(getuid()) != 0)
 			die("Unable to drop root user, refusing to start");
-		}
 	}
-	if (setgid(0) != -1 || setuid(0) != -1) {
+	if (setgid(0) != -1 || setuid(0) != -1)
 		die("Unable to drop root, refusing to start");
-	}
 }
 
 void
