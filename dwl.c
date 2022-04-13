@@ -2339,7 +2339,7 @@ sigchld(int unused)
 	 * setting our own disposition for SIGCHLD.
 	 */
 	if (signal(SIGCHLD, sigchld) == SIG_ERR)
-		EBARF("can't install SIGCHLD handler");
+		die("can't install SIGCHLD handler:");
 	/* WNOWAIT leaves the child in a waitable state, in case this is the
 	 * XWayland process
 	 */
