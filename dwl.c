@@ -2344,11 +2344,11 @@ xytonode(double x, double y, struct wlr_surface **psurface,
 	struct wlr_surface *surface = NULL;
 	Client *c = NULL;
 	LayerSurface *l = NULL;
-	int i;
+	const int *layer;
 	int focus_order[] = { LyrOverlay, LyrTop, LyrFloat, LyrTile, LyrBottom, LyrBg };
 
-	for (i = 0; i < LENGTH(focus_order); i++) {
-		if ((node = wlr_scene_node_at(layers[focus_order[i]], x, y, nx, ny))) {
+	for (layer = focus_order; layer < END(focus_order); layer++) {
+		if ((node = wlr_scene_node_at(layers[*layer], x, y, nx, ny))) {
 			if (node->type == WLR_SCENE_NODE_SURFACE)
 				surface = wlr_scene_surface_from_node(node)->surface;
 			/* Walk the tree to find a node that knows the client */
