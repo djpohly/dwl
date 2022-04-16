@@ -104,6 +104,7 @@ typedef struct {
 	} surface;
 	struct wl_listener commit;
 	struct wl_listener map;
+	struct wl_listener maximize;
 	struct wl_listener unmap;
 	struct wl_listener destroy;
 	struct wl_listener set_title;
@@ -233,6 +234,7 @@ static void keypressmod(struct wl_listener *listener, void *data);
 static void killclient(const Arg *arg);
 static void maplayersurfacenotify(struct wl_listener *listener, void *data);
 static void mapnotify(struct wl_listener *listener, void *data);
+static void maximizenotify(struct wl_listener *listener, void *data);
 static void monocle(Monitor *m);
 static void motionabsolute(struct wl_listener *listener, void *data);
 static void motionnotify(uint32_t time);
@@ -840,6 +842,8 @@ createnotify(struct wl_listener *listener, void *data)
 	LISTEN(&xdg_surface->toplevel->events.set_title, &c->set_title, updatetitle);
 	LISTEN(&xdg_surface->toplevel->events.request_fullscreen, &c->fullscreen,
 			fullscreennotify);
+	LISTEN(&xdg_surface->toplevel->events.request_maximize, &c->maximize,
+			maximizenotify);
 	c->isfullscreen = 0;
 }
 
@@ -1252,6 +1256,18 @@ mapnotify(struct wl_listener *listener, void *data)
 		setfullscreen(c, 1);
 
 	c->mon->un_map = 1;
+}
+
+void
+maximizenotify(struct wl_listener *listener, void *data)
+{
+	/* This event is raised when a client would like to maximize itself,
+	 * typically because the user clicked on the maximize button on
+	 * client-side decorations. dwl doesn't support maximization, but
+	 * to conform to xdg-shell protocol we still must send a configure.
+	 * wlr_xdg_surface_schedule_configure() is used to send an empty reply. */
+	Client *c = wl_container_of(listener, c, maximize);
+	wlr_xdg_surface_schedule_configure(c->surface.xdg);
 }
 
 void
