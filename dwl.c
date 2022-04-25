@@ -740,6 +740,7 @@ closemon(Monitor *m)
 		if (c->mon == m)
 			setmon(c, selmon, c->tags);
 	}
+	printstatus();
 }
 
 void
