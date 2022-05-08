@@ -97,7 +97,7 @@ client_is_float_type(Client *c)
 #ifdef XWAYLAND
 	if (client_is_x11(c)) {
 		struct wlr_xwayland_surface *surface = c->surface.xwayland;
-		struct wlr_xwayland_surface_size_hints *size_hints;
+		xcb_size_hints_t *size_hints;
 		if (surface->modal)
 			return 1;
 
@@ -208,8 +208,7 @@ client_min_size(Client *c, int *width, int *height)
 	struct wlr_xdg_toplevel_state *state;
 #ifdef XWAYLAND
 	if (client_is_x11(c)) {
-		struct wlr_xwayland_surface_size_hints *size_hints;
-		size_hints = c->surface.xwayland->size_hints;
+		xcb_size_hints_t *size_hints = c->surface.xwayland->size_hints;
 		*width = size_hints->min_width;
 		*height = size_hints->min_height;
 		return;
