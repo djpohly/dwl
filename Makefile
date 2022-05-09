@@ -14,6 +14,15 @@ all: dwl
 clean:
 	rm -f dwl *.o *-protocol.h *-protocol.c
 
+dist: clean
+	mkdir -p dwl-$(VERSION)
+	cp -R LICENSE* Makefile README.md generate-version.sh client.h\
+		config.def.h config.mk protocols dwl.1 dwl.c util.c util.h\
+		dwl-$(VERSION)
+	echo "echo $(VERSION)" > dwl-$(VERSION)/generate-version.sh
+	tar -caf dwl-$(VERSION).tar.gz dwl-$(VERSION)
+	rm -rf dwl-$(VERSION)
+
 install: dwl
 	install -Dm755 dwl $(DESTDIR)$(PREFIX)/bin/dwl
 	install -Dm644 dwl.1 $(DESTDIR)$(MANDIR)/man1/dwl.1
@@ -21,7 +30,7 @@ install: dwl
 uninstall:
 	rm -f $(DESTDIR)$(PREFIX)/bin/dwl $(DESTDIR)$(MANDIR)/man1/dwl.1
 
-.PHONY: all clean install uninstall
+.PHONY: all clean dist install uninstall
 
 # wayland-scanner is a tool which generates C headers and rigging for Wayland
 # protocols, which are specified in XML. wlroots requires you to rig these up
