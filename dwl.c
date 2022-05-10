@@ -600,10 +600,10 @@ arrangelayers(Monitor *m)
 					layersurface->layer_surface->mapped) {
 				/* Deactivate the focused client. */
 				focusclient(NULL, 0);
-				if (kb) 
+				if (kb)
 					wlr_seat_keyboard_notify_enter(seat, layersurface->layer_surface->surface,
 							kb->keycodes, kb->num_keycodes, &kb->modifiers);
-				else 
+				else
 					wlr_seat_keyboard_notify_enter(seat, layersurface->layer_surface->surface, NULL, 0, NULL);
 				return;
 			}
@@ -1149,10 +1149,10 @@ focusclient(Client *c, int lift)
 
 	/* Have a client, so focus its top-level wlr_surface */
 	kb = wlr_seat_get_keyboard(seat);
-	if (kb) 
+	if (kb)
 		wlr_seat_keyboard_notify_enter(seat, client_surface(c),
 				kb->keycodes, kb->num_keycodes, &kb->modifiers);
-	else 
+	else
 		wlr_seat_keyboard_notify_enter(seat, client_surface(c), NULL, 0, NULL);
 
 	/* Activate the new client */
