@@ -1405,6 +1405,7 @@ monocle(Monitor *m)
 			continue;
 		resize(c, m->w.x, m->w.y, m->w.width, m->w.height, 0);
 	}
+	focusclient(focustop(m), 1);
 }
 
 void
