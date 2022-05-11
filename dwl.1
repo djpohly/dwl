@@ -6,6 +6,7 @@
 .Nd dwm for Wayland
 .Sh SYNOPSIS
 .Nm
+.Op Fl v
 .Op Fl s Ar command
 .Sh DESCRIPTION
 .Nm
@@ -13,6 +14,12 @@ is a Wayland compositor based on wlroots.
 It is intended to fill the same space in the Wayland world that
 .Nm dwm
 does for X11.
+.Pp
+When given the
+.Fl v
+option,
+.Nm
+writes its name and version to standard error and exits unsuccessfully.
 .Pp
 When given the
 .Fl s

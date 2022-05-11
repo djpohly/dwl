@@ -113,6 +113,8 @@ client_is_float_type(Client *c)
 				&& (size_hints->max_width == size_hints->min_width ||
 				size_hints->max_height == size_hints->min_height))
 			return 1;
+
+		return 0;
 	}
 #endif
 

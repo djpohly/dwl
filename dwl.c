@@ -475,8 +475,11 @@ arrangelayers(Monitor *m)
 					layersurface->layer_surface->mapped) {
 				/* Deactivate the focused client. */
 				focusclient(NULL, 0);
-				wlr_seat_keyboard_notify_enter(seat, layersurface->layer_surface->surface,
-						kb->keycodes, kb->num_keycodes, &kb->modifiers);
+				if (kb)
+					wlr_seat_keyboard_notify_enter(seat, layersurface->layer_surface->surface,
+							kb->keycodes, kb->num_keycodes, &kb->modifiers);
+				else
+					wlr_seat_keyboard_notify_enter(seat, layersurface->layer_surface->surface, NULL, 0, NULL);
 				return;
 			}
 		}
@@ -516,7 +519,7 @@ buttonpress(struct wl_listener *listener, void *data)
 			focusclient(c, 1);
 
 		keyboard = wlr_seat_get_keyboard(seat);
-		mods = wlr_keyboard_get_modifiers(keyboard);
+		mods = keyboard ? wlr_keyboard_get_modifiers(keyboard) : 0;
 		for (b = buttons; b < END(buttons); b++) {
 			if (CLEANMASK(mods) == CLEANMASK(b->mod) &&
 					event->button == b->button && b->func) {
@@ -615,6 +618,7 @@ closemon(Monitor *m)
 		if (c->mon == m)
 			setmon(c, selmon, c->tags);
 	}
+	printstatus();
 }
 
 void
@@ -1013,10 +1017,22 @@ focusclient(Client *c, int lift)
 		return;
 	}
 
+#ifdef XWAYLAND
+	/* This resolves an issue where the last spawned xwayland client
+	 * receives all pointer activity.
+	 */
+	if (c->type == X11Managed)
+		wlr_xwayland_surface_restack(c->surface.xwayland, NULL,
+				XCB_STACK_MODE_ABOVE);
+#endif
+
 	/* Have a client, so focus its top-level wlr_surface */
 	kb = wlr_seat_get_keyboard(seat);
-	wlr_seat_keyboard_notify_enter(seat, client_surface(c),
-			kb->keycodes, kb->num_keycodes, &kb->modifiers);
+	if (kb)
+		wlr_seat_keyboard_notify_enter(seat, client_surface(c),
+				kb->keycodes, kb->num_keycodes, &kb->modifiers);
+	else
+		wlr_seat_keyboard_notify_enter(seat, client_surface(c), NULL, 0, NULL);
 
 	/* Activate the new client */
 	client_activate_surface(client_surface(c), 1);
@@ -2227,11 +2243,11 @@ xytonode(double x, double y, struct wlr_surface **psurface,
 	struct wlr_surface *surface = NULL;
 	Client *c = NULL;
 	LayerSurface *l = NULL;
-	int i;
+	const int *layer;
 	int focus_order[] = { LyrOverlay, LyrTop, LyrFloat, LyrTile, LyrBottom, LyrBg };
 
-	for (i = 0; i < LENGTH(focus_order); i++) {
-		if ((node = wlr_scene_node_at(layers[focus_order[i]], x, y, nx, ny))) {
+	for (layer = focus_order; layer < END(focus_order); layer++) {
+		if ((node = wlr_scene_node_at(layers[*layer], x, y, nx, ny))) {
 			if (node->type == WLR_SCENE_NODE_SURFACE)
 				surface = wlr_scene_surface_from_node(node)->surface;
 			/* Walk the tree to find a node that knows the client */
@@ -2402,9 +2418,11 @@ main(int argc, char *argv[])
 	char *startup_cmd = NULL;
 	int c;
 
-	while ((c = getopt(argc, argv, "s:h")) != -1) {
+	while ((c = getopt(argc, argv, "s:hv")) != -1) {
 		if (c == 's')
 			startup_cmd = optarg;
+		else if (c == 'v')
+			die("dwl " VERSION);
 		else
 			goto usage;
 	}
@@ -2420,5 +2438,5 @@ main(int argc, char *argv[])
 	return EXIT_SUCCESS;
 
 usage:
-	die("Usage: %s [-s startup command]", argv[0]);
+	die("Usage: %s [-v] [-s startup command]", argv[0]);
 }

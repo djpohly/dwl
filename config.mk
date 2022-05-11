@@ -1,3 +1,6 @@
+_VERSION = 0.3.1
+VERSION = $(shell ./generate-version.sh $(_VERSION))
+
 # paths
 PREFIX = /usr/local
 MANDIR = $(PREFIX)/share/man
