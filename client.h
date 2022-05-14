@@ -30,16 +30,19 @@ client_surface(Client *c)
 static inline void
 client_activate_surface(struct wlr_surface *s, int activated)
 {
+	struct wlr_xdg_surface *surface;
 #ifdef XWAYLAND
-	if (wlr_surface_is_xwayland_surface(s)) {
-		wlr_xwayland_surface_activate(
-				wlr_xwayland_surface_from_wlr_surface(s), activated);
+	struct wlr_xwayland_surface *xsurface;
+	if (wlr_surface_is_xwayland_surface(s)
+			&& (xsurface = wlr_xwayland_surface_from_wlr_surface(s))) {
+		wlr_xwayland_surface_activate(xsurface, activated);
 		return;
 	}
 #endif
-	if (wlr_surface_is_xdg_surface(s))
-		wlr_xdg_toplevel_set_activated(
-				wlr_xdg_surface_from_wlr_surface(s), activated);
+	if (wlr_surface_is_xdg_surface(s)
+			&& (surface = wlr_xdg_surface_from_wlr_surface(s))
+			&& surface->role == WLR_XDG_SURFACE_ROLE_TOPLEVEL)
+		wlr_xdg_toplevel_set_activated(surface, activated);
 }
 
 static inline void

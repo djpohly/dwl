@@ -1121,7 +1121,7 @@ focusclient(Client *c, int lift)
 		} else {
 			Client *w;
 			struct wlr_scene_node *node = old->data;
-			if ((w = node->data))
+			if (old->role_data && (w = node->data))
 				for (i = 0; i < 4; i++)
 					wlr_scene_rect_set_color(w->border[i], bordercolor);
 
