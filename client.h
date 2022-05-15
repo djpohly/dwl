@@ -215,8 +215,13 @@ client_min_size(Client *c, int *width, int *height)
 	if (client_is_x11(c)) {
 		struct wlr_xwayland_surface_size_hints *size_hints;
 		size_hints = c->surface.xwayland->size_hints;
-		*width = size_hints->min_width;
-		*height = size_hints->min_height;
+		if (size_hints) {
+			*width = size_hints->min_width;
+			*height = size_hints->min_height;
+		} else {
+			*width = 0;
+			*height = 0;
+		}
 		return;
 	}
 #endif
