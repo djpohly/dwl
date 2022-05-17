@@ -112,6 +112,7 @@ typedef struct {
 #ifdef XWAYLAND
 	struct wl_listener activate;
 	struct wl_listener configure;
+	struct wl_listener set_hints;
 #endif
 	int bw;
 	unsigned int tags;
@@ -358,6 +359,7 @@ static void activatex11(struct wl_listener *listener, void *data);
 static void configurex11(struct wl_listener *listener, void *data);
 static void createnotifyx11(struct wl_listener *listener, void *data);
 static Atom getatom(xcb_connection_t *xc, const char *name);
+static void sethints(struct wl_listener *listener, void *data);
 static void xwaylandready(struct wl_listener *listener, void *data);
 static struct wl_listener new_xwayland_surface = {.notify = createnotifyx11};
 static struct wl_listener xwayland_ready = {.notify = xwaylandready};
@@ -1046,6 +1048,7 @@ destroynotify(struct wl_listener *listener, void *data)
 #ifdef XWAYLAND
 	if (c->type != XDGShell) {
 		wl_list_remove(&c->configure.link);
+		wl_list_remove(&c->set_hints.link);
 		wl_list_remove(&c->activate.link);
 	} else
 #endif
@@ -2460,6 +2463,7 @@ createnotifyx11(struct wl_listener *listener, void *data)
 	LISTEN(&xwayland_surface->events.request_activate, &c->activate, activatex11);
 	LISTEN(&xwayland_surface->events.request_configure, &c->configure,
 			configurex11);
+	LISTEN(&xwayland_surface->events.set_hints, &c->set_hints, sethints);
 	LISTEN(&xwayland_surface->events.set_title, &c->set_title, updatetitle);
 	LISTEN(&xwayland_surface->events.destroy, &c->destroy, destroynotify);
 	LISTEN(&xwayland_surface->events.request_fullscreen, &c->fullscreen,
@@ -2477,6 +2481,16 @@ getatom(xcb_connection_t *xc, const char *name)
 	free(reply);
 
 	return atom;
+}
+
+void
+sethints(struct wl_listener *listener, void *data)
+{
+	Client *c = wl_container_of(listener, c, set_hints);
+	if (c != selclient()) {
+		c->isurgent = c->surface.xwayland->hints_urgency;
+		printstatus();
+	}
 }
 
 void
