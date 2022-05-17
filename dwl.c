@@ -50,8 +50,9 @@
 #include <wlr/util/log.h>
 #include <xkbcommon/xkbcommon.h>
 #ifdef XWAYLAND
-#include <X11/Xlib.h>
 #include <wlr/xwayland.h>
+#include <X11/Xlib.h>
+#include <xcb/xcb_icccm.h>
 #endif
 
 #include "util.h"
@@ -114,6 +115,7 @@ typedef struct {
 #ifdef XWAYLAND
 	struct wl_listener activate;
 	struct wl_listener configure;
+	struct wl_listener set_hints;
 #endif
 	int bw;
 	unsigned int tags;
@@ -348,6 +350,7 @@ static void activatex11(struct wl_listener *listener, void *data);
 static void configurex11(struct wl_listener *listener, void *data);
 static void createnotifyx11(struct wl_listener *listener, void *data);
 static Atom getatom(xcb_connection_t *xc, const char *name);
+static void sethints(struct wl_listener *listener, void *data);
 static void sigchld(int unused);
 static void xwaylandready(struct wl_listener *listener, void *data);
 static struct wl_listener new_xwayland_surface = {.notify = createnotifyx11};
@@ -925,6 +928,7 @@ destroynotify(struct wl_listener *listener, void *data)
 #ifdef XWAYLAND
 	if (c->type != XDGShell) {
 		wl_list_remove(&c->configure.link);
+		wl_list_remove(&c->set_hints.link);
 		wl_list_remove(&c->activate.link);
 	} else
 #endif
@@ -1000,7 +1004,7 @@ focusclient(Client *c, int lift)
 		} else {
 			Client *w;
 			struct wlr_scene_node *node = old->data;
-			if ((w = node->data))
+			if (old->role_data && (w = node->data))
 				for (i = 0; i < 4; i++)
 					wlr_scene_rect_set_color(w->border[i], bordercolor);
 
@@ -1296,6 +1300,7 @@ monocle(Monitor *m)
 			continue;
 		resize(c, m->w.x, m->w.y, m->w.width, m->w.height, 0);
 	}
+	focusclient(focustop(m), 1);
 }
 
 void
@@ -2342,6 +2347,7 @@ createnotifyx11(struct wl_listener *listener, void *data)
 	LISTEN(&xwayland_surface->events.request_activate, &c->activate, activatex11);
 	LISTEN(&xwayland_surface->events.request_configure, &c->configure,
 			configurex11);
+	LISTEN(&xwayland_surface->events.set_hints, &c->set_hints, sethints);
 	LISTEN(&xwayland_surface->events.set_title, &c->set_title, updatetitle);
 	LISTEN(&xwayland_surface->events.destroy, &c->destroy, destroynotify);
 	LISTEN(&xwayland_surface->events.request_fullscreen, &c->fullscreen,
@@ -2359,6 +2365,16 @@ getatom(xcb_connection_t *xc, const char *name)
 	free(reply);
 
 	return atom;
+}
+
+void
+sethints(struct wl_listener *listener, void *data)
+{
+	Client *c = wl_container_of(listener, c, set_hints);
+	if (c != selclient()) {
+		c->isurgent = xcb_icccm_wm_hints_get_urgency(c->surface.xwayland->hints);
+		printstatus();
+	}
 }
 
 void

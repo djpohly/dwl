@@ -5,7 +5,7 @@ CFLAGS += -I. -DWLR_USE_UNSTABLE -std=c99 -pedantic -DVERSION=\"$(VERSION)\"
 WAYLAND_PROTOCOLS=$(shell pkg-config --variable=pkgdatadir wayland-protocols)
 WAYLAND_SCANNER=$(shell pkg-config --variable=wayland_scanner wayland-scanner)
 
-PKGS = wlroots wayland-server xcb xkbcommon libinput
+PKGS = wlroots wayland-server xcb xcb-icccm xkbcommon libinput
 CFLAGS += $(foreach p,$(PKGS),$(shell pkg-config --cflags $(p)))
 LDLIBS += $(foreach p,$(PKGS),$(shell pkg-config --libs $(p)))
 
