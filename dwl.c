@@ -270,14 +270,6 @@ struct dwl_input_popup {
 	struct wl_listener focused_surface_unmap;
 };
 
-/* Used to move all of the data necessary to render a surface from the top-level
- * frame handler to the per-surface render function. */
-struct render_data {
-	struct wlr_output *output;
-	struct timespec *when;
-	int x, y; /* layout-relative */
-};
-
 /* function declarations */
 static void applybounds(Client *c, struct wlr_box *bbox);
 static void applyexclusive(struct wlr_box *usable_area, uint32_t anchor,
