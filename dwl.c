@@ -2268,17 +2268,17 @@ struct dwl_text_input *dwl_text_input_create(
 
 	wl_list_insert(&relay->text_inputs, &input->link);
 
-	input->text_input_enable.notify = handle_text_input_enable;
-	wl_signal_add(&text_input->events.enable, &input->text_input_enable);
+	LISTEN(&text_input->events.enable, &input->text_input_enable,
+			handle_text_input_enable);
 
-	input->text_input_commit.notify = handle_text_input_commit;
-	wl_signal_add(&text_input->events.commit, &input->text_input_commit);
+	LISTEN(&text_input->events.commit, &input->text_input_commit,
+			handle_text_input_commit);
 
-	input->text_input_disable.notify = handle_text_input_disable;
-	wl_signal_add(&text_input->events.disable, &input->text_input_disable);
+	LISTEN(&text_input->events.disable, &input->text_input_disable,
+			handle_text_input_disable);
 
-	input->text_input_destroy.notify = handle_text_input_destroy;
-	wl_signal_add(&text_input->events.destroy, &input->text_input_destroy);
+	LISTEN(&text_input->events.destroy, &input->text_input_destroy,
+			handle_text_input_destroy);
 
 	input->pending_focused_surface_destroy.notify =
 		handle_pending_focused_surface_destroy;
@@ -2504,20 +2504,17 @@ static void handle_im_new_popup_surface(struct wl_listener *listener, void *data
 
 	wl_list_init(&popup->view_link);
 
-	wl_signal_add(&popup->popup_surface->events.map, &popup->popup_map);
-	popup->popup_map.notify = handle_im_popup_map;
+	LISTEN(&popup->popup_surface->events.map, &popup->popup_map,
+			handle_im_popup_map);
 
-	wl_signal_add(
-		&popup->popup_surface->events.unmap, &popup->popup_unmap);
-	popup->popup_unmap.notify = handle_im_popup_unmap;
+	LISTEN(&popup->popup_surface->events.unmap, &popup->popup_unmap,
+			handle_im_popup_unmap);
 
-	wl_signal_add(
-		&popup->popup_surface->events.destroy, &popup->popup_destroy);
-	popup->popup_destroy.notify = handle_im_popup_destroy;
+	LISTEN(&popup->popup_surface->events.destroy, &popup->popup_destroy,
+			handle_im_popup_destroy);
 
-	wl_signal_add(&popup->popup_surface->surface->events.commit,
-		&popup->popup_surface_commit);
-	popup->popup_surface_commit.notify = handle_im_popup_surface_commit;
+	LISTEN(&popup->popup_surface->surface->events.commit,
+			&popup->popup_surface_commit, handle_im_popup_surface_commit);
 
 	wl_list_init(&popup->focused_surface_unmap.link);
 	popup->focused_surface_unmap.notify = handle_im_focused_surface_destroy;
@@ -2552,18 +2549,18 @@ static void relay_handle_input_method(struct wl_listener *listener,
 	}
 
 	relay->input_method = input_method;
-	wl_signal_add(&relay->input_method->events.commit,
-		&relay->input_method_commit);
-	relay->input_method_commit.notify = handle_im_commit;
-	wl_signal_add(&relay->input_method->events.new_popup_surface,
-		&relay->input_method_new_popup_surface);
-	relay->input_method_new_popup_surface.notify = handle_im_new_popup_surface;
-	wl_signal_add(&relay->input_method->events.grab_keyboard,
-		&relay->input_method_grab_keyboard);
-	relay->input_method_grab_keyboard.notify = handle_im_grab_keyboard;
-	wl_signal_add(&relay->input_method->events.destroy,
-		&relay->input_method_destroy);
-	relay->input_method_destroy.notify = handle_im_destroy;
+
+	LISTEN(&relay->input_method->events.commit, &relay->input_method_commit,
+			handle_im_commit);
+
+	LISTEN(&relay->input_method->events.new_popup_surface,
+			&relay->input_method_new_popup_surface, handle_im_new_popup_surface);
+
+	LISTEN(&relay->input_method->events.grab_keyboard,
+			&relay->input_method_grab_keyboard, handle_im_grab_keyboard);
+
+	LISTEN(&relay->input_method->events.destroy, &relay->input_method_destroy,
+			handle_im_destroy);
 
 	text_input = relay_get_focusable_text_input(relay);
 	if (text_input) {
@@ -2577,13 +2574,11 @@ void dwl_input_method_relay_init(struct dwl_input_method_relay *relay) {
 	wl_list_init(&relay->text_inputs);
 	wl_list_init(&relay->input_popups);
 
-	relay->text_input_new.notify = relay_handle_text_input;
-	wl_signal_add(&text_input_manager->events.text_input,
-		&relay->text_input_new);
+	LISTEN(&text_input_manager->events.text_input, &relay->text_input_new,
+			relay_handle_text_input);
 
-	relay->input_method_new.notify = relay_handle_input_method;
-	wl_signal_add(&input_method_manager->events.input_method,
-		&relay->input_method_new);
+	LISTEN(&input_method_manager->events.input_method, &relay->input_method_new,
+			relay_handle_input_method);
 }
 
 void dwl_input_method_relay_set_focus(struct dwl_input_method_relay *relay,
