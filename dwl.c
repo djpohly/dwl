@@ -217,7 +217,6 @@ typedef struct {
  */
 struct dwl_input_method_relay {
 	struct wl_list text_inputs; // dwl_text_input::link
-	struct wl_list input_popups; // dwl_input_popup::link
 	struct wlr_input_method_v2 *input_method; // doesn't have to be present
 
 	struct wl_listener text_input_new;
@@ -259,9 +258,6 @@ struct dwl_input_popup {
 
 	int x, y;
 	bool visible;
-
-	struct wl_list link;
-	struct wl_list view_link;
 
 	struct wl_listener popup_map;
 	struct wl_listener popup_unmap;
@@ -389,8 +385,6 @@ static struct wlr_xdg_shell *xdg_shell;
 static struct wlr_xdg_activation_v1 *activation;
 static struct wl_list clients; /* tiling order */
 static struct wl_list fstack;  /* focus order */
-
-static struct wl_list input_popups; /* dwl_input_popup::view_link to be rendered for the input method */
 
 static struct wlr_idle *idle;
 static struct wlr_idle_inhibit_manager_v1 *idle_inhibit_mgr;
@@ -2443,8 +2437,6 @@ static void handle_im_popup_destroy(struct wl_listener *listener, void *data) {
 	wl_list_remove(&popup->popup_destroy.link);
 	wl_list_remove(&popup->popup_unmap.link);
 	wl_list_remove(&popup->popup_map.link);
-	wl_list_remove(&popup->view_link);
-	wl_list_remove(&popup->link);
 	free(popup);
 }
 
@@ -2459,8 +2451,6 @@ static void handle_im_focused_surface_destroy(
 		struct wl_listener *listener, void *data) {
 	struct dwl_input_popup *popup =
 		wl_container_of(listener, popup, focused_surface_unmap);
-	wl_list_remove(&popup->view_link);
-	wl_list_init(&popup->view_link);
 	input_popup_update(popup);
 }
 
@@ -2470,13 +2460,11 @@ static void input_popup_set_focus(struct dwl_input_popup *popup,
 	struct wlr_layer_surface_v1* layer_surface;
 	LayerSurface* layer;
 
-	wl_list_remove(&popup->view_link);
 	wl_list_remove(&popup->focused_surface_unmap.link);
 
 	if (wlr_surface_is_layer_surface(surface)) {
 		layer_surface = wlr_layer_surface_v1_from_wlr_surface(surface);
 		layer = layer_surface_from_wlr_layer_surface_v1(layer_surface);
-		wl_list_insert(&input_popups, &popup->view_link);
 		wl_signal_add(&layer->layer_surface->events.unmap,
 				&popup->focused_surface_unmap);
 		input_popup_update(popup);
@@ -2484,7 +2472,6 @@ static void input_popup_set_focus(struct dwl_input_popup *popup,
 	}
 
 	client = client_from_wlr_surface(surface);
-	wl_list_insert(&input_popups, &popup->view_link);
 	wl_signal_add(&client->surface.xdg->events.unmap,
 	 		&popup->focused_surface_unmap);
 	input_popup_update(popup);
@@ -2501,8 +2488,6 @@ static void handle_im_new_popup_surface(struct wl_listener *listener, void *data
 	popup->relay = relay;
 	popup->popup_surface = data;
 	popup->popup_surface->data = popup;
-
-	wl_list_init(&popup->view_link);
 
 	LISTEN(&popup->popup_surface->events.map, &popup->popup_map,
 			handle_im_popup_map);
@@ -2525,8 +2510,6 @@ static void handle_im_new_popup_surface(struct wl_listener *listener, void *data
 	} else {
 		input_popup_set_focus(popup, NULL);
 	}
-
-	wl_list_insert(&relay->input_popups, &popup->link);
 }
 
 
@@ -2572,7 +2555,6 @@ static void relay_handle_input_method(struct wl_listener *listener,
 
 void dwl_input_method_relay_init(struct dwl_input_method_relay *relay) {
 	wl_list_init(&relay->text_inputs);
-	wl_list_init(&relay->input_popups);
 
 	LISTEN(&text_input_manager->events.text_input, &relay->text_input_new,
 			relay_handle_text_input);
@@ -2693,8 +2675,6 @@ setup(void)
 	 */
 	wl_list_init(&clients);
 	wl_list_init(&fstack);
-
-	wl_list_init(&input_popups);
 
 	idle = wlr_idle_create(dpy);
 
