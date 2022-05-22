@@ -765,6 +765,11 @@ chvt(const Arg *arg)
 	wlr_session_change_vt(wlr_backend_get_session(backend), arg->ui);
 }
 
+static void
+destroy_input_relay(struct dwl_input_method_relay *relay) {
+	free(relay);
+}
+
 void
 cleanup(void)
 {
@@ -779,6 +784,8 @@ cleanup(void)
 	wlr_output_layout_destroy(output_layout);
 	wlr_seat_destroy(seat);
 	wl_display_destroy(dpy);
+
+	destroy_input_relay(input_relay);
 }
 
 void
