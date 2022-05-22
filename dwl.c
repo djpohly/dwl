@@ -1044,7 +1044,6 @@ createnotify(struct wl_listener *listener, void *data)
 	} else if (xdg_surface->role == WLR_XDG_SURFACE_ROLE_NONE)
 		return;
 
-
 	/* Allocate a Client for this surface */
 	c = xdg_surface->data = ecalloc(1, sizeof(*c));
 	c->surface.xdg = xdg_surface;
