@@ -232,6 +232,13 @@ client_min_size(Client *c, int *width, int *height)
 }
 
 static inline Client *
+client_from_wlr_surface(struct wlr_surface *surface)
+{
+	struct wlr_scene_node *n = surface->data;
+	return n ? n->data : NULL;
+}
+
+static inline Client *
 client_from_popup(struct wlr_xdg_popup *popup)
 {
 	struct wlr_xdg_surface *surface = popup->base;

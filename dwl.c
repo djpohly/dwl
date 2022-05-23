@@ -1142,8 +1142,7 @@ focusclient(Client *c, int lift)
 				return;
 		} else {
 			Client *w;
-			struct wlr_scene_node *node = old->data;
-			if (old->role_data && (w = node->data))
+			if (old->role_data && (w = client_from_wlr_surface(old)))
 				for (i = 0; i < 4; i++)
 					wlr_scene_rect_set_color(w->border[i], bordercolor);
 
@@ -2336,11 +2335,7 @@ void
 urgent(struct wl_listener *listener, void *data)
 {
 	struct wlr_xdg_activation_v1_request_activate_event *event = data;
-	Client *c;
-
-	if (!wlr_surface_is_xdg_surface(event->surface))
-		return;
-	c = wlr_xdg_surface_from_wlr_surface(event->surface)->data;
+	Client *c = client_from_wlr_surface(event->surface);
 	if (c != selclient()) {
 		c->isurgent = 1;
 		printstatus();
