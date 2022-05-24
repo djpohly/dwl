@@ -1376,10 +1376,12 @@ mapnotify(struct wl_listener *listener, void *data)
 
 	/* Create scene tree for this client and its border */
 	c->scene = &wlr_scene_tree_create(layers[LyrTile])->node;
-	c->scene_surface = client_surface(c)->data = c->type == XDGShell
+	c->scene_surface = c->type == XDGShell
 			? wlr_scene_xdg_surface_create(c->scene, c->surface.xdg)
 			: wlr_scene_subsurface_tree_create(c->scene, client_surface(c));
-	c->scene_surface->data = c;
+	if (client_surface(c))
+		client_surface(c)->data = c->scene;
+	c->scene->data = c->scene_surface->data = c;
 
 	if (client_is_unmanaged(c)) {
 		client_get_geometry(c, &c->geom);
@@ -1394,7 +1396,6 @@ mapnotify(struct wl_listener *listener, void *data)
 		c->border[i] = wlr_scene_rect_create(c->scene, 0, 0, bordercolor);
 		c->border[i]->node.data = c;
 		wlr_scene_rect_set_color(c->border[i], bordercolor);
-		wlr_scene_node_lower_to_bottom(&c->border[i]->node);
 	}
 
 	/* Initialize client geometry with room for border */
