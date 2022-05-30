@@ -9,5 +9,7 @@ MANDIR = $(PREFIX)/share/man
 #CFLAGS = -pedantic -Wall -Wextra -Werror -Wno-unused-parameter -Wno-sign-compare -Wno-unused-function -Wno-unused-variable -Wno-unused-result -Wdeclaration-after-statement
 
 XWAYLAND =
+XLIBS =
 # Uncomment to build XWayland support
 #XWAYLAND = -DXWAYLAND
+#XLIBS = xcb

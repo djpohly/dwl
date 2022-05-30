@@ -11,7 +11,7 @@ WAYLAND_PROTOCOLS = `pkg-config --variable=pkgdatadir wayland-protocols`
 WAYLAND_SCANNER   = `pkg-config --variable=wayland_scanner wayland-scanner`
 
 # CFLAGS / LDFLAGS
-PKGS      = wlroots wayland-server xcb xkbcommon libinput
+PKGS      = wlroots wayland-server xkbcommon libinput $(XLIBS)
 DWLCFLAGS = `pkg-config --cflags $(PKGS)` $(DWLCPPFLAGS) $(CFLAGS) $(XWAYLAND)
 LDLIBS    = `pkg-config --libs $(PKGS)`
 
