@@ -951,6 +951,7 @@ createpointer(struct wlr_pointer *pointer)
 			libinput_device_config_tap_set_enabled(libinput_device, tap_to_click);
 			libinput_device_config_tap_set_drag_enabled(libinput_device, tap_and_drag);
 			libinput_device_config_tap_set_drag_lock_enabled(libinput_device, drag_lock);
+			libinput_device_config_tap_set_button_map(libinput_device, button_map);
 		}
 
 		if (libinput_device_config_scroll_has_natural_scroll(libinput_device))
