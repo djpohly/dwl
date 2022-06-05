@@ -1040,6 +1040,11 @@ destroylayersurfacenotify(struct wl_listener *listener, void *data)
 {
 	LayerSurface *layersurface = wl_container_of(listener, layersurface, destroy);
 
+	/* Check if focused_surface saved in the seat pointer_state is the same wlr_surface
+	 * corresponding to this one being destroyed. Clear pointer focus if it is. */
+	if (seat->pointer_state.focused_surface == layersurface->layer_surface->surface)
+		wlr_seat_pointer_notify_clear_focus(seat);
+
 	if (layersurface->layer_surface->mapped)
 		unmaplayersurface(layersurface);
 	wl_list_remove(&layersurface->link);
