@@ -2250,7 +2250,7 @@ toggleview(const Arg *arg)
 void
 unmaplayersurface(LayerSurface *layersurface)
 {
-	layersurface->layer_surface->mapped = layersurface->mapped = 0;
+	layersurface->layer_surface->mapped = (layersurface->mapped = 0);
 	wlr_scene_node_set_enabled(layersurface->scene, 0);
 	if (layersurface->layer_surface->surface ==
 			seat->keyboard_state.focused_surface)
