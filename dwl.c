@@ -1901,7 +1901,7 @@ setup(void)
 	layer_shell = wlr_layer_shell_v1_create(dpy);
 	wl_signal_add(&layer_shell->events.new_surface, &new_layer_shell_surface);
 
-	xdg_shell = wlr_xdg_shell_create(dpy, 2);
+	xdg_shell = wlr_xdg_shell_create(dpy, 3);
 	wl_signal_add(&xdg_shell->events.new_surface, &new_xdg_surface);
 
 	input_inhibit_mgr = wlr_input_inhibit_manager_create(dpy);
