@@ -94,9 +94,9 @@ typedef struct Monitor Monitor;
 typedef struct {
 	/* Must be first */
 	unsigned int type; /* XDGShell or X11* */
-	struct wlr_scene_node *scene;
+	struct wlr_scene_tree *scene;
 	struct wlr_scene_rect *border[4]; /* top, bottom, left, right */
-	struct wlr_scene_node *scene_surface;
+	struct wlr_scene_tree *scene_surface;
 	struct wl_list link;
 	struct wl_list flink;
 	union {
@@ -144,7 +144,7 @@ typedef struct {
 	/* Must be first */
 	unsigned int type; /* LayerShell */
 	int mapped;
-	struct wlr_scene_node *scene;
+	struct wlr_scene_tree *scene;
 	struct wlr_scene_layer_surface_v1 *scene_layer;
 	struct wl_list link;
 	struct wlr_layer_surface_v1 *layer_surface;
@@ -291,7 +291,7 @@ static const char broken[] = "broken";
 static struct wl_display *dpy;
 static struct wlr_backend *backend;
 static struct wlr_scene *scene;
-static struct wlr_scene_node *layers[NUM_LAYERS];
+static struct wlr_scene_tree *layers[NUM_LAYERS];
 static struct wlr_renderer *drw;
 static struct wlr_allocator *alloc;
 static struct wlr_compositor *compositor;
@@ -412,7 +412,7 @@ applyrules(Client *c)
 					mon = m;
 		}
 	}
-	wlr_scene_node_reparent(c->scene, layers[c->isfloating ? LyrFloat : LyrTile]);
+	wlr_scene_node_reparent(&c->scene->node, layers[c->isfloating ? LyrFloat : LyrTile]);
 	setmon(c, mon, newtags);
 }
 
@@ -421,7 +421,7 @@ arrange(Monitor *m)
 {
 	Client *c;
 	wl_list_for_each(c, &clients, link)
-		wlr_scene_node_set_enabled(c->scene, VISIBLEON(c, c->mon));
+		wlr_scene_node_set_enabled(&c->scene->node, VISIBLEON(c, c->mon));
 
 	if (m->lt[m->sellt]->arrange)
 		m->lt[m->sellt]->arrange(m);
@@ -632,7 +632,7 @@ commitlayersurfacenotify(struct wl_listener *listener, void *data)
 	struct wlr_output *wlr_output = wlr_layer_surface->output;
 	Monitor *m;
 
-	wlr_scene_node_reparent(layersurface->scene,
+	wlr_scene_node_reparent(&layersurface->scene->node,
 			layers[wlr_layer_surface->current.layer]);
 
 	if (!wlr_output || !(m = wlr_output->data))
@@ -730,9 +730,9 @@ createlayersurface(struct wl_listener *listener, void *data)
 	layersurface->scene_layer = wlr_scene_layer_surface_v1_create(
 			layers[wlr_layer_surface->pending.layer], wlr_layer_surface);
 	layersurface->scene = wlr_layer_surface->surface->data =
-			layersurface->scene_layer->node;
+			&layersurface->scene_layer->tree->node;
 
-	layersurface->scene->data = layersurface;
+	layersurface->scene->node.data = layersurface;
 
 	wl_list_insert(&m->layers[wlr_layer_surface->pending.layer],
 			&layersurface->link);
@@ -969,7 +969,7 @@ focusclient(Client *c, int lift)
 
 	/* Raise client in stacking order if requested */
 	if (c && lift)
-		wlr_scene_node_raise_to_top(c->scene);
+		wlr_scene_node_raise_to_top(&c->scene->node);
 
 	if (c && client_surface(c) == old)
 		return;
@@ -1236,17 +1236,17 @@ mapnotify(struct wl_listener *listener, void *data)
 	int i;
 
 	/* Create scene tree for this client and its border */
-	c->scene = &wlr_scene_tree_create(layers[LyrTile])->node;
+	c->scene = wlr_scene_tree_create(layers[LyrTile]);
 	c->scene_surface = client_surface(c)->data = c->type == XDGShell
 			? wlr_scene_xdg_surface_create(c->scene, c->surface.xdg)
 			: wlr_scene_subsurface_tree_create(c->scene, client_surface(c));
-	c->scene_surface->data = c;
+	c->scene_surface->node.data = c;
 
 	if (client_is_unmanaged(c)) {
 		client_get_geometry(c, &c->geom);
 		/* Floating */
-		wlr_scene_node_reparent(c->scene, layers[LyrFloat]);
-		wlr_scene_node_set_position(c->scene, c->geom.x + borderpx,
+		wlr_scene_node_reparent(&c->scene->node, layers[LyrFloat]);
+		wlr_scene_node_set_position(&c->scene->node, c->geom.x + borderpx,
 			c->geom.y + borderpx);
 		return;
 	}
@@ -1590,8 +1590,8 @@ resize(Client *c, int x, int y, int w, int h, int interact)
 	applybounds(c, bbox);
 
 	/* Update scene-graph, including borders */
-	wlr_scene_node_set_position(c->scene, c->geom.x, c->geom.y);
-	wlr_scene_node_set_position(c->scene_surface, c->bw, c->bw);
+	wlr_scene_node_set_position(&c->scene->node, c->geom.x, c->geom.y);
+	wlr_scene_node_set_position(&c->scene_surface->node, c->bw, c->bw);
 	wlr_scene_rect_set_size(c->border[0], c->geom.width, c->bw);
 	wlr_scene_rect_set_size(c->border[1], c->geom.width, c->bw);
 	wlr_scene_rect_set_size(c->border[2], c->bw, c->geom.height - 2 * c->bw);
@@ -1710,7 +1710,7 @@ void
 setfloating(Client *c, int floating)
 {
 	c->isfloating = floating;
-	wlr_scene_node_reparent(c->scene, layers[c->isfloating ? LyrFloat : LyrTile]);
+	wlr_scene_node_reparent(&c->scene->node, layers[c->isfloating ? LyrFloat : LyrTile]);
 	arrange(c->mon);
 	printstatus();
 }
@@ -1836,13 +1836,13 @@ setup(void)
 
 	/* Initialize the scene graph used to lay out windows */
 	scene = wlr_scene_create();
-	layers[LyrBg] = &wlr_scene_tree_create(&scene->node)->node;
-	layers[LyrBottom] = &wlr_scene_tree_create(&scene->node)->node;
-	layers[LyrTile] = &wlr_scene_tree_create(&scene->node)->node;
-	layers[LyrFloat] = &wlr_scene_tree_create(&scene->node)->node;
-	layers[LyrTop] = &wlr_scene_tree_create(&scene->node)->node;
-	layers[LyrOverlay] = &wlr_scene_tree_create(&scene->node)->node;
-	layers[LyrNoFocus] = &wlr_scene_tree_create(&scene->node)->node;
+	layers[LyrBg] = wlr_scene_tree_create(&scene->tree);
+	layers[LyrBottom] = wlr_scene_tree_create(&scene->tree);
+	layers[LyrTile] = wlr_scene_tree_create(&scene->tree);
+	layers[LyrFloat] = wlr_scene_tree_create(&scene->tree);
+	layers[LyrTop] = wlr_scene_tree_create(&scene->tree);
+	layers[LyrOverlay] = wlr_scene_tree_create(&scene->tree);
+	layers[LyrNoFocus] = wlr_scene_tree_create(&scene->tree);
 
 	/* Create a renderer with the default implementation */
 	if (!(drw = wlr_renderer_autocreate(backend)))
@@ -2139,14 +2139,14 @@ unmapnotify(struct wl_listener *listener, void *data)
 		c->mon->un_map = 1;
 
 	if (client_is_unmanaged(c)) {
-		wlr_scene_node_destroy(c->scene);
+		wlr_scene_node_destroy(&c->scene->node);
 		return;
 	}
 
 	wl_list_remove(&c->link);
 	setmon(c, NULL, 0);
 	wl_list_remove(&c->flink);
-	wlr_scene_node_destroy(c->scene);
+	wlr_scene_node_destroy(&c->scene->node);
 	printstatus();
 }
 
@@ -2252,12 +2252,12 @@ xytonode(double x, double y, struct wlr_surface **psurface,
 	int focus_order[] = { LyrOverlay, LyrTop, LyrFloat, LyrTile, LyrBottom, LyrBg };
 
 	for (layer = focus_order; layer < END(focus_order); layer++) {
-		if ((node = wlr_scene_node_at(layers[*layer], x, y, nx, ny))) {
+		if ((node = wlr_scene_node_at(&layers[*layer]->node, x, y, nx, ny))) {
 			if (node->type == WLR_SCENE_NODE_BUFFER)
 				surface = wlr_scene_surface_from_buffer(
 						wlr_scene_buffer_from_node(node))->surface;
 			/* Walk the tree to find a node that knows the client */
-			for (pnode = node; pnode && !c; pnode = pnode->parent)
+			for (pnode = node; pnode && !c; pnode = &pnode->parent->node)
 				c = pnode->data;
 			if (c && c->type == LayerShell) {
 				c = NULL;
