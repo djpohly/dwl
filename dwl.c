@@ -1582,6 +1582,7 @@ resize(Client *c, int x, int y, int w, int h, int interact)
 {
 	int min_width = 0, min_height = 0;
 	struct wlr_box *bbox = interact ? &sgeom : &c->mon->w;
+	client_set_bounds(c, w, h);
 	client_min_size(c, &min_width, &min_height);
 	c->geom.x = x;
 	c->geom.y = y;

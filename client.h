@@ -45,6 +45,16 @@ client_activate_surface(struct wlr_surface *s, int activated)
 		wlr_xdg_toplevel_set_activated(surface->toplevel, activated);
 }
 
+static inline uint32_t
+client_set_bounds(Client *c, int32_t width, int32_t height)
+{
+#ifdef XWAYLAND
+	if (client_is_x11(c))
+		return 0;
+#endif
+	return wlr_xdg_toplevel_set_bounds(c->surface.xdg->toplevel, width, height);
+}
+
 static inline void
 client_for_each_surface(Client *c, wlr_surface_iterator_func_t fn, void *data)
 {
