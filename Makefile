@@ -13,7 +13,7 @@ WAYLAND_SCANNER   = `pkg-config --variable=wayland_scanner wayland-scanner`
 # CFLAGS / LDFLAGS
 PKGS      = wlroots wayland-server xkbcommon libinput $(XLIBS)
 DWLCFLAGS = `pkg-config --cflags $(PKGS)` $(DWLCPPFLAGS) $(CFLAGS) $(XWAYLAND)
-LDLIBS    = `pkg-config --libs $(PKGS)`
+LDLIBS    = `pkg-config --libs $(PKGS)` $(LIBS)
 
 # build rules
 
