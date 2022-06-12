@@ -71,7 +71,7 @@
 /* enums */
 enum { CurNormal, CurMove, CurResize }; /* cursor */
 enum { XDGShell, LayerShell, X11Managed, X11Unmanaged }; /* client types */
-enum { LyrBg, LyrBottom, LyrTop, LyrOverlay, LyrTile, LyrFloat, LyrNoFocus, NUM_LAYERS }; /* scene layers */
+enum { LyrBg, LyrBottom, LyrTop, LyrOverlay, LyrTile, LyrFloat, LyrNoFocus, LyrInputPopup, NUM_LAYERS }; /* scene layers */
 #ifdef XWAYLAND
 enum { NetWMWindowTypeDialog, NetWMWindowTypeSplash, NetWMWindowTypeToolbar,
 	NetWMWindowTypeUtility, NetLast }; /* EWMH atoms */
@@ -2432,7 +2432,7 @@ static void handle_im_popup_map(struct wl_listener *listener, void *data) {
 	struct dwl_input_popup *popup =
 		wl_container_of(listener, popup, popup_map);
 
-	popup->scene = &wlr_scene_tree_create(layers[LyrFloat])->node;
+	popup->scene = &wlr_scene_tree_create(layers[LyrInputPopup])->node;
 	popup->scene_surface = wlr_scene_subsurface_tree_create(popup->scene,
 			popup->popup_surface->surface);
 	popup->scene_surface->data = popup;
@@ -2648,6 +2648,7 @@ setup(void)
 	layers[LyrTop] = &wlr_scene_tree_create(&scene->node)->node;
 	layers[LyrOverlay] = &wlr_scene_tree_create(&scene->node)->node;
 	layers[LyrNoFocus] = &wlr_scene_tree_create(&scene->node)->node;
+	layers[LyrInputPopup] = &wlr_scene_tree_create(&scene->node)->node;
 
 	/* Create a renderer with the default implementation */
 	if (!(drw = wlr_renderer_autocreate(backend)))
@@ -3070,7 +3071,8 @@ xytonode(double x, double y, struct wlr_surface **psurface,
 	Client *c = NULL;
 	LayerSurface *l = NULL;
 	const int *layer;
-	int focus_order[] = { LyrOverlay, LyrTop, LyrFloat, LyrTile, LyrBottom, LyrBg };
+	int focus_order[] = { LyrOverlay, LyrTop, LyrFloat, LyrInputPopup, LyrTile,
+		LyrBottom, LyrBg };
 
 	for (layer = focus_order; layer < END(focus_order); layer++) {
 		if ((node = wlr_scene_node_at(layers[*layer], x, y, nx, ny))) {
