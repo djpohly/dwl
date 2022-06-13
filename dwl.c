@@ -297,6 +297,7 @@ static void zoom(const Arg *arg);
 
 /* variables */
 static const char broken[] = "broken";
+static pid_t child_pid = -1;
 static struct wl_display *dpy;
 static struct wlr_backend *backend;
 static struct wlr_scene *scene;
@@ -687,7 +688,10 @@ cleanup(void)
 	wlr_xwayland_destroy(xwayland);
 #endif
 	wl_display_destroy_clients(dpy);
-
+	if (child_pid > 0) {
+		kill(child_pid, SIGTERM);
+		waitpid(child_pid, NULL, 0);
+	}
 	wlr_backend_destroy(backend);
 	wlr_xcursor_manager_destroy(cursor_mgr);
 	wlr_cursor_destroy(cursor);
@@ -1753,8 +1757,6 @@ resize(Client *c, int x, int y, int w, int h, int interact)
 void
 run(char *startup_cmd)
 {
-	pid_t startup_pid = -1;
-
 	/* Add a Unix socket to the Wayland display. */
 	const char *socket = wl_display_add_socket_auto(dpy);
 	if (!socket)
@@ -1766,9 +1768,9 @@ run(char *startup_cmd)
 		int piperw[2];
 		if (pipe(piperw) < 0)
 			die("startup: pipe:");
-		if ((startup_pid = fork()) < 0)
+		if ((child_pid = fork()) < 0)
 			die("startup: fork:");
-		if (startup_pid == 0) {
+		if (child_pid == 0) {
 			dup2(piperw[0], STDIN_FILENO);
 			close(piperw[0]);
 			close(piperw[1]);
@@ -1804,11 +1806,6 @@ run(char *startup_cmd)
 	 * loop configuration to listen to libinput events, DRM events, generate
 	 * frame events at the refresh rate, and so on. */
 	wl_display_run(dpy);
-
-	if (startup_cmd) {
-		kill(startup_pid, SIGTERM);
-		waitpid(startup_pid, NULL, 0);
-	}
 }
 
 Client *
@@ -2120,10 +2117,12 @@ sigchld(int unused)
 	 * but the Xwayland implementation in wlroots currently prevents us from
 	 * setting our own disposition for SIGCHLD.
 	 */
+	pid_t pid;
 	if (signal(SIGCHLD, sigchld) == SIG_ERR)
 		die("can't install SIGCHLD handler:");
-	while (0 < waitpid(-1, NULL, WNOHANG))
-		;
+	while (0 < (pid = waitpid(-1, NULL, WNOHANG)))
+		if (pid == child_pid)
+			child_pid = -1;
 }
 
 void
