@@ -1129,6 +1129,7 @@ focusclient(Client *c, int lift)
 		wl_list_insert(&fstack, &c->flink);
 		selmon = c->mon;
 		c->isurgent = 0;
+		client_restack_surface(c);
 
 		for (i = 0; i < 4; i++)
 			wlr_scene_rect_set_color(c->border[i], focuscolor);
@@ -1168,15 +1169,6 @@ focusclient(Client *c, int lift)
 		wlr_seat_keyboard_notify_clear_focus(seat);
 		return;
 	}
-
-#ifdef XWAYLAND
-	/* This resolves an issue where the last spawned xwayland client
-	 * receives all pointer activity.
-	 */
-	if (c->type == X11Managed)
-		wlr_xwayland_surface_restack(c->surface.xwayland, NULL,
-				XCB_STACK_MODE_ABOVE);
-#endif
 
 	/* Have a client, so focus its top-level wlr_surface */
 	kb = wlr_seat_get_keyboard(seat);

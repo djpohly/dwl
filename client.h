@@ -231,6 +231,17 @@ client_min_size(Client *c, int *width, int *height)
 	*height = state->min_height;
 }
 
+static inline void
+client_restack_surface(Client *c)
+{
+#ifdef XWAYLAND
+	if (client_is_x11(c))
+		wlr_xwayland_surface_restack(c->surface.xwayland, NULL,
+				XCB_STACK_MODE_ABOVE);
+#endif
+	return;
+}
+
 static inline Client *
 client_from_wlr_surface(struct wlr_surface *s)
 {
