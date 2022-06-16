@@ -1152,7 +1152,7 @@ focusclient(Client *c, int lift)
 				return;
 		} else {
 			Client *w;
-			if (old->role_data && (w = client_from_wlr_surface(old)))
+			if ((w = client_from_wlr_surface(old)))
 				for (i = 0; i < 4; i++)
 					wlr_scene_rect_set_color(w->border[i], bordercolor);
 
