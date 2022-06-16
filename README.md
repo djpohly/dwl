@@ -70,6 +70,11 @@ Information about selected layouts, current window title, and selected/occupied/
 If your startup command is a shell script, you can achieve the same inside the script with the line
 
     exec <&-
+	
+Existing dwl-specific scripts for various status bars include:
+- [waybar-dwl](https://codeberg.org/fauxmight/waybar-dwl.git) for use with [waybar](https://github.com/Alexays/Waybar)
+- [dwl-tags.sh](https://codeberg.org/novakane/yambar/src/branch/master/examples/scripts/dwl-tags.sh) for use with [yambar](https://codeberg.org/dnkl/yambar)
+- [waybar-dwl.sh](https://gitee.com/guyuming76/personal/tree/dwl/gentoo/waybar-dwl) for use with [waybar](https://github.com/Alexays/Waybar) (ACCESS TO THIS SCRIPT REQUIRES gitee.com LOGIN!)
 
 ## Replacements for X applications
 
