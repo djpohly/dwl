@@ -659,8 +659,7 @@ buttonpress(struct wl_listener *listener, void *data)
 	case WLR_BUTTON_PRESSED:
 		/* Change focus if the button was _pressed_ over a client */
 		xytonode(cursor->x, cursor->y, NULL, &c, NULL, NULL, NULL);
-		/* Don't focus unmanaged clients */
-		if (c && !client_is_unmanaged(c))
+		if (c && (!client_is_unmanaged(c) || client_wants_focus(c)))
 			focusclient(c, 1);
 
 		keyboard = wlr_seat_get_keyboard(seat);
@@ -1173,7 +1172,7 @@ focusclient(Client *c, int lift)
 		return;
 
 	/* Put the new client atop the focus stack and select its monitor */
-	if (c) {
+	if (c && !client_is_unmanaged(c)) {
 		wl_list_remove(&c->flink);
 		wl_list_insert(&fstack, &c->flink);
 		selmon = c->mon;
@@ -1192,6 +1191,7 @@ focusclient(Client *c, int lift)
 		/* If an overlay is focused, don't focus or activate the client,
 		 * but only update its position in fstack to render its border with focuscolor
 		 * and focus it after the overlay is closed. */
+		Client *w = client_from_wlr_surface(old);
 		if (wlr_surface_is_layer_surface(old)) {
 			struct wlr_layer_surface_v1 *wlr_layer_surface =
 				wlr_layer_surface_v1_from_wlr_surface(old);
@@ -1200,11 +1200,13 @@ focusclient(Client *c, int lift)
 					&& (wlr_layer_surface->current.layer == ZWLR_LAYER_SHELL_V1_LAYER_TOP
 					|| wlr_layer_surface->current.layer == ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY))
 				return;
-		} else {
-			Client *w;
-			if ((w = client_from_wlr_surface(old)))
-				for (i = 0; i < 4; i++)
-					wlr_scene_rect_set_color(w->border[i], bordercolor);
+		} else if (w && w == exclusive_focus && client_wants_focus(w)) {
+			return;
+		/* Don't deactivate old client if the new one wants focus, as this causes issues with winecfg
+		 * and probably other clients */
+		} else if (w && !client_is_unmanaged(w) && (!c || !client_wants_focus(c))) {
+			for (i = 0; i < 4; i++)
+				wlr_scene_rect_set_color(w->border[i], bordercolor);
 
 			client_activate_surface(old, 0);
 		}
@@ -1444,6 +1446,10 @@ mapnotify(struct wl_listener *listener, void *data)
 		wlr_scene_node_reparent(c->scene, layers[LyrFloat]);
 		wlr_scene_node_set_position(c->scene, c->geom.x + borderpx,
 			c->geom.y + borderpx);
+		if (client_wants_focus(c)) {
+			focusclient(c, 1);
+			exclusive_focus = c;
+		}
 		return;
 	}
 #endif
@@ -2399,7 +2405,12 @@ unmapnotify(struct wl_listener *listener, void *data)
 	if (c->mon)
 		c->mon->un_map = 1;
 
-	if (!client_is_unmanaged(c)) {
+	if (client_is_unmanaged(c)) {
+		if (c == exclusive_focus)
+			exclusive_focus = NULL;
+		if (client_surface(c) == seat->keyboard_state.focused_surface)
+			focusclient(selclient(), 1);
+	} else {
 		wl_list_remove(&c->link);
 		setmon(c, NULL, 0);
 		wl_list_remove(&c->flink);

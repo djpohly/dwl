@@ -276,6 +276,17 @@ client_surface_at(Client *c, double cx, double cy, double *sx, double *sy)
 }
 
 static inline int
+client_wants_focus(Client *c)
+{
+#ifdef XWAYLAND
+	return client_is_unmanaged(c)
+		&& wlr_xwayland_or_surface_wants_focus(c->surface.xwayland)
+		&& wlr_xwayland_icccm_input_model(c->surface.xwayland) != WLR_ICCCM_INPUT_MODEL_NONE;
+#endif
+	return 0;
+}
+
+static inline int
 client_wants_fullscreen(Client *c)
 {
 #ifdef XWAYLAND
