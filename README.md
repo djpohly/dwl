@@ -71,6 +71,14 @@ If your startup command is a shell script, you can achieve the same inside the s
 
     exec <&-
 
+Existing dwl-specific status bars and dwl-specific scripts for other status bars include:
+- [somebar](https://sr.ht/~raphi/somebar/) status bar designed for dwl
+- [dtaobarv2.sh](https://cdn.discordapp.com/attachments/792078050024095745/862428883423723560/dtaobarv2.sh) for use with [dtao](https://github.com/djpohly/dtao) (See "Pinned Messages" on the "customizations" channel of the [dwl Discord server](https://discord.gg/jJxZnrGPWN) for details.)
+- [dwlbar.sh](https://cdn.discordapp.com/attachments/792078050024095745/810926218529472592/dwlbar.sh) for use with [waybar](https://github.com/Alexays/Waybar) (See "Pinned Messages" on the "customizations" channel of the  [dwl Discord server](https://discord.gg/jJxZnrGPWN) for details.)
+- [waybar-dwl](https://codeberg.org/fauxmight/waybar-dwl.git) for use with [waybar](https://github.com/Alexays/Waybar)
+- [dwl-tags.sh](https://codeberg.org/novakane/yambar/src/branch/master/examples/scripts/dwl-tags.sh) for use with [yambar](https://codeberg.org/dnkl/yambar)
+- [waybar-dwl.sh](https://gitee.com/guyuming76/personal/tree/dwl/gentoo/waybar-dwl) for use with [waybar](https://github.com/Alexays/Waybar) (ACCESS TO THIS SCRIPT REQUIRES gitee.com LOGIN!)
+
 ## Replacements for X applications
 
 You can find a [list of Wayland applications on the sway wiki](https://github.com/swaywm/sway/wiki/i3-Migration-Guide).
