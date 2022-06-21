@@ -90,8 +90,10 @@ typedef struct {
 
 typedef struct Monitor Monitor;
 typedef struct {
-	/* Must be first */
+	/* Must keep these three elements in this order */
 	unsigned int type; /* XDGShell or X11* */
+	struct wlr_box geom;  /* layout-relative, includes border */
+	Monitor *mon;
 	struct wlr_scene_node *scene;
 	struct wlr_scene_rect *border[4]; /* top, bottom, left, right */
 	struct wlr_scene_node *scene_surface;
@@ -107,8 +109,7 @@ typedef struct {
 	struct wl_listener destroy;
 	struct wl_listener set_title;
 	struct wl_listener fullscreen;
-	struct wlr_box geom, prev;  /* layout-relative, includes border */
-	Monitor *mon;
+	struct wlr_box prev;  /* layout-relative, includes border */
 #ifdef XWAYLAND
 	struct wl_listener activate;
 	struct wl_listener configure;
@@ -146,19 +147,19 @@ typedef struct {
 } Keyboard;
 
 typedef struct {
-	/* Must be first */
+	/* Must keep these three elements in this order */
 	unsigned int type; /* LayerShell */
-	int mapped;
+	struct wlr_box geom;
+	Monitor *mon;
 	struct wlr_scene_node *scene;
 	struct wl_list link;
+	int mapped;
 	struct wlr_layer_surface_v1 *layer_surface;
 
 	struct wl_listener destroy;
 	struct wl_listener map;
 	struct wl_listener unmap;
 	struct wl_listener surface_commit;
-
-	struct wlr_box geo;
 } LayerSurface;
 
 typedef struct {
@@ -559,7 +560,7 @@ arrangelayer(Monitor *m, struct wl_list *list, struct wlr_box *usable_area, int 
 			wlr_layer_surface_v1_destroy(wlr_layer_surface);
 			continue;
 		}
-		layersurface->geo = box;
+		layersurface->geom = box;
 
 		if (state->exclusive_zone > 0)
 			applyexclusive(usable_area, state->anchor, state->exclusive_zone,
@@ -835,7 +836,6 @@ createlayersurface(struct wl_listener *listener, void *data)
 {
 	struct wlr_layer_surface_v1 *wlr_layer_surface = data;
 	LayerSurface *layersurface;
-	Monitor *m;
 	struct wlr_layer_surface_v1_state old_state;
 
 	if (!wlr_layer_surface->output) {
@@ -855,14 +855,14 @@ createlayersurface(struct wl_listener *listener, void *data)
 
 	layersurface->layer_surface = wlr_layer_surface;
 	wlr_layer_surface->data = layersurface;
-	m = wlr_layer_surface->output->data;
+	layersurface->mon = wlr_layer_surface->output->data;
 
 	layersurface->scene = wlr_layer_surface->surface->data =
 			wlr_scene_subsurface_tree_create(layers[wlr_layer_surface->pending.layer],
 			wlr_layer_surface->surface);
 	layersurface->scene->data = layersurface;
 
-	wl_list_insert(&m->layers[wlr_layer_surface->pending.layer],
+	wl_list_insert(&layersurface->mon->layers[wlr_layer_surface->pending.layer],
 			&layersurface->link);
 
 	/* Temporarily set the layer's current state to pending
@@ -870,7 +870,7 @@ createlayersurface(struct wl_listener *listener, void *data)
 	 */
 	old_state = wlr_layer_surface->current;
 	wlr_layer_surface->current = wlr_layer_surface->pending;
-	arrangelayers(m);
+	arrangelayers(layersurface->mon);
 	wlr_layer_surface->current = old_state;
 }
 
@@ -955,9 +955,9 @@ createnotify(struct wl_listener *listener, void *data)
 		struct wlr_box box;
 		xdg_surface->surface->data = wlr_scene_xdg_surface_create(
 				xdg_surface->popup->parent->data, xdg_surface);
-		if (!(c = client_from_popup(xdg_surface->popup)) || !c->mon)
+		if (!(c = toplevel_from_popup(xdg_surface->popup)) || !c->mon)
 			return;
-		box = c->mon->m;
+		box = c->mon->w;
 		box.x -= c->geom.x;
 		box.y -= c->geom.y;
 		wlr_xdg_popup_unconstrain_from_box(xdg_surface->popup, &box);
@@ -1055,9 +1055,8 @@ destroylayersurfacenotify(struct wl_listener *listener, void *data)
 	wl_list_remove(&layersurface->surface_commit.link);
 	wlr_scene_node_destroy(layersurface->scene);
 	if (layersurface->layer_surface->output) {
-		Monitor *m = layersurface->layer_surface->output->data;
-		if (m)
-			arrangelayers(m);
+		if (layersurface->mon)
+			arrangelayers(layersurface->mon);
 		layersurface->layer_surface->output = NULL;
 	}
 	free(layersurface);
