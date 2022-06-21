@@ -575,8 +575,7 @@ cleanup(void)
 void
 cleanupkeyboard(struct wl_listener *listener, void *data)
 {
-	struct wlr_input_device *device = data;
-	Keyboard *kb = device->keyboard->data;
+	Keyboard *kb = wlr_keyboard_from_input_device(data)->data;
 
 	wl_list_remove(&kb->link);
 	wl_list_remove(&kb->modifiers.link);
@@ -1118,10 +1117,10 @@ inputdevice(struct wl_listener *listener, void *data)
 
 	switch (device->type) {
 	case WLR_INPUT_DEVICE_KEYBOARD:
-		createkeyboard(device->keyboard);
+		createkeyboard(wlr_keyboard_from_input_device(device));
 		break;
 	case WLR_INPUT_DEVICE_POINTER:
-		createpointer(device->pointer);
+		createpointer(wlr_pointer_from_input_device(device));
 		break;
 	default:
 		/* TODO handle other input device types */
@@ -2230,8 +2229,7 @@ void
 virtualkeyboard(struct wl_listener *listener, void *data)
 {
 	struct wlr_virtual_keyboard_v1 *keyboard = data;
-	struct wlr_input_device *device = &keyboard->keyboard.base;
-	createkeyboard(device->keyboard);
+	createkeyboard(&keyboard->keyboard);
 }
 
 Monitor *
