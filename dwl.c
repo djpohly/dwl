@@ -956,7 +956,7 @@ createnotify(struct wl_listener *listener, void *data)
 				xdg_surface->popup->parent->data, xdg_surface);
 		if (!(c = toplevel_from_popup(xdg_surface->popup)) || !c->mon)
 			return;
-		box = c->mon->w;
+		box = c->type == LayerShell ? c->mon->m : c->mon->w;
 		box.x -= c->geom.x;
 		box.y -= c->geom.y;
 		wlr_xdg_popup_unconstrain_from_box(xdg_surface->popup, &box);
