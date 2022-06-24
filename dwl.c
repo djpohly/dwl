@@ -952,9 +952,14 @@ createnotify(struct wl_listener *listener, void *data)
 
 	if (xdg_surface->role == WLR_XDG_SURFACE_ROLE_POPUP) {
 		struct wlr_box box;
+		LayerSurface *l;
+		void *toplevel = toplevel_from_popup(xdg_surface->popup);
 		xdg_surface->surface->data = wlr_scene_xdg_surface_create(
 				xdg_surface->popup->parent->data, xdg_surface);
-		if (!(c = toplevel_from_popup(xdg_surface->popup)) || !c->mon)
+		if (wlr_surface_is_layer_surface(xdg_surface->popup->parent) && (l = toplevel)
+				&& l->layer_surface->current.layer < ZWLR_LAYER_SHELL_V1_LAYER_TOP)
+			wlr_scene_node_reparent(xdg_surface->surface->data, layers[LyrTop]);
+		if (!(c = toplevel) || !c->mon)
 			return;
 		box = c->type == LayerShell ? c->mon->m : c->mon->w;
 		box.x -= c->geom.x;
