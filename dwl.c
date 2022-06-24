@@ -283,7 +283,6 @@ static void togglefloating(const Arg *arg);
 static void togglefullscreen(const Arg *arg);
 static void toggletag(const Arg *arg);
 static void toggleview(const Arg *arg);
-static void unmaplayersurface(LayerSurface *layersurface);
 static void unmaplayersurfacenotify(struct wl_listener *listener, void *data);
 static void unmapnotify(struct wl_listener *listener, void *data);
 static void updatemons(struct wl_listener *listener, void *data);
@@ -1050,8 +1049,6 @@ destroylayersurfacenotify(struct wl_listener *listener, void *data)
 {
 	LayerSurface *layersurface = wl_container_of(listener, layersurface, destroy);
 
-	if (layersurface->layer_surface->mapped)
-		unmaplayersurface(layersurface);
 	wl_list_remove(&layersurface->link);
 	wl_list_remove(&layersurface->destroy.link);
 	wl_list_remove(&layersurface->map.link);
@@ -2245,21 +2242,16 @@ toggleview(const Arg *arg)
 }
 
 void
-unmaplayersurface(LayerSurface *layersurface)
+unmaplayersurfacenotify(struct wl_listener *listener, void *data)
 {
+	LayerSurface *layersurface = wl_container_of(listener, layersurface, unmap);
+
 	layersurface->layer_surface->mapped = (layersurface->mapped = 0);
 	wlr_scene_node_set_enabled(layersurface->scene, 0);
 	if (layersurface->layer_surface->surface ==
 			seat->keyboard_state.focused_surface)
 		focusclient(selclient(), 1);
 	motionnotify(0);
-}
-
-void
-unmaplayersurfacenotify(struct wl_listener *listener, void *data)
-{
-	LayerSurface *layersurface = wl_container_of(listener, layersurface, unmap);
-	unmaplayersurface(layersurface);
 }
 
 void
