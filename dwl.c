@@ -381,9 +381,15 @@ struct NumTags { char limitexceeded[LENGTH(tags) > 31 ? -1 : 1]; };
 void
 applybounds(Client *c, struct wlr_box *bbox)
 {
-	/* set minimum possible */
-	c->geom.width = MAX(1, c->geom.width);
-	c->geom.height = MAX(1, c->geom.height);
+	struct wlr_box min = {0}, max = {0};
+	client_get_size_hints(c, &max, &min);
+	/* try to set size hints */
+	c->geom.width = MAX(min.width + (2 * c->bw), c->geom.width);
+	c->geom.height = MAX(min.height + (2 * c->bw), c->geom.height);
+	if (max.width > 0)
+		c->geom.width = MIN(max.width + (2 * c->bw), c->geom.width);
+	if (max.height > 0)
+		c->geom.height = MIN(max.height + (2 * c->bw), c->geom.height);
 
 	if (c->geom.x >= bbox->x + bbox->width)
 		c->geom.x = bbox->x + bbox->width - c->geom.width;
@@ -1721,13 +1727,11 @@ requeststartdrag(struct wl_listener *listener, void *data)
 void
 resize(Client *c, int x, int y, int w, int h, int interact)
 {
-	int min_width = 0, min_height = 0;
 	struct wlr_box *bbox = interact ? &sgeom : &c->mon->w;
-	client_min_size(c, &min_width, &min_height);
 	c->geom.x = x;
 	c->geom.y = y;
-	c->geom.width = MAX(min_width + 2 * c->bw, w);
-	c->geom.height = MAX(min_height + 2 * c->bw, h);
+	c->geom.width = w;
+	c->geom.height = h;
 	applybounds(c, bbox);
 
 	/* Update scene-graph, including borders */
