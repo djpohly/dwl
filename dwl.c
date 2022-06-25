@@ -262,7 +262,7 @@ static void quit(const Arg *arg);
 static void quitsignal(int signo);
 static void rendermon(struct wl_listener *listener, void *data);
 static void requeststartdrag(struct wl_listener *listener, void *data);
-static void resize(Client *c, int x, int y, int w, int h, int interact);
+static void resize(Client *c, struct wlr_box geo, int interact);
 static void run(char *startup_cmd);
 static Client *selclient(void);
 static void setcursor(struct wl_listener *listener, void *data);
@@ -751,8 +751,8 @@ closemon(Monitor *m)
 
 	wl_list_for_each(c, &clients, link) {
 		if (c->isfloating && c->geom.x > m->m.width)
-			resize(c, c->geom.x - m->w.width, c->geom.y,
-				c->geom.width, c->geom.height, 0);
+			resize(c, (struct wlr_box){.x = c->geom.x - m->w.width, .y = c->geom.y,
+				.width = c->geom.width, .height = c->geom.height}, 0);
 		if (c->mon == m)
 			setmon(c, selmon, c->tags);
 	}
@@ -1434,7 +1434,7 @@ monocle(Monitor *m)
 	wl_list_for_each(c, &clients, link) {
 		if (!VISIBLEON(c, m) || c->isfloating || c->isfullscreen)
 			continue;
-		resize(c, m->w.x, m->w.y, m->w.width, m->w.height, 0);
+		resize(c, m->w, 0);
 	}
 	focusclient(focustop(m), 1);
 }
@@ -1476,13 +1476,12 @@ motionnotify(uint32_t time)
 	/* If we are currently grabbing the mouse, handle and return */
 	if (cursor_mode == CurMove) {
 		/* Move the grabbed client to the new position. */
-		resize(grabc, cursor->x - grabcx, cursor->y - grabcy,
-				grabc->geom.width, grabc->geom.height, 1);
+		resize(grabc, (struct wlr_box){.x = cursor->x - grabcx, .y = cursor->y - grabcy,
+			.width = grabc->geom.width, .height = grabc->geom.height}, 1);
 		return;
 	} else if (cursor_mode == CurResize) {
-		resize(grabc, grabc->geom.x, grabc->geom.y,
-				cursor->x - grabc->geom.x,
-				cursor->y - grabc->geom.y, 1);
+		resize(grabc, (struct wlr_box){.x = grabc->geom.x, .y = grabc->geom.y,
+			.width = cursor->x - grabc->geom.x, .height = cursor->y - grabc->geom.y}, 1);
 		return;
 	}
 
@@ -1726,13 +1725,10 @@ requeststartdrag(struct wl_listener *listener, void *data)
 }
 
 void
-resize(Client *c, int x, int y, int w, int h, int interact)
+resize(Client *c, struct wlr_box geo, int interact)
 {
 	struct wlr_box *bbox = interact ? &sgeom : &c->mon->w;
-	c->geom.x = x;
-	c->geom.y = y;
-	c->geom.width = w;
-	c->geom.height = h;
+	c->geom = geo;
 	applybounds(c, bbox);
 
 	/* Update scene-graph, including borders */
@@ -1851,11 +1847,11 @@ setfullscreen(Client *c, int fullscreen)
 
 	if (fullscreen) {
 		c->prev = c->geom;
-		resize(c, c->mon->m.x, c->mon->m.y, c->mon->m.width, c->mon->m.height, 0);
+		resize(c, c->mon->m, 0);
 	} else {
 		/* restore previous size instead of arrange for floating windows since
 		 * client positions are set by the user and cannot be recalculated */
-		resize(c, c->prev.x, c->prev.y, c->prev.width, c->prev.height, 0);
+		resize(c, c->prev, 0);
 	}
 	arrange(c->mon);
 	printstatus();
@@ -1904,7 +1900,7 @@ setmon(Client *c, Monitor *m, unsigned int newtags)
 	}
 	if (m) {
 		/* Make sure window actually overlaps with the monitor */
-		resize(c, c->geom.x, c->geom.y, c->geom.width, c->geom.height, 0);
+		resize(c, c->geom, 0);
 		wlr_surface_send_enter(client_surface(c), m->wlr_output);
 		c->tags = newtags ? newtags : m->tagset[m->seltags]; /* assign tags of target monitor */
 		arrange(m);
@@ -2170,7 +2166,7 @@ tagmon(const Arg *arg)
 void
 tile(Monitor *m)
 {
-	unsigned int i, n = 0, h, mw, my, ty;
+	unsigned int i, n = 0, mw, my, ty;
 	Client *c;
 
 	wl_list_for_each(c, &clients, link)
@@ -2188,12 +2184,12 @@ tile(Monitor *m)
 		if (!VISIBLEON(c, m) || c->isfloating || c->isfullscreen)
 			continue;
 		if (i < m->nmaster) {
-			h = (m->w.height - my) / (MIN(n, m->nmaster) - i);
-			resize(c, m->w.x, m->w.y + my, mw, h, 0);
+			resize(c, (struct wlr_box){.x = m->w.x, .y = m->w.y + my, .width = mw,
+				.height = (m->w.height - my) / (MIN(n, m->nmaster) - i)}, 0);
 			my += c->geom.height;
 		} else {
-			h = (m->w.height - ty) / (n - i);
-			resize(c, m->w.x + mw, m->w.y + ty, m->w.width - mw, h, 0);
+			resize(c, (struct wlr_box){.x = m->w.x + mw, .y = m->w.y + ty,
+				.width = m->w.width - mw, .height = (m->w.height - ty) / (n - i)}, 0);
 			ty += c->geom.height;
 		}
 		i++;
