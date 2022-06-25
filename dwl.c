@@ -100,6 +100,7 @@ typedef struct {
 	struct wlr_scene_node *scene_surface;
 	struct wl_list link;
 	struct wl_list flink;
+	struct wl_list input_popups; /* dwl_input_popup::client_link */
 	union {
 		struct wlr_xdg_surface *xdg;
 		struct wlr_xwayland_surface *xwayland;
@@ -256,6 +257,8 @@ struct dwl_input_popup {
 
 	struct wlr_scene_node *scene;
 	struct wlr_scene_node *scene_surface;
+
+	struct wl_list client_link;
 
 	int x, y;
 	bool visible;
@@ -563,9 +566,14 @@ applyrules(Client *c)
 void
 arrange(Monitor *m)
 {
+	struct dwl_input_popup *popup;
 	Client *c;
-	wl_list_for_each(c, &clients, link)
+	wl_list_for_each(c, &clients, link) {
 		wlr_scene_node_set_enabled(c->scene, VISIBLEON(c, c->mon));
+		wl_list_for_each(popup, &c->input_popups, client_link) {
+			wlr_scene_node_set_enabled(popup->scene, VISIBLEON(c, c->mon));
+		}
+	}
 
 	if (m->lt[m->sellt]->arrange)
 		m->lt[m->sellt]->arrange(m);
@@ -1062,6 +1070,8 @@ createnotify(struct wl_listener *listener, void *data)
 	LISTEN(&xdg_surface->toplevel->events.request_fullscreen, &c->fullscreen,
 			fullscreennotify);
 	c->isfullscreen = 0;
+
+	wl_list_init(&c->input_popups);
 }
 
 void
@@ -2458,6 +2468,7 @@ static void handle_im_popup_destroy(struct wl_listener *listener, void *data) {
 	wl_list_remove(&popup->popup_destroy.link);
 	wl_list_remove(&popup->popup_unmap.link);
 	wl_list_remove(&popup->popup_map.link);
+	wl_list_remove(&popup->client_link);
 	wlr_scene_node_destroy(popup->scene);
 
 	free(popup);
@@ -2500,10 +2511,10 @@ static void input_popup_set_focus(struct dwl_input_popup *popup,
 	input_popup_update(popup);
 }
 
-
-
 static void handle_im_new_popup_surface(struct wl_listener *listener, void *data) {
 	struct dwl_text_input* text_input;
+	struct wlr_surface* focused_surface;
+	Client* client;
 
 	struct dwl_input_method_relay *relay = wl_container_of(listener, relay,
 		input_method_new_popup_surface);
@@ -2529,6 +2540,9 @@ static void handle_im_new_popup_surface(struct wl_listener *listener, void *data
 
 	text_input = relay_get_focused_text_input(relay);
 	if (text_input) {
+		focused_surface = text_input->input->focused_surface;
+		client = client_from_wlr_surface(focused_surface);
+		wl_list_insert(&client->input_popups, &popup->client_link);
 		input_popup_set_focus(popup, text_input->input->focused_surface);
 	} else {
 		input_popup_set_focus(popup, NULL);
