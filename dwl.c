@@ -2447,7 +2447,7 @@ static void handle_im_popup_unmap(struct wl_listener *listener, void *data) {
 		wl_container_of(listener, popup, popup_unmap);
 	input_popup_update(popup);
 
-	wlr_scene_node_destroy(popup->scene);
+	wlr_scene_node_set_enabled(popup->scene, 0);
 }
 
 static void handle_im_popup_destroy(struct wl_listener *listener, void *data) {
@@ -2458,6 +2458,8 @@ static void handle_im_popup_destroy(struct wl_listener *listener, void *data) {
 	wl_list_remove(&popup->popup_destroy.link);
 	wl_list_remove(&popup->popup_unmap.link);
 	wl_list_remove(&popup->popup_map.link);
+	wlr_scene_node_destroy(popup->scene);
+
 	free(popup);
 }
 
