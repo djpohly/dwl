@@ -4,6 +4,7 @@
 #define _POSIX_C_SOURCE 200809L
 #include <getopt.h>
 #include <libinput.h>
+#include <limits.h>
 #include <linux/input-event-codes.h>
 #include <signal.h>
 #include <stdio.h>
@@ -386,9 +387,9 @@ applybounds(Client *c, struct wlr_box *bbox)
 	/* try to set size hints */
 	c->geom.width = MAX(min.width + (2 * c->bw), c->geom.width);
 	c->geom.height = MAX(min.height + (2 * c->bw), c->geom.height);
-	if (max.width > 0)
+	if (max.width > 0 && !(2 * c->bw > INT_MAX - max.width)) // Checks for overflow
 		c->geom.width = MIN(max.width + (2 * c->bw), c->geom.width);
-	if (max.height > 0)
+	if (max.height > 0 && !(2 * c->bw > INT_MAX - max.height)) // Checks for overflow
 		c->geom.height = MIN(max.height + (2 * c->bw), c->geom.height);
 
 	if (c->geom.x >= bbox->x + bbox->width)
