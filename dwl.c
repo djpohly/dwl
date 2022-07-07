@@ -792,10 +792,10 @@ commitnotify(struct wl_listener *listener, void *data)
 	Client *c = wl_container_of(listener, c, commit);
 
 	/* mark a pending resize as completed */
-	if (c->resize && c->resize <= c->surface.xdg->current.configure_serial)
+	if (c->resize && (c->resize <= c->surface.xdg->current.configure_serial
+			|| (c->surface.xdg->current.geometry.width == c->surface.xdg->pending.geometry.width
+			&& c->surface.xdg->current.geometry.height == c->surface.xdg->pending.geometry.height)))
 		c->resize = 0;
-	else if (c->resize)
-		c->resize = client_set_size(c, c->geom.width - 2 * c->bw, c->geom.height - 2 * c->bw);
 }
 
 void
