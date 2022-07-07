@@ -496,7 +496,7 @@ arrange(Monitor *m)
 
 	if (m->lt[m->sellt]->arrange)
 		m->lt[m->sellt]->arrange(m);
-	/* TODO recheck pointer focus here... or in resize()? */
+	motionnotify(0);
 }
 
 void
