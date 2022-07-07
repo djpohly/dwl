@@ -613,8 +613,6 @@ arrangelayers(Monitor *m)
 				if (kb)
 					wlr_seat_keyboard_notify_enter(seat, layersurface->layer_surface->surface,
 							kb->keycodes, kb->num_keycodes, &kb->modifiers);
-				else
-					wlr_seat_keyboard_notify_enter(seat, layersurface->layer_surface->surface, NULL, 0, NULL);
 				return;
 			}
 		}
@@ -1185,8 +1183,6 @@ focusclient(Client *c, int lift)
 	if (kb)
 		wlr_seat_keyboard_notify_enter(seat, client_surface(c),
 				kb->keycodes, kb->num_keycodes, &kb->modifiers);
-	else
-		wlr_seat_keyboard_notify_enter(seat, client_surface(c), NULL, 0, NULL);
 
 	/* Activate the new client */
 	client_activate_surface(client_surface(c), 1);
