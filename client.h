@@ -242,11 +242,11 @@ client_from_wlr_surface(struct wlr_surface *s)
 
 #ifdef XWAYLAND
 	struct wlr_xwayland_surface *xsurface;
-	if (s->role_data && wlr_surface_is_xwayland_surface(s)
+	if (wlr_surface_is_xwayland_surface(s)
 			&& (xsurface = wlr_xwayland_surface_from_wlr_surface(s)))
 		return xsurface->data;
 #endif
-	if (s->role_data && wlr_surface_is_xdg_surface(s)
+	if (wlr_surface_is_xdg_surface(s)
 			&& (surface = wlr_xdg_surface_from_wlr_surface(s))
 			&& surface->role == WLR_XDG_SURFACE_ROLE_TOPLEVEL)
 		return surface->data;
