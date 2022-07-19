@@ -1674,7 +1674,6 @@ printstatus(void)
 				sel, urg);
 		printf("%s layout %s\n", m->wlr_output->name, m->lt[m->sellt]->symbol);
 	}
-	fflush(stdout);
 }
 
 void
@@ -1943,6 +1942,9 @@ setsel(struct wl_listener *listener, void *data)
 void
 setup(void)
 {
+	/* Force line-buffered stdout */
+	setvbuf(stdout, NULL, _IOLBF, 0);
+
 	/* The Wayland display is managed by libwayland. It handles accepting
 	 * clients from the Unix socket, manging Wayland globals, and so on. */
 	dpy = wl_display_create();
