@@ -1388,7 +1388,7 @@ void
 mapnotify(struct wl_listener *listener, void *data)
 {
 	/* Called when the surface is mapped, or ready to display on-screen. */
-	Client *c = wl_container_of(listener, c, map);
+	Client *p, *c = wl_container_of(listener, c, map);
 	int i;
 
 	/* Create scene tree for this client and its border */
@@ -1432,7 +1432,14 @@ mapnotify(struct wl_listener *listener, void *data)
 	wl_list_insert(&fstack, &c->flink);
 
 	/* Set initial monitor, tags, floating status, and focus */
-	applyrules(c);
+	if ((p = client_get_parent(c))) {
+		/* Set the same monitor and tags than its parent */
+		c->isfloating = 1;
+		wlr_scene_node_reparent(c->scene, layers[LyrFloat]);
+		setmon(c, p->mon, p->tags);
+	} else {
+		applyrules(c);
+	}
 	printstatus();
 
 	if (c->isfullscreen)
