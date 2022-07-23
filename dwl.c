@@ -1879,14 +1879,19 @@ setfullscreen(Client *c, int fullscreen)
 		 *
 		 * For brevity we set a black background for all clients
 		 */
-		c->fullscreen_bg = wlr_scene_rect_create(c->scene,
-			c->geom.width, c->geom.height, fullscreen_bg);
-		wlr_scene_node_lower_to_bottom(&c->fullscreen_bg->node);
+		if (!c->fullscreen_bg) {
+			c->fullscreen_bg = wlr_scene_rect_create(c->scene,
+				c->geom.width, c->geom.height, fullscreen_bg);
+			wlr_scene_node_lower_to_bottom(&c->fullscreen_bg->node);
+		}
 	} else {
 		/* restore previous size instead of arrange for floating windows since
 		 * client positions are set by the user and cannot be recalculated */
 		resize(c, c->prev, 0);
-		wlr_scene_node_destroy(&c->fullscreen_bg->node);
+		if (c->fullscreen_bg) {
+			wlr_scene_node_destroy(&c->fullscreen_bg->node);
+			c->fullscreen_bg = NULL;
+		}
 	}
 	arrange(c->mon);
 	printstatus();
