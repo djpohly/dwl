@@ -1436,7 +1436,8 @@ mapnotify(struct wl_listener *listener, void *data)
 		/* Set the same monitor and tags than its parent */
 		c->isfloating = 1;
 		wlr_scene_node_reparent(c->scene, layers[LyrFloat]);
-		setmon(c, p->mon, p->tags);
+		/* TODO recheck if !p->mon is possible with wlroots 0.16.0 */
+		setmon(c, p->mon ? p->mon : selmon, p->tags);
 	} else {
 		applyrules(c);
 	}
