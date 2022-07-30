@@ -2377,7 +2377,7 @@ urgent(struct wl_listener *listener, void *data)
 {
 	struct wlr_xdg_activation_v1_request_activate_event *event = data;
 	Client *c = client_from_wlr_surface(event->surface);
-	if (c != selclient()) {
+	if (c && c != selclient()) {
 		c->isurgent = 1;
 		printstatus();
 	}
