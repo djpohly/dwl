@@ -308,6 +308,7 @@ static struct wlr_scene_node *layers[NUM_LAYERS];
 static struct wlr_renderer *drw;
 static struct wlr_allocator *alloc;
 static struct wlr_compositor *compositor;
+static struct wlr_scene_rect *root;
 
 static struct wlr_xdg_shell *xdg_shell;
 static struct wlr_xdg_activation_v1 *activation;
@@ -1998,6 +1999,7 @@ setup(void)
 
 	/* Initialize the scene graph used to lay out windows */
 	scene = wlr_scene_create();
+	root = wlr_scene_rect_create(&scene->node, 0, 0, rootcolor);
 	layers[LyrBg] = &wlr_scene_tree_create(&scene->node)->node;
 	layers[LyrBottom] = &wlr_scene_tree_create(&scene->node)->node;
 	layers[LyrTile] = &wlr_scene_tree_create(&scene->node)->node;
@@ -2340,6 +2342,7 @@ updatemons(struct wl_listener *listener, void *data)
 		wlr_output_configuration_v1_create();
 	Monitor *m;
 	sgeom = *wlr_output_layout_get_box(output_layout, NULL);
+	wlr_scene_rect_set_size(root, sgeom.width, sgeom.height);
 	wl_list_for_each(m, &mons, link) {
 		struct wlr_output_configuration_head_v1 *config_head =
 			wlr_output_configuration_head_v1_create(config, m->wlr_output);
