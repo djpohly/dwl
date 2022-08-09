@@ -1,5 +1,5 @@
 _VERSION = 0.3.1
-VERSION  = `./generate-version.sh $(_VERSION)`
+VERSION  = `git describe --long --tags --dirty 2>/dev/null || echo $(_VERSION)`
 
 # paths
 PREFIX = /usr/local
