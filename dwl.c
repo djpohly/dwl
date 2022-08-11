@@ -1583,34 +1583,48 @@ outputmgrapplyortest(struct wlr_output_configuration_v1 *config, int test)
 	struct wlr_output_configuration_head_v1 *config_head;
 	int ok = 1;
 
+	/* First disable outputs we need to disable */
 	wl_list_for_each(config_head, &config->heads, link) {
 		struct wlr_output *wlr_output = config_head->state.output;
-
-		wlr_output_enable(wlr_output, config_head->state.enabled);
-		if (config_head->state.enabled) {
-			if (config_head->state.mode)
-				wlr_output_set_mode(wlr_output, config_head->state.mode);
-			else
-				wlr_output_set_custom_mode(wlr_output,
-						config_head->state.custom_mode.width,
-						config_head->state.custom_mode.height,
-						config_head->state.custom_mode.refresh);
-
-			wlr_output_layout_move(output_layout, wlr_output,
-					config_head->state.x, config_head->state.y);
-			wlr_output_set_transform(wlr_output, config_head->state.transform);
-			wlr_output_set_scale(wlr_output, config_head->state.scale);
+		if (!wlr_output->enabled || config_head->state.enabled)
+			continue;
+		wlr_output_enable(wlr_output, 0);
+		if (test) {
+			ok &= wlr_output_test(wlr_output);
+			wlr_output_rollback(wlr_output);
+		} else {
+			ok &= wlr_output_commit(wlr_output);
 		}
+	}
 
-		if (!(ok = wlr_output_test(wlr_output)))
-			break;
-	}
+	/* Then enable outputs that need to */
 	wl_list_for_each(config_head, &config->heads, link) {
-		if (ok && !test)
-			wlr_output_commit(config_head->state.output);
+		struct wlr_output *wlr_output = config_head->state.output;
+		if (!config_head->state.enabled)
+			continue;
+
+		wlr_output_enable(wlr_output, 1);
+		if (config_head->state.mode)
+			wlr_output_set_mode(wlr_output, config_head->state.mode);
 		else
-			wlr_output_rollback(config_head->state.output);
+			wlr_output_set_custom_mode(wlr_output,
+					config_head->state.custom_mode.width,
+					config_head->state.custom_mode.height,
+					config_head->state.custom_mode.refresh);
+
+		wlr_output_layout_move(output_layout, wlr_output,
+				config_head->state.x, config_head->state.y);
+		wlr_output_set_transform(wlr_output, config_head->state.transform);
+		wlr_output_set_scale(wlr_output, config_head->state.scale);
+
+		if (test) {
+			ok &= wlr_output_test(wlr_output);
+			wlr_output_rollback(wlr_output);
+		} else {
+			ok &= wlr_output_commit(wlr_output);
+		}
 	}
+
 	if (ok)
 		wlr_output_configuration_v1_send_succeeded(config);
 	else
