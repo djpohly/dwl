@@ -119,9 +119,8 @@ typedef struct {
 #endif
 	int bw;
 	unsigned int tags;
-	int isfloating, isurgent;
+	int isfloating, isurgent, isfullscreen;
 	uint32_t resize; /* configure serial of a pending resize */
-	int isfullscreen;
 } Client;
 
 typedef struct {
