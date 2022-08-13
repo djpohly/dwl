@@ -30,6 +30,7 @@ static inline Client *
 client_from_wlr_surface(struct wlr_surface *s)
 {
 	struct wlr_xdg_surface *surface;
+	struct wlr_surface *parent;
 
 #ifdef XWAYLAND
 	struct wlr_xwayland_surface *xsurface;
@@ -42,6 +43,8 @@ client_from_wlr_surface(struct wlr_surface *s)
 			&& surface->role == WLR_XDG_SURFACE_ROLE_TOPLEVEL)
 		return surface->data;
 
+	if (s && wlr_surface_is_subsurface(s))
+		return client_from_wlr_surface(wlr_surface_get_root_surface(s));
 	return NULL;
 }
 
