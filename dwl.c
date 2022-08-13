@@ -793,7 +793,7 @@ void
 commitnotify(struct wl_listener *listener, void *data)
 {
 	Client *c = wl_container_of(listener, c, commit);
-	struct wlr_box box;
+	struct wlr_box box = {0};
 	client_get_geometry(c, &box);
 
 	if (c->mon && !wlr_box_empty(&box) && (box.width != c->geom.width - 2 * c->bw
