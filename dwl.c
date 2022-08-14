@@ -1199,9 +1199,12 @@ focusclient(Client *c, int lift)
 void
 focusmon(const Arg *arg)
 {
-	do
+	Monitor *m = selmon;
+	do {
 		selmon = dirtomon(arg->i);
-	while (!selmon->wlr_output->enabled);
+		if (!selmon || selmon == m)
+			break;
+	} while (!selmon->wlr_output->enabled);
 	focusclient(focustop(selmon), 1);
 }
 
