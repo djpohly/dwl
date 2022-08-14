@@ -1648,6 +1648,9 @@ outputmgrapplyortest(struct wlr_output_configuration_v1 *config, int test)
 	else
 		wlr_output_configuration_v1_send_failed(config);
 	wlr_output_configuration_v1_destroy(config);
+
+	/* TODO: use a specialized function? */
+	updatemons(NULL, NULL);
 }
 
 void
@@ -2370,14 +2373,34 @@ updatemons(struct wl_listener *listener, void *data)
 	 */
 	struct wlr_output_configuration_v1 *config =
 		wlr_output_configuration_v1_create();
+	struct wlr_output_configuration_head_v1 *config_head;
 	Monitor *m;
+
+	/* First remove from the layout the disabled monitors */
+	wl_list_for_each(m, &mons, link) {
+		if (m->wlr_output->enabled)
+			continue;
+		config_head = wlr_output_configuration_head_v1_create(config, m->wlr_output);
+		if (m == selmon) {
+			Arg arg = {.i = WLR_DIRECTION_RIGHT};
+			focusmon(&arg);
+		}
+		/* Remove this output from the layout to avoid cursor enter inside it */
+		wlr_output_layout_remove(output_layout, m->wlr_output);
+		closemon(m);
+		config_head->state.enabled = 0;
+	}
+	/* Insert outputs that need to */
+	wl_list_for_each(m, &mons, link)
+		if (m->wlr_output->enabled
+				&& !wlr_output_layout_get(output_layout, m->wlr_output))
+			wlr_output_layout_add_auto(output_layout, m->wlr_output);
+	/* Now that we update the output layout we can get its box */
 	sgeom = *wlr_output_layout_get_box(output_layout, NULL);
 	wl_list_for_each(m, &mons, link) {
-		struct wlr_output_configuration_head_v1 *config_head =
-			wlr_output_configuration_head_v1_create(config, m->wlr_output);
-
-		/* TODO: move clients off disabled monitors */
-		/* TODO: move focus if selmon is disabled */
+		if (!m->wlr_output->enabled)
+			continue;
+		config_head = wlr_output_configuration_head_v1_create(config, m->wlr_output);
 
 		/* Get the effective monitor geometry to use for surfaces */
 		m->m = m->w = *wlr_output_layout_get_box(output_layout, m->wlr_output);
@@ -2387,7 +2410,7 @@ updatemons(struct wl_listener *listener, void *data)
 		/* Don't move clients to the left output when plugging monitors */
 		arrange(m);
 
-		config_head->state.enabled = m->wlr_output->enabled;
+		config_head->state.enabled = 1;
 		config_head->state.mode = m->wlr_output->current_mode;
 		config_head->state.x = m->m.x;
 		config_head->state.y = m->m.y;
