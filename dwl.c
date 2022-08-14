@@ -1698,6 +1698,9 @@ outputmgrapplyortest(struct wlr_output_configuration_v1 *config, int test)
 	else
 		wlr_output_configuration_v1_send_failed(config);
 	wlr_output_configuration_v1_destroy(config);
+
+	/* TODO: use a wrapper function? */
+	updatemons(NULL, NULL);
 }
 
 void
@@ -2435,14 +2438,38 @@ updatemons(struct wl_listener *listener, void *data)
 	struct wlr_output_configuration_v1 *config =
 		wlr_output_configuration_v1_create();
 	Client *c;
+	struct wlr_output_configuration_head_v1 *config_head;
 	Monitor *m;
+
+	/* First remove from the layout the disabled monitors */
+	wl_list_for_each(m, &mons, link) {
+		int nmons, i = 0;
+		if (m->wlr_output->enabled)
+			continue;
+		config_head = wlr_output_configuration_head_v1_create(config, m->wlr_output);
+		config_head->state.enabled = 0;
+		if (m == selmon && (nmons = wl_list_length(&mons)))
+			do /* don't switch to disabled mons */
+				selmon = wl_container_of(mons.next, selmon, link);
+			while (!selmon->wlr_output->enabled && i++ < nmons);
+		/* Remove this output from the layout to avoid cursor enter inside it */
+		wlr_output_layout_remove(output_layout, m->wlr_output);
+		focusclient(focustop(selmon), 1);
+		closemon(m);
+		memset(&m->m, 0, sizeof(m->m));
+		memset(&m->w, 0, sizeof(m->w));
+	}
+	/* Insert outputs that need to */
+	wl_list_for_each(m, &mons, link)
+		if (m->wlr_output->enabled
+				&& !wlr_output_layout_get(output_layout, m->wlr_output))
+			wlr_output_layout_add_auto(output_layout, m->wlr_output);
+	/* Now that we update the output layout we can get its box */
 	sgeom = *wlr_output_layout_get_box(output_layout, NULL);
 	wl_list_for_each(m, &mons, link) {
-		struct wlr_output_configuration_head_v1 *config_head =
-			wlr_output_configuration_head_v1_create(config, m->wlr_output);
-
-		/* TODO: move clients off disabled monitors */
-		/* TODO: move focus if selmon is disabled */
+		if (!m->wlr_output->enabled)
+			continue;
+		config_head = wlr_output_configuration_head_v1_create(config, m->wlr_output);
 
 		/* Get the effective monitor geometry to use for surfaces */
 		m->m = m->w = *wlr_output_layout_get_box(output_layout, m->wlr_output);
@@ -2452,7 +2479,7 @@ updatemons(struct wl_listener *listener, void *data)
 		/* Don't move clients to the left output when plugging monitors */
 		arrange(m);
 
-		config_head->state.enabled = m->wlr_output->enabled;
+		config_head->state.enabled = 1;
 		config_head->state.mode = m->wlr_output->current_mode;
 		config_head->state.x = m->m.x;
 		config_head->state.y = m->m.y;
