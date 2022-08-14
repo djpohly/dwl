@@ -1648,6 +1648,9 @@ outputmgrapplyortest(struct wlr_output_configuration_v1 *config, int test)
 	else
 		wlr_output_configuration_v1_send_failed(config);
 	wlr_output_configuration_v1_destroy(config);
+
+	/* TODO: use a specialized function? */
+	updatemons(NULL, NULL);
 }
 
 void
@@ -2376,16 +2379,29 @@ updatemons(struct wl_listener *listener, void *data)
 		struct wlr_output_configuration_head_v1 *config_head =
 			wlr_output_configuration_head_v1_create(config, m->wlr_output);
 
-		/* TODO: move clients off disabled monitors */
-		/* TODO: move focus if selmon is disabled */
-
-		/* Get the effective monitor geometry to use for surfaces */
-		m->m = m->w = *wlr_output_layout_get_box(output_layout, m->wlr_output);
-		wlr_scene_output_set_position(m->scene_output, m->m.x, m->m.y);
-		/* Calculate the effective monitor geometry to use for clients */
-		arrangelayers(m);
-		/* Don't move clients to the left output when plugging monitors */
-		arrange(m);
+		if (!m->wlr_output->enabled) {
+			if (m == selmon) {
+				Arg arg = {.i = WLR_DIRECTION_RIGHT};
+				focusmon(&arg);
+			}
+			/* Remove this output from the layout to avoid cursor enter inside it */
+			wlr_output_layout_remove(output_layout, m->wlr_output);
+			sgeom = *wlr_output_layout_get_box(output_layout, NULL);
+			closemon(m);
+		} else {
+			/* Insert this output in the layout if it isn't on the layout */
+			if (!wlr_output_layout_get(output_layout, m->wlr_output)) {
+				wlr_output_layout_add_auto(output_layout, m->wlr_output);
+				sgeom = *wlr_output_layout_get_box(output_layout, NULL);
+			}
+			/* Get the effective monitor geometry to use for surfaces */
+			m->m = m->w = *wlr_output_layout_get_box(output_layout, m->wlr_output);
+			wlr_scene_output_set_position(m->scene_output, m->m.x, m->m.y);
+			/* Calculate the effective monitor geometry to use for clients */
+			arrangelayers(m);
+			/* Don't move clients to the left output when plugging monitors */
+			arrange(m);
+		}
 
 		config_head->state.enabled = m->wlr_output->enabled;
 		config_head->state.mode = m->wlr_output->current_mode;
