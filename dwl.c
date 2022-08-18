@@ -2365,6 +2365,7 @@ updatemons(struct wl_listener *listener, void *data)
 	 */
 	struct wlr_output_configuration_v1 *config =
 		wlr_output_configuration_v1_create();
+	Client *c;
 	Monitor *m;
 	sgeom = *wlr_output_layout_get_box(output_layout, NULL);
 	wl_list_for_each(m, &mons, link) {
@@ -2387,6 +2388,11 @@ updatemons(struct wl_listener *listener, void *data)
 		config_head->state.x = m->m.x;
 		config_head->state.y = m->m.y;
 	}
+
+	if (selmon && selmon->wlr_output->enabled)
+		wl_list_for_each(c, &clients, link)
+			if (!c->mon && client_is_mapped(c))
+				setmon(c, selmon, c->tags);
 
 	wlr_output_manager_v1_set_configuration(output_mgr, config);
 }

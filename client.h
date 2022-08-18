@@ -184,6 +184,16 @@ client_is_float_type(Client *c)
 }
 
 static inline int
+client_is_mapped(Client *c)
+{
+#ifdef XWAYLAND
+	if (client_is_x11(c))
+		return c->surface.xwayland->mapped;
+#endif
+	return c->surface.xdg->mapped;
+}
+
+static inline int
 client_wants_fullscreen(Client *c)
 {
 #ifdef XWAYLAND
