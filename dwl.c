@@ -1631,28 +1631,13 @@ outputmgrapplyortest(struct wlr_output_configuration_v1 *config, int test)
 	struct wlr_output_configuration_head_v1 *config_head;
 	int ok = 1;
 
-	/* First disable outputs we need to disable */
-	wl_list_for_each(config_head, &config->heads, link) {
-		struct wlr_output *wlr_output = config_head->state.output;
-		if (!wlr_output->enabled || config_head->state.enabled)
-			continue;
-		wlr_output_enable(wlr_output, 0);
-		if (test) {
-			ok &= wlr_output_test(wlr_output);
-			wlr_output_rollback(wlr_output);
-		} else {
-			ok &= wlr_output_commit(wlr_output);
-		}
-	}
-
-	/* Then enable outputs that need to */
 	wl_list_for_each(config_head, &config->heads, link) {
 		struct wlr_output *wlr_output = config_head->state.output;
 		Monitor *m = wlr_output->data;
-		if (!config_head->state.enabled)
-			continue;
 
-		wlr_output_enable(wlr_output, 1);
+		wlr_output_enable(wlr_output, config_head->state.enabled);
+		if (!config_head->state.enabled)
+			goto apply_or_test;
 		if (config_head->state.mode)
 			wlr_output_set_mode(wlr_output, config_head->state.mode);
 		else
@@ -1669,6 +1654,7 @@ outputmgrapplyortest(struct wlr_output_configuration_v1 *config, int test)
 		wlr_output_set_transform(wlr_output, config_head->state.transform);
 		wlr_output_set_scale(wlr_output, config_head->state.scale);
 
+apply_or_test:
 		if (test) {
 			ok &= wlr_output_test(wlr_output);
 			wlr_output_rollback(wlr_output);
@@ -1678,7 +1664,7 @@ outputmgrapplyortest(struct wlr_output_configuration_v1 *config, int test)
 			 * we test if that mode does not fail rather than just call wlr_output_commit().
 			 * We do not test normal modes because (at least in my hardware (@sevz17))
 			 * wlr_output_test() fails even if that mode can actually be set */
-			if (!config_head->state.mode)
+			if (!config_head->state.mode && config_head->state.enabled)
 				ok &= (output_ok = wlr_output_test(wlr_output)
 						&& wlr_output_commit(wlr_output));
 			else
