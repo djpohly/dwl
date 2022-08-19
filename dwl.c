@@ -1004,10 +1004,9 @@ createpointer(struct wlr_input_device *device)
 			libinput_device_config_tap_set_enabled(libinput_device, tap_to_click);
 			libinput_device_config_tap_set_drag_enabled(libinput_device, tap_and_drag);
 			libinput_device_config_tap_set_drag_lock_enabled(libinput_device, drag_lock);
+			if (libinput_device_config_scroll_has_natural_scroll(libinput_device))
+				libinput_device_config_scroll_set_natural_scroll_enabled(libinput_device, natural_scrolling);
 		}
-
-		if (libinput_device_config_scroll_has_natural_scroll(libinput_device))
-			libinput_device_config_scroll_set_natural_scroll_enabled(libinput_device, natural_scrolling);
 
 		if (libinput_device_config_dwt_is_available(libinput_device))
 			libinput_device_config_dwt_set_enabled(libinput_device, disable_while_typing);
