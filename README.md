@@ -6,7 +6,7 @@ dwl is a compact, hackable compositor for Wayland based on [wlroots](https://git
 
 - Easy to understand, hack on, and extend with patches
 - One C source file (or a very small number) configurable via `config.h`
-- Limited to 2000 SLOC to promote hackability
+- Limited to 2200 SLOC to promote hackability
 - Tied to as few external dependencies as possible
 
 dwl is not meant to provide every feature under the sun. Instead, like dwm, it sticks to features which are necessary, simple, and straightforward to implement given the base on which it is built. Implemented default features are:
@@ -37,7 +37,9 @@ Feature *non-goals* for the main codebase include:
 
 ## Building dwl
 
-dwl has only two dependencies: wlroots and wayland-protocols. Simply install these (and their `-devel` versions if your distro has separate development packages) and run `make`.  If you wish to build against a Git version of wlroots, check out the [wlroots-next branch](https://github.com/djpohly/dwl/tree/wlroots-next).
+dwl has only two dependencies: `wlroots` and `wayland-protocols`. 
+
+Simply install these (and their `-devel` versions if your distro has separate development packages) and run `make`.  If you wish to build against a Git version of wlroots, check out the [wlroots-next branch](https://github.com/djpohly/dwl/tree/wlroots-next).
 
 To enable XWayland, you should also install xorg-xwayland and uncomment its flag in `config.mk`.
 
@@ -70,6 +72,14 @@ Information about selected layouts, current window title, and selected/occupied/
 If your startup command is a shell script, you can achieve the same inside the script with the line
 
     exec <&-
+
+Existing dwl-specific status bars and dwl-specific scripts for other status bars include:
+- [somebar](https://sr.ht/~raphi/somebar/) status bar designed for dwl
+- [dtaobarv2.sh](https://cdn.discordapp.com/attachments/792078050024095745/862428883423723560/dtaobarv2.sh) for use with [dtao](https://github.com/djpohly/dtao) (See "Pinned Messages" on the "customizations" channel of the [dwl Discord server](https://discord.gg/jJxZnrGPWN) for details.)
+- [dwlbar.sh](https://cdn.discordapp.com/attachments/792078050024095745/810926218529472592/dwlbar.sh) for use with [waybar](https://github.com/Alexays/Waybar) (See "Pinned Messages" on the "customizations" channel of the  [dwl Discord server](https://discord.gg/jJxZnrGPWN) for details.)
+- [waybar-dwl](https://codeberg.org/fauxmight/waybar-dwl.git) for use with [waybar](https://github.com/Alexays/Waybar)
+- [dwl-tags.sh](https://codeberg.org/novakane/yambar/src/branch/master/examples/scripts/dwl-tags.sh) for use with [yambar](https://codeberg.org/dnkl/yambar)
+- [waybar-dwl.sh](https://gitee.com/guyuming76/personal/tree/dwl/gentoo/waybar-dwl) for use with [waybar](https://github.com/Alexays/Waybar) (ACCESS TO THIS SCRIPT REQUIRES gitee.com LOGIN!)
 
 ## Replacements for X applications
 
