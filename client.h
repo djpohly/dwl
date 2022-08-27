@@ -199,6 +199,16 @@ client_is_unmanaged(Client *c)
 }
 
 static inline void
+client_notify_enter(struct wlr_surface *s, struct wlr_keyboard *kb)
+{
+	if (kb)
+		wlr_seat_keyboard_notify_enter(seat, s, kb->keycodes,
+				kb->num_keycodes, &kb->modifiers);
+	else
+		wlr_seat_keyboard_notify_enter(seat, s, NULL, 0, NULL);
+}
+
+static inline void
 client_restack_surface(Client *c)
 {
 #ifdef XWAYLAND
