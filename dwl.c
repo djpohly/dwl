@@ -40,6 +40,7 @@
 #include <wlr/types/wlr_screencopy_v1.h>
 #include <wlr/types/wlr_seat.h>
 #include <wlr/types/wlr_server_decoration.h>
+#include <wlr/types/wlr_single_pixel_buffer_v1.h>
 #include <wlr/types/wlr_subcompositor.h>
 #include <wlr/types/wlr_viewporter.h>
 #include <wlr/types/wlr_virtual_keyboard_v1.h>
@@ -1949,6 +1950,7 @@ setup(void)
 	wlr_gamma_control_manager_v1_create(dpy);
 	wlr_primary_selection_v1_device_manager_create(dpy);
 	wlr_viewporter_create(dpy);
+	wlr_single_pixel_buffer_manager_v1_create(dpy);
 	wlr_subcompositor_create(dpy);
 
 	/* Initializes the interface used to implement urgency hints */
