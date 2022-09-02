@@ -300,7 +300,7 @@ static void zoom(const Arg *arg);
 /* variables */
 static const char broken[] = "broken";
 static pid_t child_pid = -1;
-static struct wlr_surface *exclusive_focus;
+static void *exclusive_focus;
 static struct wl_display *dpy;
 static struct wlr_backend *backend;
 static struct wlr_scene *scene;
@@ -522,7 +522,7 @@ arrangelayer(Monitor *m, struct wl_list *list, struct wlr_box *usable_area, int 
 		const uint32_t both_vert = ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP
 			| ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM;
 
-		if (exclusive != (state->exclusive_zone > 0))
+		if (wlr_layer_surface->mapped && exclusive != (state->exclusive_zone > 0))
 			continue;
 
 		bounds = state->exclusive_zone == -1 ? full_area : *usable_area;
@@ -613,8 +613,8 @@ arrangelayers(Monitor *m)
 					layersurface->layer_surface->mapped) {
 				/* Deactivate the focused client. */
 				focusclient(NULL, 0);
-				exclusive_focus = layersurface->layer_surface->surface;
-				client_notify_enter(exclusive_focus, wlr_seat_get_keyboard(seat));
+				exclusive_focus = layersurface;
+				client_notify_enter(layersurface->layer_surface->surface, wlr_seat_get_keyboard(seat));
 				return;
 			}
 		}
@@ -749,6 +749,7 @@ cleanupmon(struct wl_listener *listener, void *data)
 	wl_list_remove(&m->destroy.link);
 	wl_list_remove(&m->frame.link);
 	wl_list_remove(&m->link);
+	wlr_output->data = NULL;
 	wlr_output_layout_remove(output_layout, m->wlr_output);
 	wlr_scene_output_destroy(m->scene_output);
 
@@ -783,8 +784,9 @@ commitlayersurfacenotify(struct wl_listener *listener, void *data)
 {
 	LayerSurface *layersurface = wl_container_of(listener, layersurface, surface_commit);
 	struct wlr_layer_surface_v1 *wlr_layer_surface = layersurface->layer_surface;
+	struct wlr_output *wlr_output = wlr_layer_surface->output;
 
-	if (!layersurface->mon)
+	if (!wlr_output || !(layersurface->mon = wlr_output->data))
 		return;
 
 	if (layers[wlr_layer_surface->current.layer] != layersurface->scene) {
@@ -1073,8 +1075,6 @@ destroylayersurfacenotify(struct wl_listener *listener, void *data)
 	wl_list_remove(&layersurface->unmap.link);
 	wl_list_remove(&layersurface->surface_commit.link);
 	wlr_scene_node_destroy(layersurface->scene);
-	if (layersurface->mon)
-		arrangelayers(layersurface->mon);
 	free(layersurface);
 }
 
@@ -2317,7 +2317,10 @@ unmaplayersurfacenotify(struct wl_listener *listener, void *data)
 
 	layersurface->layer_surface->mapped = (layersurface->mapped = 0);
 	wlr_scene_node_set_enabled(layersurface->scene, 0);
-	if (layersurface->layer_surface->surface == exclusive_focus)
+	if (layersurface->layer_surface->output
+			&& (layersurface->mon = layersurface->layer_surface->output->data))
+		arrangelayers(layersurface->mon);
+	if (layersurface == exclusive_focus)
 		exclusive_focus = NULL;
 	if (layersurface->layer_surface->surface ==
 			seat->keyboard_state.focused_surface)
