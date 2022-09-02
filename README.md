@@ -1,6 +1,6 @@
 # dwl - dwm for Wayland
 
-Join us on our [Discord server](https://discord.gg/jJxZnrGPWN)!
+Join us on our [Discord server](https://discord.gg/jJxZnrGPWN) and at [#dwl](https://web.libera.chat/?channels=#dwl) on irc.libera.chat.
 
 dwl is a compact, hackable compositor for Wayland based on [wlroots](https://gitlab.freedesktop.org/wlroots/wlroots/). It is intended to fill the same space in the Wayland world that dwm does in X11, primarily in terms of philosophy, and secondarily in terms of functionality. Like dwm, dwl is:
 
@@ -84,10 +84,6 @@ Existing dwl-specific status bars and dwl-specific scripts for other status bars
 ## Replacements for X applications
 
 You can find a [list of Wayland applications on the sway wiki](https://github.com/swaywm/sway/wiki/i3-Migration-Guide).
-
-## IRC channel
-
-dwl's IRC channel is #dwl on irc.libera.chat.
 
 ## Acknowledgements
 
