@@ -1438,9 +1438,6 @@ mapnotify(struct wl_listener *listener, void *data)
 	}
 	printstatus();
 
-	if (c->isfullscreen)
-		setfullscreen(c, 1);
-
 	c->mon->un_map = 1;
 }
 
@@ -1889,6 +1886,8 @@ void
 setfullscreen(Client *c, int fullscreen)
 {
 	c->isfullscreen = fullscreen;
+	if (!c->mon)
+		return;
 	c->bw = fullscreen ? 0 : borderpx;
 	client_set_fullscreen(c, fullscreen);
 
@@ -1968,7 +1967,7 @@ setmon(Client *c, Monitor *m, unsigned int newtags)
 		resize(c, c->geom, 0);
 		wlr_surface_send_enter(client_surface(c), m->wlr_output);
 		c->tags = newtags ? newtags : m->tagset[m->seltags]; /* assign tags of target monitor */
-		arrange(m);
+		setfullscreen(c, c->isfullscreen); /* This will call arrange(c->mon) */
 	}
 	focusclient(focustop(selmon), 1);
 }
