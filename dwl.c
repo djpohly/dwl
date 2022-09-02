@@ -762,7 +762,7 @@ cleanupmon(struct wl_listener *listener, void *data)
 {
 	Monitor *m = wl_container_of(listener, m, destroy);
 	LayerSurface *l, *tmp;
-	int nmons, i;
+	int i;
 
 	for (i = 0; i <= ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY; i++) {
 		wl_list_for_each_safe(l, tmp, &m->layers[i], link) {
@@ -778,12 +778,6 @@ cleanupmon(struct wl_listener *listener, void *data)
 	wlr_output_layout_remove(output_layout, m->wlr_output);
 	wlr_scene_output_destroy(m->scene_output);
 
-	if (!(i = 0) && (nmons = wl_list_length(&mons)))
-		do /* don't switch to disabled mons */
-			selmon = wl_container_of(mons.prev, selmon, link);
-		while (!selmon->wlr_output->enabled && i++ < nmons);
-
-	focusclient(focustop(selmon), 1);
 	closemon(m);
 	free(m);
 }
@@ -791,8 +785,17 @@ cleanupmon(struct wl_listener *listener, void *data)
 void
 closemon(Monitor *m)
 {
-	/* move closed monitor's clients to the focused one */
+	/* update selmon if needed and
+	 * move closed monitor's clients to the focused one */
 	Client *c;
+	if (wl_list_empty(&mons)) {
+		selmon = NULL;
+	} else if (m == selmon) {
+		int nmons = wl_list_length(&mons), i = 0;
+		do /* don't switch to disabled mons */
+			selmon = wl_container_of(mons.next, selmon, link);
+		while (!selmon->wlr_output->enabled && i++ < nmons);
+	}
 
 	wl_list_for_each(c, &clients, link) {
 		if (c->isfloating && c->geom.x > m->m.width)
@@ -801,6 +804,7 @@ closemon(Monitor *m)
 		if (c->mon == m)
 			setmon(c, selmon, c->tags);
 	}
+	focusclient(focustop(selmon), 1);
 	printstatus();
 }
 
@@ -2429,18 +2433,12 @@ updatemons(struct wl_listener *listener, void *data)
 
 	/* First remove from the layout the disabled monitors */
 	wl_list_for_each(m, &mons, link) {
-		int nmons, i = 0;
 		if (m->wlr_output->enabled)
 			continue;
 		config_head = wlr_output_configuration_head_v1_create(config, m->wlr_output);
 		config_head->state.enabled = 0;
-		if (m == selmon && (nmons = wl_list_length(&mons)))
-			do /* don't switch to disabled mons */
-				selmon = wl_container_of(mons.next, selmon, link);
-			while (!selmon->wlr_output->enabled && i++ < nmons);
 		/* Remove this output from the layout to avoid cursor enter inside it */
 		wlr_output_layout_remove(output_layout, m->wlr_output);
-		focusclient(focustop(selmon), 1);
 		closemon(m);
 		memset(&m->m, 0, sizeof(m->m));
 		memset(&m->w, 0, sizeof(m->w));
