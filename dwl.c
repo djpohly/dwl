@@ -1423,6 +1423,7 @@ mapnotify(struct wl_listener *listener, void *data)
 	client_get_geometry(c, &c->geom);
 	c->geom.width += 2 * c->bw;
 	c->geom.height += 2 * c->bw;
+	c->prev = c->geom;
 
 	/* Insert this client into client lists. */
 	wl_list_insert(&clients, &c->link);
