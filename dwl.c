@@ -496,9 +496,10 @@ arrange(Monitor *m)
 {
 	Client *c;
 	wl_list_for_each(c, &clients, link)
-		wlr_scene_node_set_enabled(c->scene, VISIBLEON(c, c->mon));
+		if (c->mon == m)
+			wlr_scene_node_set_enabled(c->scene, VISIBLEON(c, m));
 
-	if (m->lt[m->sellt]->arrange)
+	if (m && m->lt[m->sellt]->arrange)
 		m->lt[m->sellt]->arrange(m);
 	motionnotify(0);
 }
