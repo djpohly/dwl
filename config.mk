@@ -1,4 +1,4 @@
-_VERSION = 0.3.1
+_VERSION = 0.3.1-dev
 VERSION  = `git describe --long --tags --dirty 2>/dev/null || echo $(_VERSION)`
 
 # paths
