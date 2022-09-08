@@ -792,7 +792,7 @@ commitlayersurfacenotify(struct wl_listener *listener, void *data)
 	if (!wlr_output || !(layersurface->mon = wlr_output->data))
 		return;
 
-	if (layers[wlr_layer_surface->current.layer] != layersurface->scene) {
+	if (layers[wlr_layer_surface->current.layer] != layersurface->scene->parent) {
 		wlr_scene_node_reparent(layersurface->scene,
 				layers[wlr_layer_surface->current.layer]);
 		wl_list_remove(&layersurface->link);
