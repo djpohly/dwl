@@ -4,7 +4,7 @@
 include config.mk
 
 # flags for compiling
-DWLCPPFLAGS = -I. -DWLR_USE_UNSTABLE -DVERSION=\"$(VERSION)\"
+DWLCPPFLAGS = -I. -DWLR_USE_UNSTABLE -D_POSIX_C_SOURCE=200809L -DVERSION=\"$(VERSION)\"
 
 # Wayland utils
 WAYLAND_PROTOCOLS = `pkg-config --variable=pkgdatadir wayland-protocols`
