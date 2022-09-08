@@ -27,7 +27,7 @@ dwl is not meant to provide every feature under the sun. Instead, like dwm, it s
 Features under consideration (possibly as patches) are:
 
 - Protocols made trivial by wlroots
-- Implement the text-input and input-method protocols to support IME once ibus implements input-method v2 (see https://github.com/ibus/ibus/pull/2256 and https://github.com/djpohly/dwl/pull/12)
+- Implement the text-input and input-method protocols to support IME once ibus implements input-method v2 (see https://github.com/ibus/ibus/pull/2256 and https://github.com/djpohly/dwl/pull/235)
 
 Feature *non-goals* for the main codebase include:
 
