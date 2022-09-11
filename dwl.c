@@ -739,8 +739,7 @@ cleanup(void)
 void
 cleanupkeyboard(struct wl_listener *listener, void *data)
 {
-	struct wlr_input_device *device = data;
-	Keyboard *kb = device->data;
+	Keyboard *kb = wl_container_of(listener, kb, destroy);
 
 	wl_list_remove(&kb->link);
 	wl_list_remove(&kb->modifiers.link);
@@ -752,14 +751,13 @@ cleanupkeyboard(struct wl_listener *listener, void *data)
 void
 cleanupmon(struct wl_listener *listener, void *data)
 {
-	struct wlr_output *wlr_output = data;
-	Monitor *m = wlr_output->data;
+	Monitor *m = wl_container_of(listener, m, destroy);
 	int nmons, i = 0;
 
 	wl_list_remove(&m->destroy.link);
 	wl_list_remove(&m->frame.link);
 	wl_list_remove(&m->link);
-	wlr_output->data = NULL;
+	m->wlr_output->data = NULL;
 	wlr_output_layout_remove(output_layout, m->wlr_output);
 	wlr_scene_output_destroy(m->scene_output);
 
