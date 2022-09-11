@@ -2433,8 +2433,7 @@ void
 virtualkeyboard(struct wl_listener *listener, void *data)
 {
 	struct wlr_virtual_keyboard_v1 *keyboard = data;
-	struct wlr_input_device *device = &keyboard->input_device;
-	createkeyboard(device);
+	createkeyboard(&keyboard->input_device);
 }
 
 Monitor *
