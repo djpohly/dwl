@@ -694,14 +694,14 @@ chvt(const Arg *arg)
 void
 checkidleinhibitor(struct wlr_surface *exclude)
 {
-	Client *c, *w;
 	int inhibited = 0;
 	struct wlr_idle_inhibitor_v1 *inhibitor;
 	wl_list_for_each(inhibitor, &idle_inhibit_mgr->inhibitors, link) {
-		c = client_from_wlr_surface(inhibitor->surface);
-		if (exclude && (!(w = client_from_wlr_surface(exclude)) || w == c))
+		Client *c;
+		if (exclude == inhibitor->surface)
 			continue;
-		if (!c || VISIBLEON(c, c->mon)) {
+		if (!(c = client_from_wlr_surface(inhibitor->surface))
+				|| VISIBLEON(c, c->mon)) {
 			inhibited = 1;
 			break;
 		}
