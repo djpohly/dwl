@@ -1439,13 +1439,14 @@ mapnotify(struct wl_listener *listener, void *data)
 	wl_list_insert(&clients, &c->link);
 	wl_list_insert(&fstack, &c->flink);
 
-	/* Set initial monitor, tags, floating status, and focus */
-	if ((p = client_get_parent(c))) {
-		/* Set the same monitor and tags than its parent */
+	/* Set initial monitor, tags, floating status, and focus:
+	 * we always consider floating, clients that have parent and thus
+	 * we set the same tags and monitor than its parent, if not
+	 * try to apply rules for them */
+	if ((p = client_get_parent(c)) && client_is_mapped(p)) {
 		c->isfloating = 1;
 		wlr_scene_node_reparent(c->scene, layers[LyrFloat]);
-		/* TODO recheck if !p->mon is possible with wlroots 0.16.0 */
-		setmon(c, p->mon ? p->mon : selmon, p->tags);
+		setmon(c, p->mon, p->tags);
 	} else {
 		applyrules(c);
 	}
