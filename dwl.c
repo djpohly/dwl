@@ -389,6 +389,8 @@ applybounds(Client *c, struct wlr_box *bbox)
 		/* try to set size hints */
 		c->geom.width = MAX(min.width + (2 * c->bw), c->geom.width);
 		c->geom.height = MAX(min.height + (2 * c->bw), c->geom.height);
+		/* Some clients set them max size to INT_MAX, which does not violates
+		 * the protocol but its innecesary, they can set them max size to zero. */
 		if (max.width > 0 && !(2 * c->bw > INT_MAX - max.width)) // Checks for overflow
 			c->geom.width = MIN(max.width + (2 * c->bw), c->geom.width);
 		if (max.height > 0 && !(2 * c->bw > INT_MAX - max.height)) // Checks for overflow
@@ -522,6 +524,7 @@ arrangelayer(Monitor *m, struct wl_list *list, struct wlr_box *usable_area, int 
 		const uint32_t both_vert = ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP
 			| ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM;
 
+		/* Unmapped surfaces shouldn't have exclusive zone */
 		if (!((LayerSurface *)wlr_layer_surface->data)->mapped
 				|| exclusive != (state->exclusive_zone > 0))
 			continue;
@@ -631,6 +634,8 @@ axisnotify(struct wl_listener *listener, void *data)
 	 * for example when you move the scroll wheel. */
 	struct wlr_event_pointer_axis *event = data;
 	wlr_idle_notify_activity(idle, seat);
+	/* TODO: allow usage of scroll whell for mousebindings, it can be implemented
+	 * checking the event's orientation and the delta of the event */
 	/* Notify the client with pointer focus of the axis event. */
 	wlr_seat_pointer_notify_axis(seat,
 			event->time_msec, event->orientation, event->delta,
@@ -700,6 +705,8 @@ checkidleinhibitor(struct wlr_surface *exclude)
 		Client *c;
 		if (exclude == inhibitor->surface)
 			continue;
+		/* In case we can't get a client from the surface assume that it is
+		 * visible, for example a layer surface */
 		if (!(c = client_from_wlr_surface(inhibitor->surface))
 				|| VISIBLEON(c, c->mon)) {
 			inhibited = 1;
@@ -789,6 +796,8 @@ commitlayersurfacenotify(struct wl_listener *listener, void *data)
 	struct wlr_layer_surface_v1 *wlr_layer_surface = layersurface->layer_surface;
 	struct wlr_output *wlr_output = wlr_layer_surface->output;
 
+	/* For some reason this layersurface have no monitor, this can be because
+	 * its monitor has just been destroyed */
 	if (!wlr_output || !(layersurface->mon = wlr_output->data))
 		return;
 
@@ -980,9 +989,14 @@ createnotify(struct wl_listener *listener, void *data)
 		LayerSurface *l = toplevel_from_popup(xdg_surface->popup);
 		xdg_surface->surface->data = wlr_scene_xdg_surface_create(
 				xdg_surface->popup->parent->data, xdg_surface);
+		/* Raise to top layer if the inmediate parent of the popup is on
+		 * bottom/background layer, which will cause popups appear below the
+		 * x{dg,wayland} clients */
 		if (wlr_surface_is_layer_surface(xdg_surface->popup->parent) && l
 				&& l->layer_surface->current.layer < ZWLR_LAYER_SHELL_V1_LAYER_TOP)
 			wlr_scene_node_reparent(xdg_surface->surface->data, layers[LyrTop]);
+		/* Probably the check of `l` is useless, the only thing that can be NULL
+		 * is its monitor */
 		if (!l || !l->mon)
 			return;
 		box = l->type == LayerShell ? l->mon->m : l->mon->w;
@@ -1158,9 +1172,7 @@ focusclient(Client *c, int lift)
 	if (old && (!c || client_surface(c) != old)) {
 		/* If an overlay is focused, don't focus or activate the client,
 		 * but only update its position in fstack to render its border with focuscolor
-		 * and focus it after the overlay is closed.
-		 * It's probably pointless to check if old is a layer surface
-		 * since it can't be anything else at this point. */
+		 * and focus it after the overlay is closed. */
 		if (wlr_surface_is_layer_surface(old)) {
 			struct wlr_layer_surface_v1 *wlr_layer_surface =
 				wlr_layer_surface_v1_from_wlr_surface(old);
@@ -1233,6 +1245,9 @@ focusstack(const Arg *arg)
 	focusclient(c, 1);
 }
 
+/* We probably should change the name of this, it sounds like
+ * will focus the topmost client of this mon, when actually will
+ * only return that client */
 Client *
 focustop(Monitor *m)
 {
@@ -1398,14 +1413,17 @@ mapnotify(struct wl_listener *listener, void *data)
 	}
 	c->scene->data = c->scene_surface->data = c;
 
+#ifdef XWAYLAND
+	/* Handle unmanaged clients first so we can return prior create borders */
 	if (client_is_unmanaged(c)) {
 		client_get_geometry(c, &c->geom);
-		/* Floating */
+		/* Unmanaged clients always are floating */
 		wlr_scene_node_reparent(c->scene, layers[LyrFloat]);
 		wlr_scene_node_set_position(c->scene, c->geom.x + borderpx,
 			c->geom.y + borderpx);
 		return;
 	}
+#endif
 
 	for (i = 0; i < 4; i++) {
 		c->border[i] = wlr_scene_rect_create(c->scene, 0, 0, bordercolor);
@@ -1482,6 +1500,7 @@ motionnotify(uint32_t time)
 			selmon = xytomon(cursor->x, cursor->y);
 	}
 
+	/* Update drag icon's position if any */
 	if (seat->drag && (icon = seat->drag->icon))
 		wlr_scene_node_set_position(icon->data, cursor->x + icon->surface->sx,
 				cursor->y + icon->surface->sy);
@@ -2533,6 +2552,7 @@ createnotifyx11(struct wl_listener *listener, void *data)
 {
 	struct wlr_xwayland_surface *xwayland_surface = data;
 	Client *c;
+	/* TODO: why we unset fullscreen when a xwayland client is created? */
 	wl_list_for_each(c, &clients, link)
 		if (c->isfullscreen && VISIBLEON(c, c->mon))
 			setfullscreen(c, 0);
