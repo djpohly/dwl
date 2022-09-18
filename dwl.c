@@ -2340,11 +2340,11 @@ unmaplayersurfacenotify(struct wl_listener *listener, void *data)
 
 	layersurface->mapped = 0;
 	wlr_scene_node_set_enabled(layersurface->scene, 0);
+	if (layersurface == exclusive_focus)
+		exclusive_focus = NULL;
 	if (layersurface->layer_surface->output
 			&& (layersurface->mon = layersurface->layer_surface->output->data))
 		arrangelayers(layersurface->mon);
-	if (layersurface == exclusive_focus)
-		exclusive_focus = NULL;
 	if (layersurface->layer_surface->surface ==
 			seat->keyboard_state.focused_surface)
 		focusclient(selclient(), 1);
