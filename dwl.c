@@ -1175,7 +1175,7 @@ focusclient(Client *c, int lift)
 			struct wlr_layer_surface_v1 *wlr_layer_surface =
 				wlr_layer_surface_v1_from_wlr_surface(old);
 
-			if (wlr_layer_surface->mapped && (
+			if (wlr_layer_surface && wlr_layer_surface->mapped && (
 						wlr_layer_surface->current.layer == ZWLR_LAYER_SHELL_V1_LAYER_TOP ||
 						wlr_layer_surface->current.layer == ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY
 						))
