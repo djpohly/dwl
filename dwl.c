@@ -1145,9 +1145,6 @@ focusclient(Client *c, int lift)
 {
 	struct wlr_surface *old = seat->keyboard_state.focused_surface;
 	int i;
-	/* Do not focus clients if a layer surface is focused */
-	if (exclusive_focus)
-		return;
 
 	/* Raise client in stacking order if requested */
 	if (c && lift)
@@ -1164,8 +1161,11 @@ focusclient(Client *c, int lift)
 		c->isurgent = 0;
 		client_restack_surface(c);
 
-		for (i = 0; i < 4; i++)
-			wlr_scene_rect_set_color(c->border[i], focuscolor);
+		/* Don't change border color if there is a exclusive focus
+		 * (at this moment it means that a layer surface is focused) */
+		if (!exclusive_focus)
+			for (i = 0; i < 4; i++)
+				wlr_scene_rect_set_color(c->border[i], focuscolor);
 	}
 
 	/* Deactivate old client if focus is changing */
