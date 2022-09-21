@@ -20,7 +20,6 @@ static inline Client *
 client_from_wlr_surface(struct wlr_surface *s)
 {
 	struct wlr_xdg_surface *surface;
-	struct wlr_surface *parent;
 
 #ifdef XWAYLAND
 	struct wlr_xwayland_surface *xsurface;
@@ -41,7 +40,6 @@ client_from_wlr_surface(struct wlr_surface *s)
 static inline Client *
 client_get_parent(Client *c)
 {
-	Client *p;
 #ifdef XWAYLAND
 	if (client_is_x11(c) && c->surface.xwayland->parent)
 		return client_from_wlr_surface(c->surface.xwayland->parent->surface);
