@@ -1199,6 +1199,9 @@ focusclient(Client *c, int lift)
 		return;
 	}
 
+	/* Change cursor surface */
+	motionnotify(0);
+
 	/* Have a client, so focus its top-level wlr_surface */
 	client_notify_enter(client_surface(c), wlr_seat_get_keyboard(seat));
 
@@ -1521,7 +1524,7 @@ motionnotify(uint32_t time)
 	/* If there's no client surface under the cursor, set the cursor image to a
 	 * default. This is what makes the cursor image appear when you move it
 	 * off of a client or over its border. */
-	if (!surface && time)
+	if (!surface)
 		wlr_xcursor_manager_set_cursor_image(cursor_mgr, "left_ptr", cursor);
 
 	pointerfocus(c, surface, sx, sy, time);
@@ -2373,6 +2376,7 @@ end:
 	wl_list_remove(&c->commit.link);
 	wlr_scene_node_destroy(c->scene);
 	printstatus();
+	motionnotify(0);
 }
 
 void
