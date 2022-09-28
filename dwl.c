@@ -1885,6 +1885,8 @@ run(char *startup_cmd)
 {
 	/* Add a Unix socket to the Wayland display. */
 	const char *socket = wl_display_add_socket_auto(dpy);
+	struct sigaction sa = {.sa_flags = SA_RESTART, .sa_handler = SIG_IGN};
+	sigemptyset(&sa.sa_mask);
 	if (!socket)
 		die("startup: display_add_socket_auto");
 	setenv("WAYLAND_DISPLAY", socket, 1);
@@ -1913,7 +1915,7 @@ run(char *startup_cmd)
 		close(piperw[0]);
 	}
 	/* If nobody is reading the status output, don't terminate */
-	signal(SIGPIPE, SIG_IGN);
+	sigaction(SIGPIPE, &sa, NULL);
 	printstatus();
 
 	/* At this point the outputs are initialized, choose initial selmon based on
@@ -2066,18 +2068,26 @@ setsel(struct wl_listener *listener, void *data)
 void
 setup(void)
 {
+	struct sigaction sa_term = {.sa_flags = SA_RESTART, .sa_handler = quitsignal};
+	struct sigaction sa_sigchld = {
+#ifdef XWAYLAND
+		.sa_flags = SA_RESTART,
+		.sa_handler = sigchld,
+#else
+		.sa_flags = SA_NOCLDSTOP | SA_NOCLDWAIT | SA_RESTART,
+		.sa_handler = SIG_IGN,
+#endif
+	};
+	sigemptyset(&sa_term.sa_mask);
+	sigemptyset(&sa_sigchld.sa_mask);
 	/* The Wayland display is managed by libwayland. It handles accepting
 	 * clients from the Unix socket, manging Wayland globals, and so on. */
 	dpy = wl_display_create();
 
 	/* Set up signal handlers */
-#ifdef XWAYLAND
-	sigchld(0);
-#else
-	signal(SIGCHLD, SIG_IGN);
-#endif
-	signal(SIGINT, quitsignal);
-	signal(SIGTERM, quitsignal);
+	sigaction(SIGCHLD, &sa_sigchld, NULL);
+	sigaction(SIGINT, &sa_term, NULL);
+	sigaction(SIGTERM, &sa_term, NULL);
 
 	/* The backend is a wlroots feature which abstracts the underlying input and
 	 * output hardware. The autocreate option will choose the most suitable
@@ -2699,12 +2709,11 @@ sigchld(int unused)
 {
 	siginfo_t in;
 	/* We should be able to remove this function in favor of a simple
-	 *     signal(SIGCHLD, SIG_IGN);
+	 *     struct sigaction sa = {.sa_handler = SIG_IGN};
+	 *     sigaction(SIGCHLD, &sa, NULL);
 	 * but the Xwayland implementation in wlroots currently prevents us from
 	 * setting our own disposition for SIGCHLD.
 	 */
-	if (signal(SIGCHLD, sigchld) == SIG_ERR)
-		die("can't install SIGCHLD handler:");
 	/* WNOWAIT leaves the child in a waitable state, in case this is the
 	 * XWayland process
 	 */
