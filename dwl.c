@@ -66,7 +66,7 @@
 #define LISTEN(E, L, H)         wl_signal_add((E), ((L)->notify = (H), (L)))
 
 /* enums */
-enum { CurNormal, CurMove, CurResize }; /* cursor */
+enum { CurNormal, CurPressed, CurMove, CurResize }; /* cursor */
 enum { XDGShell, LayerShell, X11Managed, X11Unmanaged }; /* client types */
 enum { LyrBg, LyrBottom, LyrTop, LyrOverlay, LyrTile, LyrFloat, LyrNoFocus, NUM_LAYERS }; /* scene layers */
 #ifdef XWAYLAND
@@ -672,10 +672,11 @@ buttonpress(struct wl_listener *listener, void *data)
 				return;
 			}
 		}
+		cursor_mode = CurPressed;
 		break;
 	case WLR_BUTTON_RELEASED:
 		/* If you released any buttons, we exit interactive move/resize mode. */
-		if (cursor_mode != CurNormal) {
+		if (cursor_mode != CurNormal && cursor_mode != CurPressed) {
 			cursor_mode = CurNormal;
 			/* Clear the pointer focus, this way if the cursor is over a surface
 			 * we will send an enter event after which the client will provide us
@@ -686,6 +687,8 @@ buttonpress(struct wl_listener *listener, void *data)
 			selmon = xytomon(cursor->x, cursor->y);
 			setmon(grabc, selmon, 0);
 			return;
+		} else {
+			cursor_mode = CurNormal;
 		}
 		break;
 	}
@@ -1531,6 +1534,13 @@ motionnotify(uint32_t time)
 
 	/* Find the client under the pointer and send the event along. */
 	xytonode(cursor->x, cursor->y, &surface, &c, NULL, &sx, &sy);
+
+	if (cursor_mode == CurPressed) {
+		surface = seat->pointer_state.focused_surface;
+		c = client_from_wlr_surface(surface);
+		sx = c ? cursor->x - c->geom.x : 0;
+		sy = c ? cursor->y - c->geom.y : 0;
+	}
 
 	/* If there's no client surface under the cursor, set the cursor image to a
 	 * default. This is what makes the cursor image appear when you move it
