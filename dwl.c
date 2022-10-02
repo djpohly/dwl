@@ -456,9 +456,7 @@ arrangelayer(Monitor *m, struct wl_list *list, struct wlr_box *usable_area, int 
 		struct wlr_layer_surface_v1 *wlr_layer_surface = layersurface->layer_surface;
 		struct wlr_layer_surface_v1_state *state = &wlr_layer_surface->current;
 
-		/* Unmapped surfaces shouldn't have exclusive zone */
-		if (!((LayerSurface *)wlr_layer_surface->data)->mapped
-				|| exclusive != (state->exclusive_zone > 0))
+		if (exclusive != (state->exclusive_zone > 0))
 			continue;
 
 		wlr_scene_layer_surface_v1_configure(layersurface->scene_layer, &full_area, usable_area);
