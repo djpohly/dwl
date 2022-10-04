@@ -2388,14 +2388,12 @@ unmapnotify(struct wl_listener *listener, void *data)
 	if (c->mon)
 		c->mon->un_map = 1;
 
-	if (client_is_unmanaged(c))
-		goto end;
+	if (!client_is_unmanaged(c)) {
+		wl_list_remove(&c->link);
+		setmon(c, NULL, 0);
+		wl_list_remove(&c->flink);
+	}
 
-	wl_list_remove(&c->link);
-	setmon(c, NULL, 0);
-	wl_list_remove(&c->flink);
-
-end:
 	wl_list_remove(&c->commit.link);
 	wlr_scene_node_destroy(c->scene);
 	printstatus();
