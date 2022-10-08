@@ -307,3 +307,18 @@ toplevel_from_popup(struct wlr_xdg_popup *popup)
 		}
 	}
 }
+
+static inline void *
+toplevel_from_wlr_layer_surface(struct wlr_surface *s)
+{
+	Client *c;
+	struct wlr_layer_surface_v1 *wlr_layer_surface;
+
+	if ((c = client_from_wlr_surface(s)))
+		return c;
+	else if (s && wlr_surface_is_layer_surface(s)
+			&& (wlr_layer_surface = wlr_layer_surface_v1_from_wlr_surface(s)))
+		return wlr_layer_surface->data;
+
+	return NULL;
+}

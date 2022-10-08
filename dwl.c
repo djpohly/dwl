@@ -1504,6 +1504,7 @@ motionnotify(uint32_t time)
 {
 	double sx = 0, sy = 0;
 	Client *c = NULL;
+	LayerSurface *l;
 	struct wlr_surface *surface = NULL;
 	struct wlr_drag_icon *icon;
 
@@ -1536,10 +1537,12 @@ motionnotify(uint32_t time)
 	xytonode(cursor->x, cursor->y, &surface, &c, NULL, &sx, &sy);
 
 	if (cursor_mode == CurPressed && !seat->drag) {
-		surface = seat->pointer_state.focused_surface;
-		c = client_from_wlr_surface(surface);
-		sx = c ? cursor->x - c->geom.x : 0;
-		sy = c ? cursor->y - c->geom.y : 0;
+		if ((l = toplevel_from_wlr_layer_surface(
+				 seat->pointer_state.focused_surface))) {
+			surface = seat->pointer_state.focused_surface;
+			sx = cursor->x - l->geom.x;
+			sy = cursor->y - l->geom.y;
+		}
 	}
 
 	/* If there's no client surface under the cursor, set the cursor image to a
