@@ -392,9 +392,9 @@ applybounds(Client *c, struct wlr_box *bbox)
 		c->geom.height = MAX(min.height + (2 * c->bw), c->geom.height);
 		/* Some clients set them max size to INT_MAX, which does not violates
 		 * the protocol but its innecesary, they can set them max size to zero. */
-		if (max.width > 0 && !(2 * c->bw > INT_MAX - max.width)) // Checks for overflow
+		if (max.width > 0 && !(2 * c->bw > INT_MAX - max.width)) /* Checks for overflow */
 			c->geom.width = MIN(max.width + (2 * c->bw), c->geom.width);
-		if (max.height > 0 && !(2 * c->bw > INT_MAX - max.height)) // Checks for overflow
+		if (max.height > 0 && !(2 * c->bw > INT_MAX - max.height)) /* Checks for overflow */
 			c->geom.height = MIN(max.height + (2 * c->bw), c->geom.height);
 	}
 
