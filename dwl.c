@@ -762,7 +762,15 @@ void
 cleanupmon(struct wl_listener *listener, void *data)
 {
 	Monitor *m = wl_container_of(listener, m, destroy);
-	int nmons, i = 0;
+	LayerSurface *l, *tmp;
+	int nmons, i;
+
+	for (i = 0; i <= ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY; i++) {
+		wl_list_for_each_safe(l, tmp, &m->layers[i], link) {
+			wlr_scene_node_set_enabled(l->scene, 0);
+			wlr_layer_surface_v1_destroy(l->layer_surface);
+		}
+	}
 
 	wl_list_remove(&m->destroy.link);
 	wl_list_remove(&m->frame.link);
@@ -771,7 +779,7 @@ cleanupmon(struct wl_listener *listener, void *data)
 	wlr_output_layout_remove(output_layout, m->wlr_output);
 	wlr_scene_output_destroy(m->scene_output);
 
-	if ((nmons = wl_list_length(&mons)))
+	if (!(i = 0) && (nmons = wl_list_length(&mons)))
 		do /* don't switch to disabled mons */
 			selmon = wl_container_of(mons.prev, selmon, link);
 		while (!selmon->wlr_output->enabled && i++ < nmons);
