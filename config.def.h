@@ -86,6 +86,11 @@ LIBINPUT_CONFIG_ACCEL_PROFILE_ADAPTIVE
 static const enum libinput_config_accel_profile accel_profile = LIBINPUT_CONFIG_ACCEL_PROFILE_ADAPTIVE;
 static const double accel_speed = 0.0;
 
+/* Touch screen */
+static const bool touch_enabled = true;
+static const int32_t touch_finger = 0; /* multi-touch finger id */
+static const uint32_t touch_button = BTN_LEFT;
+
 /* If you want to use the windows key change this to WLR_MODIFIER_LOGO */
 #define MODKEY WLR_MODIFIER_ALT
 #define TAGKEYS(KEY,SKEY,TAG) \

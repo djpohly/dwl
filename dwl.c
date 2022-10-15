@@ -39,6 +39,7 @@
 #include <wlr/types/wlr_screencopy_v1.h>
 #include <wlr/types/wlr_seat.h>
 #include <wlr/types/wlr_server_decoration.h>
+#include <wlr/types/wlr_touch.h>
 #include <wlr/types/wlr_viewporter.h>
 #include <wlr/types/wlr_virtual_keyboard_v1.h>
 #include <wlr/types/wlr_xcursor_manager.h>
@@ -284,6 +285,9 @@ static void togglefloating(const Arg *arg);
 static void togglefullscreen(const Arg *arg);
 static void toggletag(const Arg *arg);
 static void toggleview(const Arg *arg);
+static void touchdown(struct wl_listener *listener, void *data);
+static void touchmotion(struct wl_listener *listener, void *data);
+static void touchup(struct wl_listener *listener, void *data);
 static void unmaplayersurfacenotify(struct wl_listener *listener, void *data);
 static void unmapnotify(struct wl_listener *listener, void *data);
 static void updatemons(struct wl_listener *listener, void *data);
@@ -340,6 +344,9 @@ static struct wl_listener cursor_button = {.notify = buttonpress};
 static struct wl_listener cursor_frame = {.notify = cursorframe};
 static struct wl_listener cursor_motion = {.notify = motionrelative};
 static struct wl_listener cursor_motion_absolute = {.notify = motionabsolute};
+static struct wl_listener cursor_touch_down = {.notify = touchdown};
+static struct wl_listener cursor_touch_motion = {.notify = touchmotion};
+static struct wl_listener cursor_touch_up = {.notify = touchup};
 static struct wl_listener drag_icon_destroy = {.notify = destroydragicon};
 static struct wl_listener idle_inhibitor_create = {.notify = createidleinhibitor};
 static struct wl_listener idle_inhibitor_destroy = {.notify = destroyidleinhibitor};
@@ -1310,6 +1317,9 @@ inputdevice(struct wl_listener *listener, void *data)
 	case WLR_INPUT_DEVICE_POINTER:
 		createpointer(device);
 		break;
+	case WLR_INPUT_DEVICE_TOUCH:
+		createpointer(device);
+		break;
 	default:
 		/* TODO handle other input device types */
 		break;
@@ -2188,6 +2198,13 @@ setup(void)
 	wl_signal_add(&cursor->events.axis, &cursor_axis);
 	wl_signal_add(&cursor->events.frame, &cursor_frame);
 
+	if (touch_enabled) {
+		wl_signal_add(&cursor->events.touch_down, &cursor_touch_down);
+		wl_signal_add(&cursor->events.touch_frame, &cursor_frame);
+		wl_signal_add(&cursor->events.touch_motion, &cursor_touch_motion);
+		wl_signal_add(&cursor->events.touch_up, &cursor_touch_up);
+	}
+
 	/*
 	 * Configures a seat, which is a single "seat" at which a user sits and
 	 * operates the computer. This conceptually includes up to one keyboard,
@@ -2366,6 +2383,50 @@ toggleview(const Arg *arg)
 		arrange(selmon);
 	}
 	printstatus();
+}
+
+void
+touchdown(struct wl_listener *listener, void *data)
+{
+	struct wlr_event_touch_down *event = data;
+
+	struct wlr_event_pointer_motion_absolute m = {
+		event->device, event->time_msec, event->x, event->y
+	};
+	struct wlr_event_pointer_button b = {
+		event->device, event->time_msec, touch_button, WLR_BUTTON_PRESSED
+	};
+
+	if (event->touch_id == touch_finger) {
+		motionabsolute(listener, &m);
+		buttonpress(listener, &b);
+	}
+}
+
+void
+touchmotion(struct wl_listener *listener, void *data)
+{
+	struct wlr_event_touch_down *event = data;
+
+	struct wlr_event_pointer_motion_absolute m = {
+		event->device, event->time_msec, event->x, event->y
+	};
+
+	if (event->touch_id == touch_finger)
+		motionabsolute(listener, &m);
+}
+
+void
+touchup(struct wl_listener *listener, void *data)
+{
+	struct wlr_event_touch_up *event = data;
+
+	struct wlr_event_pointer_button b = {
+		event->device, event->time_msec, touch_button, WLR_BUTTON_RELEASED
+	};
+
+	if (event->touch_id == touch_finger)
+		buttonpress(listener, &b);
 }
 
 void
