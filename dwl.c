@@ -1175,8 +1175,7 @@ focusclient(Client *c, int lift)
 		c->isurgent = 0;
 		client_restack_surface(c);
 
-		/* Don't change border color if there is a exclusive focus
-		 * (at this moment it means that a layer surface is focused) */
+		/* Don't change border color if there is an exclusive focus */
 		if (!exclusive_focus)
 			for (i = 0; i < 4; i++)
 				wlr_scene_rect_set_color(c->border[i], focuscolor);
