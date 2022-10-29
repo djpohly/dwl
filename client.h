@@ -287,6 +287,17 @@ client_surface_at(Client *c, double cx, double cy, double *sx, double *sy)
 }
 
 static inline int
+client_wants_focus(Client *c)
+{
+#ifdef XWAYLAND
+	return client_is_unmanaged(c)
+		&& wlr_xwayland_or_surface_wants_focus(c->surface.xwayland)
+		&& wlr_xwayland_icccm_input_model(c->surface.xwayland) != WLR_ICCCM_INPUT_MODEL_NONE;
+#endif
+	return 0;
+}
+
+static inline int
 client_wants_fullscreen(Client *c)
 {
 #ifdef XWAYLAND
@@ -317,4 +328,19 @@ toplevel_from_popup(struct wlr_xdg_popup *popup)
 			return NULL;
 		}
 	}
+}
+
+static inline void *
+toplevel_from_wlr_layer_surface(struct wlr_surface *s)
+{
+	Client *c;
+	struct wlr_layer_surface_v1 *wlr_layer_surface;
+
+	if ((c = client_from_wlr_surface(s)))
+		return c;
+	else if (s && wlr_surface_is_layer_surface(s)
+			&& (wlr_layer_surface = wlr_layer_surface_v1_from_wlr_surface(s)))
+		return wlr_layer_surface->data;
+
+	return NULL;
 }
