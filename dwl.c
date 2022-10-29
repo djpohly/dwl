@@ -1557,6 +1557,8 @@ outputmgrapplyortest(struct wlr_output_configuration_v1 *config, int test)
 					config_head->state.x, config_head->state.y);
 		wlr_output_set_transform(wlr_output, config_head->state.transform);
 		wlr_output_set_scale(wlr_output, config_head->state.scale);
+		wlr_output_enable_adaptive_sync(wlr_output,
+				config_head->state.adaptive_sync_enabled);
 
 apply_or_test:
 		if (test) {
