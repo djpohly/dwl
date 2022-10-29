@@ -1495,7 +1495,8 @@ monocle(Monitor *m)
 			continue;
 		resize(c, m->w, 0);
 	}
-	focusclient(focustop(m), 1);
+	if ((c = focustop(m)))
+		wlr_scene_node_raise_to_top(c->scene);
 }
 
 void
