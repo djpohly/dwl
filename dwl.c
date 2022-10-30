@@ -644,12 +644,9 @@ cleanupmon(struct wl_listener *listener, void *data)
 	LayerSurface *l, *tmp;
 	int i;
 
-	for (i = 0; i <= ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY; i++) {
-		wl_list_for_each_safe(l, tmp, &m->layers[i], link) {
-			wlr_scene_node_set_enabled(&l->scene->node, 0);
+	for (i = 0; i <= ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY; i++)
+		wl_list_for_each_safe(l, tmp, &m->layers[i], link)
 			wlr_layer_surface_v1_destroy(l->layer_surface);
-		}
-	}
 
 	wl_list_remove(&m->destroy.link);
 	wl_list_remove(&m->frame.link);
