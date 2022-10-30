@@ -1562,23 +1562,7 @@ apply_or_test:
 			ok &= wlr_output_test(wlr_output);
 			wlr_output_rollback(wlr_output);
 		} else {
-			int output_ok = 1;
-			/* If it's a custom mode to avoid an assertion failed in wlr_output_commit()
-			 * we test if that mode does not fail rather than just call wlr_output_commit().
-			 * We do not test normal modes because (at least in my hardware (@sevz17))
-			 * wlr_output_test() fails even if that mode can actually be set */
-			if (!config_head->state.mode && config_head->state.enabled)
-				ok &= (output_ok = wlr_output_test(wlr_output)
-						&& wlr_output_commit(wlr_output));
-			else
-				ok &= wlr_output_commit(wlr_output);
-
-			/* In custom modes we call wlr_output_test(), it it fails
-			 * we need to rollback, and normal modes seems to does not cause
-			 * assertions failed in wlr_output_commit() which rollback
-			 * the output on failure */
-			if (!output_ok)
-				wlr_output_rollback(wlr_output);
+			ok &= wlr_output_commit(wlr_output);
 		}
 	}
 
