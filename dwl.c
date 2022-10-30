@@ -1364,8 +1364,10 @@ keypress(struct wl_listener *listener, void *data)
 	uint32_t keycode = event->keycode + 8;
 	/* Get a list of keysyms based on the keymap for this keyboard */
 	const xkb_keysym_t *syms;
-	int nsyms = xkb_state_key_get_syms(
-			kb->device->keyboard->xkb_state, keycode, &syms);
+	xkb_layout_index_t layout_index = xkb_state_key_get_layout(
+		kb->device->keyboard->xkb_state, keycode);
+	int nsyms = xkb_keymap_key_get_syms_by_level(kb->device->keyboard->keymap,
+		keycode, layout_index, 0, &syms);
 
 	int handled = 0;
 	uint32_t mods = wlr_keyboard_get_modifiers(kb->device->keyboard);
