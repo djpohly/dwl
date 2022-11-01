@@ -1185,8 +1185,9 @@ focusclient(Client *c, int lift)
 		c->isurgent = 0;
 		client_restack_surface(c);
 
-		/* Don't change border color if there is an exclusive focus */
-		if (!exclusive_focus)
+		/* Don't change border color if there is an exclusive focus or we are
+		 * handling a drag operation */
+		if (!exclusive_focus && !seat->drag)
 			for (i = 0; i < 4; i++)
 				wlr_scene_rect_set_color(c->border[i], focuscolor);
 	}
@@ -2261,6 +2262,9 @@ void
 startdrag(struct wl_listener *listener, void *data)
 {
 	struct wlr_drag *drag = data;
+	/* During drag the focus isn't sent to clients, this causes that
+	 * we don't update border color acording the pointer coordinates */
+	focusclient(NULL, 0);
 
 	if (!drag->icon)
 		return;
