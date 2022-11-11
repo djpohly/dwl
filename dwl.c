@@ -150,6 +150,7 @@ typedef struct {
 	struct wlr_box geom;
 	Monitor *mon;
 	struct wlr_scene_tree *scene;
+	struct wlr_scene_tree *popups;
 	struct wlr_scene_layer_surface_v1 *scene_layer;
 	struct wl_list link;
 	int mapped;
@@ -463,6 +464,8 @@ arrangelayer(Monitor *m, struct wl_list *list, struct wlr_box *usable_area, int 
 			continue;
 
 		wlr_scene_layer_surface_v1_configure(layersurface->scene_layer, &full_area, usable_area);
+		wlr_scene_node_set_position(&layersurface->popups->node,
+				layersurface->scene->node.x, layersurface->scene->node.y);
 	}
 }
 
@@ -700,10 +703,14 @@ commitlayersurfacenotify(struct wl_listener *listener, void *data)
 	if (layers[wlr_layer_surface->current.layer] != layersurface->scene->node.parent) {
 		wlr_scene_node_reparent(&layersurface->scene->node,
 				layers[wlr_layer_surface->current.layer]);
+		wlr_scene_node_reparent(&layersurface->popups->node,
+				layers[wlr_layer_surface->current.layer]);
 		wl_list_remove(&layersurface->link);
 		wl_list_insert(&layersurface->mon->layers[wlr_layer_surface->current.layer],
 				&layersurface->link);
 	}
+	if (wlr_layer_surface->current.layer < ZWLR_LAYER_SHELL_V1_LAYER_TOP)
+		wlr_scene_node_reparent(&layersurface->popups->node, layers[LyrTop]);
 
 	if (wlr_layer_surface->current.committed == 0
 			&& layersurface->mapped == wlr_layer_surface->mapped)
@@ -799,8 +806,9 @@ createlayersurface(struct wl_listener *listener, void *data)
 
 	layersurface->scene_layer = wlr_scene_layer_surface_v1_create(
 			layers[wlr_layer_surface->pending.layer], wlr_layer_surface);
-	layersurface->scene = wlr_layer_surface->surface->data =
-			&layersurface->scene_layer->tree->node;
+	layersurface->scene = layersurface->scene_layer->tree;
+	layersurface->popups = wlr_layer_surface->surface->data =
+			&wlr_scene_tree_create(layers[wlr_layer_surface->pending.layer])->node;
 
 	layersurface->scene->node.data = layersurface;
 
@@ -892,14 +900,10 @@ createnotify(struct wl_listener *listener, void *data)
 	if (xdg_surface->role == WLR_XDG_SURFACE_ROLE_POPUP) {
 		struct wlr_box box;
 		LayerSurface *l = toplevel_from_popup(xdg_surface->popup);
+		if (!xdg_surface->popup->parent)
+			return;
 		xdg_surface->surface->data = wlr_scene_xdg_surface_create(
 				xdg_surface->popup->parent->data, xdg_surface);
-		/* Raise to top layer if the inmediate parent of the popup is on
-		 * bottom/background layer, which will cause popups appear below the
-		 * x{dg,wayland} clients */
-		if (wlr_surface_is_layer_surface(xdg_surface->popup->parent) && l
-				&& l->layer_surface->current.layer < ZWLR_LAYER_SHELL_V1_LAYER_TOP)
-			wlr_scene_node_reparent(xdg_surface->surface->data, layers[LyrTop]);
 		/* Probably the check of `l` is useless, the only thing that can be NULL
 		 * is its monitor */
 		if (!l || !l->mon)
@@ -1070,8 +1074,9 @@ focusclient(Client *c, int lift)
 		c->isurgent = 0;
 		client_restack_surface(c);
 
-		/* Don't change border color if there is an exclusive focus */
-		if (!exclusive_focus)
+		/* Don't change border color if there is an exclusive focus or we are
+		 * handling a drag operation */
+		if (!exclusive_focus && !seat->drag)
 			for (i = 0; i < 4; i++)
 				wlr_scene_rect_set_color(c->border[i], focuscolor);
 	}
@@ -2134,6 +2139,9 @@ void
 startdrag(struct wl_listener *listener, void *data)
 {
 	struct wlr_drag *drag = data;
+	/* During drag the focus isn't sent to clients, this causes that
+	 * we don't update border color acording the pointer coordinates */
+	focusclient(NULL, 0);
 
 	if (!drag->icon)
 		return;
