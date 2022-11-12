@@ -1329,7 +1329,8 @@ void
 mapnotify(struct wl_listener *listener, void *data)
 {
 	/* Called when the surface is mapped, or ready to display on-screen. */
-	Client *p, *c = wl_container_of(listener, c, map);
+	Client *p, *w, *c = wl_container_of(listener, c, map);
+	Monitor *m;
 	int i;
 
 	/* Create scene tree for this client and its border */
@@ -1357,7 +1358,7 @@ mapnotify(struct wl_listener *listener, void *data)
 			focusclient(c, 1);
 			exclusive_focus = c;
 		}
-		return;
+		goto unset_fullscreen;
 	}
 #endif
 
@@ -1392,6 +1393,12 @@ mapnotify(struct wl_listener *listener, void *data)
 	printstatus();
 
 	c->mon->un_map = 1;
+
+unset_fullscreen:
+	m = c->mon ? c->mon : xytomon(c->geom.x, c->geom.y);
+	wl_list_for_each(w, &clients, link)
+		if (w != c && w->isfullscreen && VISIBLEON(w, m))
+			setfullscreen(w, 0);
 }
 
 void
@@ -2501,10 +2508,6 @@ createnotifyx11(struct wl_listener *listener, void *data)
 {
 	struct wlr_xwayland_surface *xsurface = data;
 	Client *c;
-	/* TODO: why we unset fullscreen when a xwayland client is created? */
-	wl_list_for_each(c, &clients, link)
-		if (c->isfullscreen && VISIBLEON(c, c->mon))
-			setfullscreen(c, 0);
 
 	/* Allocate a Client for this surface */
 	c = xsurface->data = ecalloc(1, sizeof(*c));
