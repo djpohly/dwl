@@ -2486,8 +2486,13 @@ configurex11(struct wl_listener *listener, void *data)
 {
 	Client *c = wl_container_of(listener, c, configure);
 	struct wlr_xwayland_surface_configure_event *event = data;
-	wlr_xwayland_surface_configure(c->surface.xwayland,
-			event->x, event->y, event->width, event->height);
+	if (!c->mon)
+		return;
+	if (c->isfloating || c->type == X11Unmanaged)
+		resize(c, (struct wlr_box){.x = event->x, .y = event->y,
+				.width = event->width, .height = event->height}, 0);
+	else
+		arrange(c->mon);
 }
 
 void
