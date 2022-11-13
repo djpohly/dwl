@@ -804,7 +804,7 @@ createlayersurface(struct wl_listener *listener, void *data)
 			layers[wlr_layer_surface->pending.layer], wlr_layer_surface);
 	layersurface->scene = layersurface->scene_layer->tree;
 	layersurface->popups = wlr_layer_surface->surface->data =
-			&wlr_scene_tree_create(layers[wlr_layer_surface->pending.layer])->node;
+			wlr_scene_tree_create(layers[wlr_layer_surface->pending.layer]);
 
 	layersurface->scene->node.data = layersurface;
 
