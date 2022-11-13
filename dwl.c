@@ -588,15 +588,12 @@ chvt(const Arg *arg)
 void
 checkidleinhibitor(struct wlr_surface *exclude)
 {
-	Client *c;
 	int inhibited = 0;
+	struct wlr_scene_tree *tree;
 	struct wlr_idle_inhibitor_v1 *inhibitor;
 	wl_list_for_each(inhibitor, &idle_inhibit_mgr->inhibitors, link) {
-		/* In case we can't get a client from the surface assume that it is
-		 * visible, for example a layer surface */
-		if (exclude != inhibitor->surface
-				&& (!(c = client_from_wlr_surface(inhibitor->surface))
-					|| VISIBLEON(c, c->mon))) {
+		if (exclude != inhibitor->surface && (tree = inhibitor->surface->data)
+				&& tree->node.enabled) {
 			inhibited = 1;
 			break;
 		}
