@@ -2496,7 +2496,7 @@ configurex11(struct wl_listener *listener, void *data)
 void
 createnotifyx11(struct wl_listener *listener, void *data)
 {
-	struct wlr_xwayland_surface *xwayland_surface = data;
+	struct wlr_xwayland_surface *xsurface = data;
 	Client *c;
 	/* TODO: why we unset fullscreen when a xwayland client is created? */
 	wl_list_for_each(c, &clients, link)
@@ -2504,22 +2504,20 @@ createnotifyx11(struct wl_listener *listener, void *data)
 			setfullscreen(c, 0);
 
 	/* Allocate a Client for this surface */
-	c = xwayland_surface->data = ecalloc(1, sizeof(*c));
-	c->surface.xwayland = xwayland_surface;
-	c->type = xwayland_surface->override_redirect ? X11Unmanaged : X11Managed;
+	c = xsurface->data = ecalloc(1, sizeof(*c));
+	c->surface.xwayland = xsurface;
+	c->type = xsurface->override_redirect ? X11Unmanaged : X11Managed;
 	c->bw = borderpx;
 
 	/* Listen to the various events it can emit */
-	LISTEN(&xwayland_surface->events.map, &c->map, mapnotify);
-	LISTEN(&xwayland_surface->events.unmap, &c->unmap, unmapnotify);
-	LISTEN(&xwayland_surface->events.request_activate, &c->activate, activatex11);
-	LISTEN(&xwayland_surface->events.request_configure, &c->configure,
-			configurex11);
-	LISTEN(&xwayland_surface->events.set_hints, &c->set_hints, sethints);
-	LISTEN(&xwayland_surface->events.set_title, &c->set_title, updatetitle);
-	LISTEN(&xwayland_surface->events.destroy, &c->destroy, destroynotify);
-	LISTEN(&xwayland_surface->events.request_fullscreen, &c->fullscreen,
-			fullscreennotify);
+	LISTEN(&xsurface->events.map, &c->map, mapnotify);
+	LISTEN(&xsurface->events.unmap, &c->unmap, unmapnotify);
+	LISTEN(&xsurface->events.request_activate, &c->activate, activatex11);
+	LISTEN(&xsurface->events.request_configure, &c->configure, configurex11);
+	LISTEN(&xsurface->events.set_hints, &c->set_hints, sethints);
+	LISTEN(&xsurface->events.set_title, &c->set_title, updatetitle);
+	LISTEN(&xsurface->events.destroy, &c->destroy, destroynotify);
+	LISTEN(&xsurface->events.request_fullscreen, &c->fullscreen, fullscreennotify);
 }
 
 Atom
