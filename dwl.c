@@ -1439,8 +1439,8 @@ motionnotify(uint32_t time)
 
 	/* Update drag icon's position if any */
 	if (seat->drag && (icon = seat->drag->icon))
-		wlr_scene_node_set_position(icon->data, cursor->x + icon->surface->sx,
-				cursor->y + icon->surface->sy);
+		wlr_scene_node_set_position(icon->data, cursor->x + icon->surface->current.dx,
+				cursor->y + icon->surface->current.dy);
 	/* If we are currently grabbing the mouse, handle and return */
 	if (cursor_mode == CurMove) {
 		/* Move the grabbed client to the new position. */
