@@ -466,6 +466,8 @@ arrangelayer(Monitor *m, struct wl_list *list, struct wlr_box *usable_area, int 
 		wlr_scene_layer_surface_v1_configure(layersurface->scene_layer, &full_area, usable_area);
 		wlr_scene_node_set_position(&layersurface->popups->node,
 				layersurface->scene->node.x, layersurface->scene->node.y);
+		layersurface->geom.x = layersurface->scene->node.x;
+		layersurface->geom.y = layersurface->scene->node.y;
 	}
 }
 
