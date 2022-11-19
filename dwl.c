@@ -2265,9 +2265,6 @@ void
 startdrag(struct wl_listener *listener, void *data)
 {
 	struct wlr_drag *drag = data;
-	/* During drag the focus isn't sent to clients, this causes that
-	 * we don't update border color acording the pointer coordinates */
-	focusclient(NULL, 0);
 
 	if (!drag->icon)
 		return;
