@@ -11,4 +11,4 @@ XWAYLAND =
 XLIBS =
 # Uncomment to build XWayland support
 #XWAYLAND = -DXWAYLAND
-#XLIBS = xcb
+#XLIBS = xcb xcb-icccm
