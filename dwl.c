@@ -1156,7 +1156,7 @@ focusstack(const Arg *arg)
 {
 	/* Focus the next or previous client (in tiling order) on selmon */
 	Client *c, *sel = selclient();
-	if (!sel || (sel->isfullscreen && lockfullscreen))
+	if (!sel || sel->isfullscreen)
 		return;
 	if (arg->i > 0) {
 		wl_list_for_each(c, &sel->link, link) {
