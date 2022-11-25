@@ -1510,7 +1510,7 @@ moveresize(const Arg *arg)
 	if (cursor_mode != CurNormal && cursor_mode != CurPressed)
 		return;
 	xytonode(cursor->x, cursor->y, NULL, &grabc, NULL, NULL, NULL);
-	if (!grabc || client_is_unmanaged(grabc))
+	if (!grabc || client_is_unmanaged(grabc) || grabc->isfullscreen)
 		return;
 
 	/* Float the window and tell motionnotify to grab it */
