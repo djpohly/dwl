@@ -8,7 +8,7 @@ assignees: ''
 ---
 
 ## Info
-dwl's commit:
+dwl version:
 wlroots version:
 ## Description
 <!--
