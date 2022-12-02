@@ -390,8 +390,8 @@ applybounds(Client *c, struct wlr_box *bbox)
 		struct wlr_box min = {0}, max = {0};
 		client_get_size_hints(c, &max, &min);
 		/* try to set size hints */
-		c->geom.width = MAX(min.width + (2 * c->bw), c->geom.width);
-		c->geom.height = MAX(min.height + (2 * c->bw), c->geom.height);
+		c->geom.width = MAX(min.width + (2 * (int)c->bw), c->geom.width);
+		c->geom.height = MAX(min.height + (2 * (int)c->bw), c->geom.height);
 		/* Some clients set them max size to INT_MAX, which does not violates
 		 * the protocol but its innecesary, they can set them max size to zero. */
 		if (max.width > 0 && !(2 * c->bw > INT_MAX - max.width)) /* Checks for overflow */
@@ -598,11 +598,11 @@ void
 checkidleinhibitor(struct wlr_surface *exclude)
 {
 	int inhibited = 0;
-	struct wlr_scene_tree *tree;
 	struct wlr_idle_inhibitor_v1 *inhibitor;
 	wl_list_for_each(inhibitor, &idle_inhibit_mgr->inhibitors, link) {
-		if (exclude != inhibitor->surface && (tree = inhibitor->surface->data)
-				&& tree->node.enabled) {
+		struct wlr_scene_tree *tree = inhibitor->surface->data;
+		if (bypass_surface_visibility || (exclude != inhibitor->surface
+				&& tree->node.enabled)) {
 			inhibited = 1;
 			break;
 		}
@@ -1332,7 +1332,8 @@ void
 mapnotify(struct wl_listener *listener, void *data)
 {
 	/* Called when the surface is mapped, or ready to display on-screen. */
-	Client *p, *c = wl_container_of(listener, c, map);
+	Client *p, *w, *c = wl_container_of(listener, c, map);
+	Monitor *m;
 	int i;
 
 	/* Create scene tree for this client and its border */
@@ -1360,7 +1361,7 @@ mapnotify(struct wl_listener *listener, void *data)
 			focusclient(c, 1);
 			exclusive_focus = c;
 		}
-		return;
+		goto unset_fullscreen;
 	}
 #endif
 
@@ -1384,7 +1385,8 @@ mapnotify(struct wl_listener *listener, void *data)
 	 * we always consider floating, clients that have parent and thus
 	 * we set the same tags and monitor than its parent, if not
 	 * try to apply rules for them */
-	if ((p = client_get_parent(c))) {
+	 /* TODO: https://github.com/djpohly/dwl/pull/334#issuecomment-1330166324 */
+	if (c->type == XDGShell && (p = client_get_parent(c))) {
 		c->isfloating = 1;
 		wlr_scene_node_reparent(&c->scene->node, layers[LyrFloat]);
 		setmon(c, p->mon, p->tags);
@@ -1394,6 +1396,12 @@ mapnotify(struct wl_listener *listener, void *data)
 	printstatus();
 
 	c->mon->un_map = 1;
+
+unset_fullscreen:
+	m = c->mon ? c->mon : xytomon(c->geom.x, c->geom.y);
+	wl_list_for_each(w, &clients, link)
+		if (w != c && w->isfullscreen && VISIBLEON(w, m))
+			setfullscreen(w, 0);
 }
 
 void
@@ -1512,7 +1520,7 @@ moveresize(const Arg *arg)
 	if (cursor_mode != CurNormal && cursor_mode != CurPressed)
 		return;
 	xytonode(cursor->x, cursor->y, NULL, &grabc, NULL, NULL, NULL);
-	if (!grabc || client_is_unmanaged(grabc))
+	if (!grabc || client_is_unmanaged(grabc) || grabc->isfullscreen)
 		return;
 
 	/* Float the window and tell motionnotify to grab it */
@@ -2510,10 +2518,6 @@ createnotifyx11(struct wl_listener *listener, void *data)
 {
 	struct wlr_xwayland_surface *xsurface = data;
 	Client *c;
-	/* TODO: why we unset fullscreen when a xwayland client is created? */
-	wl_list_for_each(c, &clients, link)
-		if (c->isfullscreen && VISIBLEON(c, c->mon))
-			setfullscreen(c, 0);
 
 	/* Allocate a Client for this surface */
 	c = xsurface->data = ecalloc(1, sizeof(*c));

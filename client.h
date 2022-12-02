@@ -184,8 +184,7 @@ client_is_float_type(Client *c)
 	}
 #endif
 	return ((min.width > 0 || min.height > 0 || max.width > 0 || max.height > 0)
-		&& (min.width == max.width || min.height == max.height))
-		|| client_get_parent(c);
+		&& (min.width == max.width || min.height == max.height));
 }
 
 static inline int
