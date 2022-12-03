@@ -908,7 +908,7 @@ createnotify(struct wl_listener *listener, void *data)
 
 	if (xdg_surface->role == WLR_XDG_SURFACE_ROLE_POPUP) {
 		struct wlr_box box;
-		LayerSurface *l = toplevel_from_popup(xdg_surface->popup);
+		LayerSurface *l = toplevel_from_wlr_surface(xdg_surface->surface);
 		if (!xdg_surface->popup->parent)
 			return;
 		xdg_surface->surface->data = wlr_scene_xdg_surface_create(
@@ -1096,7 +1096,7 @@ focusclient(Client *c, int lift)
 		/* If an overlay is focused, don't focus or activate the client,
 		 * but only update its position in fstack to render its border with focuscolor
 		 * and focus it after the overlay is closed. */
-		Client *w = client_from_wlr_surface(old);
+		Client *w = toplevel_from_wlr_surface(old);
 		if (wlr_surface_is_layer_surface(old)) {
 			struct wlr_layer_surface_v1 *wlr_layer_surface =
 				wlr_layer_surface_v1_from_wlr_surface(old);
@@ -1472,7 +1472,7 @@ motionnotify(uint32_t time)
 	xytonode(cursor->x, cursor->y, &surface, &c, NULL, &sx, &sy);
 
 	if (cursor_mode == CurPressed && !seat->drag) {
-		if ((l = toplevel_from_wlr_layer_surface(
+		if ((l = toplevel_from_wlr_surface(
 				 seat->pointer_state.focused_surface))) {
 			surface = seat->pointer_state.focused_surface;
 			sx = cursor->x - l->geom.x;
@@ -2357,8 +2357,8 @@ void
 urgent(struct wl_listener *listener, void *data)
 {
 	struct wlr_xdg_activation_v1_request_activate_event *event = data;
-	Client *c = client_from_wlr_surface(event->surface);
-	if (c && c != selclient()) {
+	Client *c = toplevel_from_wlr_surface(event->surface);
+	if (c && c->type != LayerShell && c != selclient()) {
 		c->isurgent = 1;
 		printstatus();
 	}
