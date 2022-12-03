@@ -2543,7 +2543,7 @@ sigchld(int unused)
 	 * XWayland process
 	 */
 	while (!waitid(P_ALL, 0, &in, WEXITED|WNOHANG|WNOWAIT) && in.si_pid
-			&& in.si_pid != xwayland->server->pid)
+			&& (!xwayland || in.si_pid != xwayland->server->pid))
 		waitpid(in.si_pid, NULL, 0);
 }
 
