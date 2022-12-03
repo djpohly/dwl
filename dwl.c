@@ -598,7 +598,7 @@ checkidleinhibitor(struct wlr_surface *exclude)
 	wl_list_for_each(inhibitor, &idle_inhibit_mgr->inhibitors, link) {
 		struct wlr_scene_tree *tree = inhibitor->surface->data;
 		if (bypass_surface_visibility || (exclude != inhibitor->surface
-				&& tree && tree->node.enabled)) {
+				&& tree->node.enabled)) {
 			inhibited = 1;
 			break;
 		}
