@@ -904,22 +904,21 @@ createnotify(struct wl_listener *listener, void *data)
 	 * If you want to do something tricky with popups you should check if
 	 * its parent is wlr_xdg_shell or wlr_layer_shell */
 	struct wlr_xdg_surface *xdg_surface = data;
-	Client *c;
+	Client *c = NULL;
+	LayerSurface *l = NULL;
 
 	if (xdg_surface->role == WLR_XDG_SURFACE_ROLE_POPUP) {
 		struct wlr_box box;
-		LayerSurface *l = toplevel_from_wlr_surface(xdg_surface->surface);
+		int type = toplevel_from_wlr_surface(xdg_surface->surface, &c, &l);
 		if (!xdg_surface->popup->parent)
 			return;
 		xdg_surface->surface->data = wlr_scene_xdg_surface_create(
 				xdg_surface->popup->parent->data, xdg_surface);
-		/* Probably the check of `l` is useless, the only thing that can be NULL
-		 * is its monitor */
-		if (!l || !l->mon)
+		if ((!l || !l->mon) || (!c || !c->mon))
 			return;
-		box = l->type == LayerShell ? l->mon->m : l->mon->w;
-		box.x -= l->geom.x;
-		box.y -= l->geom.y;
+		box = type == LayerShell ? l->mon->m : c->mon->w;
+		box.x -= (type == LayerShell ? l->geom.x : c->geom.x);
+		box.y -= (type == LayerShell ? l->geom.y : c->geom.y);
 		wlr_xdg_popup_unconstrain_from_box(xdg_surface->popup, &box);
 		return;
 	} else if (xdg_surface->role == WLR_XDG_SURFACE_ROLE_NONE)
@@ -1096,15 +1095,12 @@ focusclient(Client *c, int lift)
 		/* If an overlay is focused, don't focus or activate the client,
 		 * but only update its position in fstack to render its border with focuscolor
 		 * and focus it after the overlay is closed. */
-		Client *w = toplevel_from_wlr_surface(old);
-		if (wlr_surface_is_layer_surface(old)) {
-			struct wlr_layer_surface_v1 *wlr_layer_surface =
-				wlr_layer_surface_v1_from_wlr_surface(old);
-
-			if (wlr_layer_surface && ((LayerSurface *)wlr_layer_surface->data)->mapped
-					&& (wlr_layer_surface->current.layer == ZWLR_LAYER_SHELL_V1_LAYER_TOP
-					|| wlr_layer_surface->current.layer == ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY))
-				return;
+		Client *w = NULL;
+		LayerSurface *l = NULL;
+		int type = toplevel_from_wlr_surface(old, &w, &l);
+		if (type == LayerShell && l->scene->node.enabled
+				&& l->layer_surface->current.layer >= ZWLR_LAYER_SHELL_V1_LAYER_TOP) {
+			return;
 		} else if (w && w == exclusive_focus && client_wants_focus(w)) {
 			return;
 		/* Don't deactivate old client if the new one wants focus, as this causes issues with winecfg
@@ -1438,8 +1434,9 @@ void
 motionnotify(uint32_t time)
 {
 	double sx = 0, sy = 0;
-	Client *c = NULL;
-	LayerSurface *l;
+	Client *c = NULL, *w = NULL;
+	LayerSurface *l = NULL;
+	int type;
 	struct wlr_surface *surface = NULL;
 	struct wlr_drag_icon *icon;
 
@@ -1472,11 +1469,12 @@ motionnotify(uint32_t time)
 	xytonode(cursor->x, cursor->y, &surface, &c, NULL, &sx, &sy);
 
 	if (cursor_mode == CurPressed && !seat->drag) {
-		if ((l = toplevel_from_wlr_surface(
-				 seat->pointer_state.focused_surface))) {
+		if ((type = toplevel_from_wlr_surface(
+				 seat->pointer_state.focused_surface, &w, &l)) >= 0) {
+			c = w;
 			surface = seat->pointer_state.focused_surface;
-			sx = cursor->x - l->geom.x;
-			sy = cursor->y - l->geom.y;
+			sx = cursor->x - (type == LayerShell ? l->geom.x : w->geom.x);
+			sy = cursor->y - (type == LayerShell ? l->geom.y : w->geom.y);
 		}
 	}
 
@@ -2357,8 +2355,9 @@ void
 urgent(struct wl_listener *listener, void *data)
 {
 	struct wlr_xdg_activation_v1_request_activate_event *event = data;
-	Client *c = toplevel_from_wlr_surface(event->surface);
-	if (c && c->type != LayerShell && c != selclient()) {
+	Client *c = NULL;
+	int type = toplevel_from_wlr_surface(event->surface, &c, NULL);
+	if (type >= 0 && type != LayerShell && c != selclient()) {
 		c->isurgent = 1;
 		printstatus();
 	}
