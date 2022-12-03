@@ -37,19 +37,6 @@ client_from_wlr_surface(struct wlr_surface *s)
 	return NULL;
 }
 
-static inline Client *
-client_get_parent(Client *c)
-{
-#ifdef XWAYLAND
-	if (client_is_x11(c) && c->surface.xwayland->parent)
-		return client_from_wlr_surface(c->surface.xwayland->parent->surface);
-#endif
-	if (c->surface.xdg->toplevel->parent)
-		return client_from_wlr_surface(c->surface.xdg->toplevel->parent->base->surface);
-
-	return NULL;
-}
-
 static inline void
 client_get_size_hints(Client *c, struct wlr_box *max, struct wlr_box *min)
 {
@@ -151,6 +138,19 @@ client_get_geometry(Client *c, struct wlr_box *geom)
 	}
 #endif
 	wlr_xdg_surface_get_geometry(c->surface.xdg, geom);
+}
+
+static inline Client *
+client_get_parent(Client *c)
+{
+#ifdef XWAYLAND
+	if (client_is_x11(c) && c->surface.xwayland->parent)
+		return toplevel_from_wlr_surface(c->surface.xwayland->parent->surface);
+#endif
+	if (c->surface.xdg->toplevel->parent)
+		return toplevel_from_wlr_surface(c->surface.xdg->toplevel->parent->base->surface);
+
+	return NULL;
 }
 
 static inline const char *
