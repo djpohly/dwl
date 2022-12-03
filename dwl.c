@@ -1738,6 +1738,7 @@ requestmonstate(struct wl_listener *listener, void *data)
 {
 	struct wlr_output_event_request_state *event = data;
 	wlr_output_commit_state(event->output, event->state);
+	updatemons(NULL, NULL);
 }
 
 void
