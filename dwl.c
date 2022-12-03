@@ -596,8 +596,9 @@ checkidleinhibitor(struct wlr_surface *exclude)
 	int inhibited = 0;
 	struct wlr_idle_inhibitor_v1 *inhibitor;
 	wl_list_for_each(inhibitor, &idle_inhibit_mgr->inhibitors, link) {
-		struct wlr_scene_tree *tree = inhibitor->surface->data;
-		if (bypass_surface_visibility || (exclude != inhibitor->surface
+		struct wlr_surface *surface = wlr_surface_get_root_surface(inhibitor->surface);
+		struct wlr_scene_tree *tree = surface->data;
+		if (bypass_surface_visibility || (exclude != surface
 				&& tree->node.enabled)) {
 			inhibited = 1;
 			break;
@@ -1014,7 +1015,7 @@ destroyidleinhibitor(struct wl_listener *listener, void *data)
 {
 	/* `data` is the wlr_surface of the idle inhibitor being destroyed,
 	 * at this point the idle inhibitor is still in the list of the manager */
-	checkidleinhibitor(data);
+	checkidleinhibitor(wlr_surface_get_root_surface(data));
 }
 
 void
