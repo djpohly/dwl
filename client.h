@@ -241,6 +241,21 @@ client_is_mapped(Client *c)
 }
 
 static inline int
+client_is_rendered_on_mon(Client *c, Monitor *m)
+{
+	/* This is needed for when you don't want to check formal assignment,
+	 * but rather actual displaying of the pixels.
+	 * Usually VISIBLEON suffices and is also faster. */
+	struct wlr_surface_output *s;
+	if (!c->scene->node.enabled)
+		return 0;
+	wl_list_for_each(s, &client_surface(c)->current_outputs, link)
+		if (s->output == m->wlr_output)
+			return 1;
+	return 0;
+}
+
+static inline int
 client_is_unmanaged(Client *c)
 {
 #ifdef XWAYLAND
