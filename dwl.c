@@ -730,9 +730,14 @@ commitnotify(struct wl_listener *listener, void *data)
 	struct wlr_box box = {0};
 	client_get_geometry(c, &box);
 
+	if (c->mon && !wlr_box_empty(&box) && (box.width != c->geom.width - 2 * c->bw
+			|| box.height != c->geom.height - 2 * c->bw))
+		arrange(c->mon);
 
 	/* mark a pending resize as completed */
-	if (c->resize && (c->resize <= c->surface.xdg->current.configure_serial))
+	if (c->resize && (c->resize <= c->surface.xdg->current.configure_serial
+			|| (c->surface.xdg->current.geometry.width == c->surface.xdg->pending.geometry.width
+			&& c->surface.xdg->current.geometry.height == c->surface.xdg->pending.geometry.height)))
 		c->resize = 0;
 }
 
