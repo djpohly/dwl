@@ -914,7 +914,7 @@ createnotify(struct wl_listener *listener, void *data)
 			return;
 		xdg_surface->surface->data = wlr_scene_xdg_surface_create(
 				xdg_surface->popup->parent->data, xdg_surface);
-		if ((!l || !l->mon) || (!c || !c->mon))
+		if ((l && !l->mon) || (c && !c->mon))
 			return;
 		box = type == LayerShell ? l->mon->m : c->mon->w;
 		box.x -= (type == LayerShell ? l->geom.x : c->geom.x);
