@@ -183,7 +183,6 @@ struct Monitor {
 	unsigned int tagset[2];
 	double mfact;
 	int nmaster;
-	int un_map; /* If a map/unmap happened on this monitor, then this should be true */
 };
 
 typedef struct {
@@ -600,8 +599,9 @@ checkidleinhibitor(struct wlr_surface *exclude)
 	int inhibited = 0;
 	struct wlr_idle_inhibitor_v1 *inhibitor;
 	wl_list_for_each(inhibitor, &idle_inhibit_mgr->inhibitors, link) {
-		struct wlr_scene_tree *tree = inhibitor->surface->data;
-		if (bypass_surface_visibility || (exclude != inhibitor->surface
+		struct wlr_surface *surface = wlr_surface_get_root_surface(inhibitor->surface);
+		struct wlr_scene_tree *tree = surface->data;
+		if (bypass_surface_visibility || (exclude != surface
 				&& tree->node.enabled)) {
 			inhibited = 1;
 			break;
@@ -733,14 +733,9 @@ commitnotify(struct wl_listener *listener, void *data)
 	struct wlr_box box = {0};
 	client_get_geometry(c, &box);
 
-	if (c->mon && !wlr_box_empty(&box) && (box.width != c->geom.width - 2 * c->bw
-			|| box.height != c->geom.height - 2 * c->bw))
-		arrange(c->mon);
 
 	/* mark a pending resize as completed */
-	if (c->resize && (c->resize <= c->surface.xdg->current.configure_serial
-			|| (c->surface.xdg->current.geometry.width == c->surface.xdg->pending.geometry.width
-			&& c->surface.xdg->current.geometry.height == c->surface.xdg->pending.geometry.height)))
+	if (c->resize && (c->resize <= c->surface.xdg->current.configure_serial))
 		c->resize = 0;
 }
 
@@ -914,22 +909,21 @@ createnotify(struct wl_listener *listener, void *data)
 	 * If you want to do something tricky with popups you should check if
 	 * its parent is wlr_xdg_shell or wlr_layer_shell */
 	struct wlr_xdg_surface *xdg_surface = data;
-	Client *c;
+	Client *c = NULL;
+	LayerSurface *l = NULL;
 
 	if (xdg_surface->role == WLR_XDG_SURFACE_ROLE_POPUP) {
 		struct wlr_box box;
-		LayerSurface *l = toplevel_from_popup(xdg_surface->popup);
+		int type = toplevel_from_wlr_surface(xdg_surface->surface, &c, &l);
 		if (!xdg_surface->popup->parent)
 			return;
 		xdg_surface->surface->data = wlr_scene_xdg_surface_create(
 				xdg_surface->popup->parent->data, xdg_surface);
-		/* Probably the check of `l` is useless, the only thing that can be NULL
-		 * is its monitor */
-		if (!l || !l->mon)
+		if ((!l || !l->mon) || (!c || !c->mon))
 			return;
-		box = l->type == LayerShell ? l->mon->m : l->mon->w;
-		box.x -= l->geom.x;
-		box.y -= l->geom.y;
+		box = type == LayerShell ? l->mon->m : c->mon->w;
+		box.x -= (type == LayerShell ? l->geom.x : c->geom.x);
+		box.y -= (type == LayerShell ? l->geom.y : c->geom.y);
 		wlr_xdg_popup_unconstrain_from_box(xdg_surface->popup, &box);
 		return;
 	} else if (xdg_surface->role == WLR_XDG_SURFACE_ROLE_NONE)
@@ -961,6 +955,7 @@ createpointer(struct wlr_pointer *pointer)
 			libinput_device_config_tap_set_enabled(libinput_device, tap_to_click);
 			libinput_device_config_tap_set_drag_enabled(libinput_device, tap_and_drag);
 			libinput_device_config_tap_set_drag_lock_enabled(libinput_device, drag_lock);
+			libinput_device_config_tap_set_button_map(libinput_device, button_map);
 		}
 
 		if (libinput_device_config_scroll_has_natural_scroll(libinput_device))
@@ -1017,7 +1012,7 @@ destroyidleinhibitor(struct wl_listener *listener, void *data)
 {
 	/* `data` is the wlr_surface of the idle inhibitor being destroyed,
 	 * at this point the idle inhibitor is still in the list of the manager */
-	checkidleinhibitor(data);
+	checkidleinhibitor(wlr_surface_get_root_surface(data));
 }
 
 void
@@ -1103,15 +1098,12 @@ focusclient(Client *c, int lift)
 		/* If an overlay is focused, don't focus or activate the client,
 		 * but only update its position in fstack to render its border with focuscolor
 		 * and focus it after the overlay is closed. */
-		Client *w = client_from_wlr_surface(old);
-		if (wlr_surface_is_layer_surface(old)) {
-			struct wlr_layer_surface_v1 *wlr_layer_surface =
-				wlr_layer_surface_v1_from_wlr_surface(old);
-
-			if (wlr_layer_surface && ((LayerSurface *)wlr_layer_surface->data)->mapped
-					&& (wlr_layer_surface->current.layer == ZWLR_LAYER_SHELL_V1_LAYER_TOP
-					|| wlr_layer_surface->current.layer == ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY))
-				return;
+		Client *w = NULL;
+		LayerSurface *l = NULL;
+		int type = toplevel_from_wlr_surface(old, &w, &l);
+		if (type == LayerShell && l->scene->node.enabled
+				&& l->layer_surface->current.layer >= ZWLR_LAYER_SHELL_V1_LAYER_TOP) {
+			return;
 		} else if (w && w == exclusive_focus && client_wants_focus(w)) {
 			return;
 		/* Don't deactivate old client if the new one wants focus, as this causes issues with winecfg
@@ -1368,7 +1360,6 @@ mapnotify(struct wl_listener *listener, void *data)
 	for (i = 0; i < 4; i++) {
 		c->border[i] = wlr_scene_rect_create(c->scene, 0, 0, bordercolor);
 		c->border[i]->node.data = c;
-		wlr_scene_rect_set_color(c->border[i], bordercolor);
 	}
 
 	/* Initialize client geometry with room for border */
@@ -1394,8 +1385,6 @@ mapnotify(struct wl_listener *listener, void *data)
 		applyrules(c);
 	}
 	printstatus();
-
-	c->mon->un_map = 1;
 
 unset_fullscreen:
 	m = c->mon ? c->mon : xytomon(c->geom.x, c->geom.y);
@@ -1448,8 +1437,9 @@ void
 motionnotify(uint32_t time)
 {
 	double sx = 0, sy = 0;
-	Client *c = NULL;
-	LayerSurface *l;
+	Client *c = NULL, *w = NULL;
+	LayerSurface *l = NULL;
+	int type;
 	struct wlr_surface *surface = NULL;
 	struct wlr_drag_icon *icon;
 
@@ -1482,11 +1472,12 @@ motionnotify(uint32_t time)
 	xytonode(cursor->x, cursor->y, &surface, &c, NULL, &sx, &sy);
 
 	if (cursor_mode == CurPressed && !seat->drag) {
-		if ((l = toplevel_from_wlr_layer_surface(
-				 seat->pointer_state.focused_surface))) {
+		if ((type = toplevel_from_wlr_surface(
+				 seat->pointer_state.focused_surface, &w, &l)) >= 0) {
+			c = w;
 			surface = seat->pointer_state.focused_surface;
-			sx = cursor->x - l->geom.x;
-			sy = cursor->y - l->geom.y;
+			sx = cursor->x - (type == LayerShell ? l->geom.x : w->geom.x);
+			sy = cursor->y - (type == LayerShell ? l->geom.y : w->geom.y);
 		}
 	}
 
@@ -1695,30 +1686,19 @@ rendermon(struct wl_listener *listener, void *data)
 	 * generally at the output's refresh rate (e.g. 60Hz). */
 	Monitor *m = wl_container_of(listener, m, frame);
 	Client *c;
-	int skip = 0;
 	struct timespec now;
-
-	clock_gettime(CLOCK_MONOTONIC, &now);
 
 	/* Render if no XDG clients have an outstanding resize and are visible on
 	 * this monitor. */
-	/* Checking m->un_map for every client is not optimal but works */
-	wl_list_for_each(c, &clients, link) {
-		if ((c->resize && m->un_map) || (c->type == XDGShell
-				&& (c->surface.xdg->pending.geometry.width !=
-				c->surface.xdg->current.geometry.width
-				|| c->surface.xdg->pending.geometry.height !=
-				c->surface.xdg->current.geometry.height))) {
-			/* Lie */
-			wlr_surface_send_frame_done(client_surface(c), &now);
-			skip = 1;
-		}
-	}
-	if (!skip && !wlr_scene_output_commit(m->scene_output))
+	wl_list_for_each(c, &clients, link)
+		if (client_is_rendered_on_mon(c, m) && (!c->isfloating && c->resize))
+			goto skip;
+	if (!wlr_scene_output_commit(m->scene_output))
 		return;
+skip:
 	/* Let clients know a frame has been rendered */
+	clock_gettime(CLOCK_MONOTONIC, &now);
 	wlr_scene_output_send_frame_done(m->scene_output, &now);
-	m->un_map = 0;
 }
 
 void
@@ -2291,9 +2271,6 @@ unmapnotify(struct wl_listener *listener, void *data)
 		grabc = NULL;
 	}
 
-	if (c->mon)
-		c->mon->un_map = 1;
-
 	if (client_is_unmanaged(c)) {
 		if (c == exclusive_focus)
 			exclusive_focus = NULL;
@@ -2389,8 +2366,9 @@ void
 urgent(struct wl_listener *listener, void *data)
 {
 	struct wlr_xdg_activation_v1_request_activate_event *event = data;
-	Client *c = client_from_wlr_surface(event->surface);
-	if (c && c != selclient()) {
+	Client *c = NULL;
+	int type = toplevel_from_wlr_surface(event->surface, &c, NULL);
+	if (type >= 0 && type != LayerShell && c != selclient()) {
 		c->isurgent = 1;
 		printstatus();
 	}
@@ -2575,7 +2553,7 @@ sigchld(int unused)
 	 * XWayland process
 	 */
 	while (!waitid(P_ALL, 0, &in, WEXITED|WNOHANG|WNOWAIT) && in.si_pid
-			&& in.si_pid != xwayland->server->pid)
+			&& (!xwayland || in.si_pid != xwayland->server->pid))
 		waitpid(in.si_pid, NULL, 0);
 }
 
