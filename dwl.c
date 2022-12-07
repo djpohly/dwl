@@ -109,7 +109,7 @@ typedef struct {
 		struct wlr_xdg_surface *xdg;
 		struct wlr_xwayland_surface *xwayland;
 	} surface;
-	struct wl_listener commit;
+	struct wl_listener ack_configure;
 	struct wl_listener map;
 	struct wl_listener maximize;
 	struct wl_listener unmap;
@@ -214,6 +214,7 @@ typedef struct {
 } SessionLock;
 
 /* function declarations */
+static void ackconfigurenotify(struct wl_listener *listener, void *data);
 static void applybounds(Client *c, struct wlr_box *bbox);
 static void applyrules(Client *c);
 static void arrange(Monitor *m);
@@ -229,7 +230,6 @@ static void cleanupkeyboard(struct wl_listener *listener, void *data);
 static void cleanupmon(struct wl_listener *listener, void *data);
 static void closemon(Monitor *m);
 static void commitlayersurfacenotify(struct wl_listener *listener, void *data);
-static void commitnotify(struct wl_listener *listener, void *data);
 static void createidleinhibitor(struct wl_listener *listener, void *data);
 static void createkeyboard(struct wlr_keyboard *keyboard);
 static void createlayersurface(struct wl_listener *listener, void *data);
@@ -405,6 +405,17 @@ static Atom netatom[NetLast];
 struct NumTags { char limitexceeded[LENGTH(tags) > 31 ? -1 : 1]; };
 
 /* function implementations */
+void
+ackconfigurenotify(struct wl_listener *listener, void *data)
+{
+	Client *c = wl_container_of(listener, c, ack_configure);
+	struct wlr_xdg_surface_configure *configure = data;
+
+	/* mark a pending resize as completed */
+	if (c->resize <= configure->serial)
+		c->resize = 0;
+}
+
 void
 applybounds(Client *c, struct wlr_box *bbox)
 {
@@ -752,19 +763,6 @@ commitlayersurfacenotify(struct wl_listener *listener, void *data)
 }
 
 void
-commitnotify(struct wl_listener *listener, void *data)
-{
-	Client *c = wl_container_of(listener, c, commit);
-	struct wlr_box box = {0};
-	client_get_geometry(c, &box);
-
-
-	/* mark a pending resize as completed */
-	if (c->resize && (c->resize <= c->surface.xdg->current.configure_serial))
-		c->resize = 0;
-}
-
-void
 createidleinhibitor(struct wl_listener *listener, void *data)
 {
 	struct wlr_idle_inhibitor_v1 *idle_inhibitor = data;
@@ -980,6 +978,7 @@ createnotify(struct wl_listener *listener, void *data)
 	LISTEN(&xdg_surface->events.map, &c->map, mapnotify);
 	LISTEN(&xdg_surface->events.unmap, &c->unmap, unmapnotify);
 	LISTEN(&xdg_surface->events.destroy, &c->destroy, destroynotify);
+	LISTEN(&xdg_surface->events.ack_configure, &c->ack_configure, ackconfigurenotify);
 	LISTEN(&xdg_surface->toplevel->events.set_title, &c->set_title, updatetitle);
 	LISTEN(&xdg_surface->toplevel->events.request_fullscreen, &c->fullscreen,
 			fullscreennotify);
@@ -1132,8 +1131,9 @@ destroynotify(struct wl_listener *listener, void *data)
 		wl_list_remove(&c->configure.link);
 		wl_list_remove(&c->set_hints.link);
 		wl_list_remove(&c->activate.link);
-	}
+	} else
 #endif
+		wl_list_remove(&c->ack_configure.link);
 	free(c);
 }
 
@@ -1464,12 +1464,8 @@ mapnotify(struct wl_listener *listener, void *data)
 	c->scene_surface = c->type == XDGShell
 			? wlr_scene_xdg_surface_create(c->scene, c->surface.xdg)
 			: wlr_scene_subsurface_tree_create(c->scene, client_surface(c));
-	if (client_surface(c)) {
+	if (client_surface(c))
 		client_surface(c)->data = c->scene;
-		/* Ideally we should do this in createnotify{,x11} but at that moment
-		* wlr_xwayland_surface doesn't have wlr_surface yet. */
-		LISTEN(&client_surface(c)->events.commit, &c->commit, commitnotify);
-	}
 	c->scene->node.data = c->scene_surface->node.data = c;
 
 #ifdef XWAYLAND
@@ -1823,7 +1819,7 @@ rendermon(struct wl_listener *listener, void *data)
 	/* Render if no XDG clients have an outstanding resize and are visible on
 	 * this monitor. */
 	wl_list_for_each(c, &clients, link)
-		if (client_is_rendered_on_mon(c, m) && (!c->isfloating && c->resize))
+		if (!c->isfloating && c->resize && client_is_rendered_on_mon(c, m))
 			goto skip;
 	if (!wlr_scene_output_commit(m->scene_output))
 		return;
@@ -2417,7 +2413,6 @@ unmapnotify(struct wl_listener *listener, void *data)
 		wl_list_remove(&c->flink);
 	}
 
-	wl_list_remove(&c->commit.link);
 	wlr_scene_node_destroy(&c->scene->node);
 	printstatus();
 	motionnotify(0);
