@@ -114,6 +114,7 @@ typedef struct {
 	struct wl_listener maximize;
 	struct wl_listener unmap;
 	struct wl_listener destroy;
+	struct wl_listener resize;
 	struct wl_listener set_title;
 	struct wl_listener fullscreen;
 	struct wlr_box prev;  /* layout-relative, includes border */
@@ -279,6 +280,7 @@ static void quitsignal(int signo);
 static void rendermon(struct wl_listener *listener, void *data);
 static void requeststartdrag(struct wl_listener *listener, void *data);
 static void resize(Client *c, struct wlr_box geo, int interact);
+static void resizenotify(struct wl_listener *listener, void *data);
 static void run(char *startup_cmd);
 static Client *selclient(void);
 static void setcursor(struct wl_listener *listener, void *data);
@@ -984,6 +986,7 @@ createnotify(struct wl_listener *listener, void *data)
 	c->bw = borderpx;
 
 	LISTEN(&xdg_surface->events.map, &c->map, mapnotify);
+	LISTEN(&xdg_surface->toplevel->events.request_resize, &c->resize, resizenotify);
 	LISTEN(&xdg_surface->events.unmap, &c->unmap, unmapnotify);
 	LISTEN(&xdg_surface->events.destroy, &c->destroy, destroynotify);
 	LISTEN(&xdg_surface->toplevel->events.set_title, &c->set_title, updatetitle);
@@ -1131,6 +1134,7 @@ destroynotify(struct wl_listener *listener, void *data)
 	wl_list_remove(&c->map.link);
 	wl_list_remove(&c->unmap.link);
 	wl_list_remove(&c->destroy.link);
+	wl_list_remove(&c->resize.link);
 	wl_list_remove(&c->set_title.link);
 	wl_list_remove(&c->fullscreen.link);
 #ifdef XWAYLAND
@@ -1884,6 +1888,13 @@ resize(Client *c, struct wlr_box geo, int interact)
 	/* wlroots makes this a no-op if size hasn't changed */
 	c->resize_serial = client_set_size(c, c->geom.width - 2 * c->bw,
 			c->geom.height - 2 * c->bw);
+}
+
+void
+resizenotify(struct wl_listener *listener, void *data)
+{
+	Client *c = wl_container_of(listener, c, resize);
+	resize(c, c->geom, 0);
 }
 
 void
@@ -2679,6 +2690,7 @@ createnotifyx11(struct wl_listener *listener, void *data)
 	LISTEN(&xsurface->events.unmap, &c->unmap, unmapnotify);
 	LISTEN(&xsurface->events.request_activate, &c->activate, activatex11);
 	LISTEN(&xsurface->events.request_configure, &c->configure, configurex11);
+	LISTEN(&xsurface->events.request_resize, &c->resize, resizenotify);
 	LISTEN(&xsurface->events.set_hints, &c->set_hints, sethints);
 	LISTEN(&xsurface->events.set_title, &c->set_title, updatetitle);
 	LISTEN(&xsurface->events.destroy, &c->destroy, destroynotify);
