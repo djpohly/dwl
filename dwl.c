@@ -125,7 +125,7 @@ typedef struct {
 	unsigned int bw;
 	unsigned int tags;
 	int isfloating, isurgent, isfullscreen;
-	uint32_t resize; /* configure serial of a pending resize */
+	uint32_t resize_serial; /* configure serial of a pending resize */
 } Client;
 
 typedef struct {
@@ -764,10 +764,10 @@ commitnotify(struct wl_listener *listener, void *data)
 		arrange(c->mon);
 
 	/* mark a pending resize as completed */
-	if (c->resize && (c->resize <= c->surface.xdg->current.configure_serial
+	if (c->resize_serial && (c->resize_serial <= c->surface.xdg->current.configure_serial
 			|| (c->surface.xdg->current.geometry.width == c->surface.xdg->pending.geometry.width
 			&& c->surface.xdg->current.geometry.height == c->surface.xdg->pending.geometry.height)))
-		c->resize = 0;
+		c->resize_serial = 0;
 }
 
 void
@@ -1833,7 +1833,7 @@ rendermon(struct wl_listener *listener, void *data)
 	 * this monitor. */
 	/* Checking m->un_map for every client is not optimal but works */
 	wl_list_for_each(c, &clients, link) {
-		if ((c->resize && m->un_map) || (c->type == XDGShell
+		if ((c->resize_serial && m->un_map) || (c->type == XDGShell
 				&& (c->surface.xdg->pending.geometry.width !=
 				c->surface.xdg->current.geometry.width
 				|| c->surface.xdg->pending.geometry.height !=
@@ -1882,7 +1882,7 @@ resize(Client *c, struct wlr_box geo, int interact)
 	wlr_scene_node_set_position(&c->border[3]->node, c->geom.width - c->bw, c->bw);
 
 	/* wlroots makes this a no-op if size hasn't changed */
-	c->resize = client_set_size(c, c->geom.width - 2 * c->bw,
+	c->resize_serial = client_set_size(c, c->geom.width - 2 * c->bw,
 			c->geom.height - 2 * c->bw);
 }
 
