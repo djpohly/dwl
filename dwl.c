@@ -412,8 +412,11 @@ ackconfigurenotify(struct wl_listener *listener, void *data)
 	struct wlr_xdg_surface_configure *configure = data;
 
 	/* mark a pending resize as completed */
-	if (c->resize <= configure->serial)
+	if (c->resize <= configure->serial) {
 		c->resize = 0;
+		if (VISIBLEON(c, c->mon))
+			wlr_output_schedule_frame(c->mon->wlr_output);
+	}
 }
 
 void
