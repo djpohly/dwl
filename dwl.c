@@ -1261,7 +1261,7 @@ void
 focusstack(const Arg *arg)
 {
 	/* Focus the next or previous client (in tiling order) on selmon */
-	Client *c, *sel = selclient();
+	Client *c, *sel = focustop(selmon);
 	if (!sel || sel->isfullscreen)
 		return;
 	if (arg->i > 0) {
