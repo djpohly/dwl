@@ -109,6 +109,7 @@ typedef struct {
 		struct wlr_xdg_surface *xdg;
 		struct wlr_xwayland_surface *xwayland;
 	} surface;
+	struct wl_listener ack_configure;
 	struct wl_listener commit;
 	struct wl_listener map;
 	struct wl_listener maximize;
@@ -214,6 +215,7 @@ typedef struct {
 } SessionLock;
 
 /* function declarations */
+static void ackconfigurenotify(struct wl_listener *listener, void *data);
 static void applybounds(Client *c, struct wlr_box *bbox);
 static void applyrules(Client *c);
 static void arrange(Monitor *m);
@@ -405,6 +407,23 @@ static Atom netatom[NetLast];
 struct NumTags { char limitexceeded[LENGTH(tags) > 31 ? -1 : 1]; };
 
 /* function implementations */
+void
+ackconfigurenotify(struct wl_listener *listener, void *data)
+{
+	Client *c = wl_container_of(listener, c, ack_configure);
+	struct wlr_xdg_surface_configure *configure = data;
+
+	/* mark a pending resize as completed if the size wouldn't change */
+	if (c->resize <= configure->serial
+			&& c->surface.xdg->toplevel->current.width == configure->toplevel_configure->width
+			&& c->surface.xdg->toplevel->current.height == configure->toplevel_configure->height)
+		c->resize = 0;
+
+	/* schedule a frame if the client is visible */
+	if (VISIBLEON(c, c->mon))
+		wlr_output_schedule_frame(c->mon->wlr_output);
+}
+
 void
 applybounds(Client *c, struct wlr_box *bbox)
 {
@@ -985,6 +1004,7 @@ createnotify(struct wl_listener *listener, void *data)
 	LISTEN(&xdg_surface->events.map, &c->map, mapnotify);
 	LISTEN(&xdg_surface->events.unmap, &c->unmap, unmapnotify);
 	LISTEN(&xdg_surface->events.destroy, &c->destroy, destroynotify);
+	LISTEN(&xdg_surface->events.ack_configure, &c->ack_configure, ackconfigurenotify);
 	LISTEN(&xdg_surface->toplevel->events.set_title, &c->set_title, updatetitle);
 	LISTEN(&xdg_surface->toplevel->events.request_fullscreen, &c->fullscreen,
 			fullscreennotify);
@@ -1137,8 +1157,11 @@ destroynotify(struct wl_listener *listener, void *data)
 		wl_list_remove(&c->configure.link);
 		wl_list_remove(&c->set_hints.link);
 		wl_list_remove(&c->activate.link);
-	}
+	} else
 #endif
+	{
+		wl_list_remove(&c->ack_configure.link);
+	}
 	free(c);
 }
 
