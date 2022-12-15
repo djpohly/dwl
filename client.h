@@ -141,7 +141,7 @@ client_set_bounds(Client *c, int32_t width, int32_t height)
 		return 0;
 #endif
 	if (c->surface.xdg->client->shell->version >=
-			XDG_TOPLEVEL_CONFIGURE_BOUNDS_SINCE_VERSION)
+			XDG_TOPLEVEL_CONFIGURE_BOUNDS_SINCE_VERSION && width >= 0 && height >= 0)
 		return wlr_xdg_toplevel_set_bounds(c->surface.xdg->toplevel, width, height);
 	return 0;
 }
