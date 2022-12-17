@@ -477,6 +477,7 @@ arrange(Monitor *m)
 	if (m && m->lt[m->sellt]->arrange)
 		m->lt[m->sellt]->arrange(m);
 	motionnotify(0);
+	checkidleinhibitor(NULL);
 }
 
 void
@@ -1226,9 +1227,7 @@ focusclient(Client *c, int lift)
 			client_activate_surface(old, 0);
 		}
 	}
-
 	printstatus();
-	checkidleinhibitor(NULL);
 
 	if (!c) {
 		/* With no client, all we have left is to clear focus */
