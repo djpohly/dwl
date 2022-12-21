@@ -114,6 +114,7 @@ typedef struct {
 	struct wl_listener maximize;
 	struct wl_listener unmap;
 	struct wl_listener destroy;
+	struct wl_listener resize;
 	struct wl_listener set_title;
 	struct wl_listener fullscreen;
 	struct wlr_box prev;  /* layout-relative, includes border */
@@ -125,7 +126,7 @@ typedef struct {
 	unsigned int bw;
 	unsigned int tags;
 	int isfloating, isurgent, isfullscreen;
-	uint32_t resize; /* configure serial of a pending resize */
+	uint32_t resize_serial; /* configure serial of a pending resize */
 } Client;
 
 typedef struct {
@@ -279,6 +280,7 @@ static void quitsignal(int signo);
 static void rendermon(struct wl_listener *listener, void *data);
 static void requeststartdrag(struct wl_listener *listener, void *data);
 static void resize(Client *c, struct wlr_box geo, int interact);
+static void resizenotify(struct wl_listener *listener, void *data);
 static void run(char *startup_cmd);
 static void setcursor(struct wl_listener *listener, void *data);
 static void setfloating(Client *c, int floating);
@@ -764,10 +766,10 @@ commitnotify(struct wl_listener *listener, void *data)
 		arrange(c->mon);
 
 	/* mark a pending resize as completed */
-	if (c->resize && (c->resize <= c->surface.xdg->current.configure_serial
+	if (c->resize_serial && (c->resize_serial <= c->surface.xdg->current.configure_serial
 			|| (c->surface.xdg->current.geometry.width == c->surface.xdg->pending.geometry.width
 			&& c->surface.xdg->current.geometry.height == c->surface.xdg->pending.geometry.height)))
-		c->resize = 0;
+		c->resize_serial = 0;
 }
 
 void
@@ -984,6 +986,7 @@ createnotify(struct wl_listener *listener, void *data)
 	c->bw = borderpx;
 
 	LISTEN(&xdg_surface->events.map, &c->map, mapnotify);
+	LISTEN(&xdg_surface->toplevel->events.request_resize, &c->resize, resizenotify);
 	LISTEN(&xdg_surface->events.unmap, &c->unmap, unmapnotify);
 	LISTEN(&xdg_surface->events.destroy, &c->destroy, destroynotify);
 	LISTEN(&xdg_surface->toplevel->events.set_title, &c->set_title, updatetitle);
@@ -1131,6 +1134,7 @@ destroynotify(struct wl_listener *listener, void *data)
 	wl_list_remove(&c->map.link);
 	wl_list_remove(&c->unmap.link);
 	wl_list_remove(&c->destroy.link);
+	wl_list_remove(&c->resize.link);
 	wl_list_remove(&c->set_title.link);
 	wl_list_remove(&c->fullscreen.link);
 #ifdef XWAYLAND
@@ -1832,7 +1836,7 @@ rendermon(struct wl_listener *listener, void *data)
 	 * this monitor. */
 	/* Checking m->un_map for every client is not optimal but works */
 	wl_list_for_each(c, &clients, link) {
-		if ((c->resize && m->un_map) || (c->type == XDGShell
+		if ((c->resize_serial && m->un_map) || (c->type == XDGShell
 				&& (c->surface.xdg->pending.geometry.width !=
 				c->surface.xdg->current.geometry.width
 				|| c->surface.xdg->pending.geometry.height !=
@@ -1881,8 +1885,15 @@ resize(Client *c, struct wlr_box geo, int interact)
 	wlr_scene_node_set_position(&c->border[3]->node, c->geom.width - c->bw, c->bw);
 
 	/* wlroots makes this a no-op if size hasn't changed */
-	c->resize = client_set_size(c, c->geom.width - 2 * c->bw,
+	c->resize_serial = client_set_size(c, c->geom.width - 2 * c->bw,
 			c->geom.height - 2 * c->bw);
+}
+
+void
+resizenotify(struct wl_listener *listener, void *data)
+{
+	Client *c = wl_container_of(listener, c, resize);
+	resize(c, c->geom, 0);
 }
 
 void
@@ -2666,6 +2677,7 @@ createnotifyx11(struct wl_listener *listener, void *data)
 	LISTEN(&xsurface->events.unmap, &c->unmap, unmapnotify);
 	LISTEN(&xsurface->events.request_activate, &c->activate, activatex11);
 	LISTEN(&xsurface->events.request_configure, &c->configure, configurex11);
+	LISTEN(&xsurface->events.request_resize, &c->resize, resizenotify);
 	LISTEN(&xsurface->events.set_hints, &c->set_hints, sethints);
 	LISTEN(&xsurface->events.set_title, &c->set_title, updatetitle);
 	LISTEN(&xsurface->events.destroy, &c->destroy, destroynotify);
