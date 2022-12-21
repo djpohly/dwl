@@ -256,6 +256,32 @@ client_is_rendered_on_mon(Client *c, Monitor *m)
 }
 
 static inline int
+client_is_stopped(Client *c)
+{
+	int pid;
+	siginfo_t in = {0};
+#ifdef XWAYLAND
+	if (client_is_x11(c))
+		return 0;
+#endif
+
+	wl_client_get_credentials(c->surface.xdg->client->client, &pid, NULL, NULL);
+	if (waitid(P_PID, pid, &in, WNOHANG|WCONTINUED|WSTOPPED|WNOWAIT) < 0) {
+		/* This process is not our child process, while is very unluckely that
+		 * it is stopped, in order to do not skip frames assume that it is. */
+		if (errno == ECHILD)
+			return 1;
+	} else if (in.si_pid) {
+		if (in.si_code == CLD_STOPPED || in.si_code == CLD_TRAPPED)
+			return 1;
+		if (in.si_code == CLD_CONTINUED)
+			return 0;
+	}
+
+	return 0;
+}
+
+static inline int
 client_is_unmanaged(Client *c)
 {
 #ifdef XWAYLAND
