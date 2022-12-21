@@ -1836,7 +1836,7 @@ rendermon(struct wl_listener *listener, void *data)
 	/* Render if no XDG clients have an outstanding resize and are visible on
 	 * this monitor. */
 	wl_list_for_each(c, &clients, link)
-		if (client_is_rendered_on_mon(c, m) && (!c->isfloating && c->resize))
+		if (client_is_rendered_on_mon(c, m) && (!c->isfloating && c->resize) && !client_is_stopped(c))
 			goto skip;
 	if (!wlr_scene_output_commit(m->scene_output))
 		return;
