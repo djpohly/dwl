@@ -2523,8 +2523,8 @@ urgent(struct wl_listener *listener, void *data)
 {
 	struct wlr_xdg_activation_v1_request_activate_event *event = data;
 	Client *c = NULL;
-	int type = toplevel_from_wlr_surface(event->surface, &c, NULL);
-	if (type >= 0 && type != LayerShell && c != focustop(selmon)) {
+	toplevel_from_wlr_surface(event->surface, &c, NULL);
+	if (c && c != focustop(selmon)) {
 		c->isurgent = 1;
 		printstatus();
 	}
