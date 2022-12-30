@@ -2463,6 +2463,8 @@ updatemons(struct wl_listener *listener, void *data)
 	/* Now that we update the output layout we can get its box */
 	wlr_output_layout_get_box(output_layout, NULL, &sgeom);
 
+	/* Make sure the clients are hidden when dwl is locked */
+	wlr_scene_node_set_position(&locked_bg->node, sgeom.x, sgeom.y);
 	wlr_scene_rect_set_size(locked_bg, sgeom.width, sgeom.height);
 
 	wl_list_for_each(m, &mons, link) {
