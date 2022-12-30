@@ -766,9 +766,7 @@ commitnotify(struct wl_listener *listener, void *data)
 		c->isfloating ? resize(c, c->geom, 1) : arrange(c->mon);
 
 	/* mark a pending resize as completed */
-	if (c->resize && (c->resize <= c->surface.xdg->current.configure_serial
-			|| (c->surface.xdg->current.geometry.width == c->surface.xdg->pending.geometry.width
-			&& c->surface.xdg->current.geometry.height == c->surface.xdg->pending.geometry.height)))
+	if (c->resize && c->resize <= c->surface.xdg->current.configure_serial)
 		c->resize = 0;
 }
 
