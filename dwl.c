@@ -1526,7 +1526,6 @@ mapnotify(struct wl_listener *listener, void *data)
 	}
 	c->scene->node.data = c->scene_surface->node.data = c;
 
-#ifdef XWAYLAND
 	/* Handle unmanaged clients first so we can return prior create borders */
 	if (client_is_unmanaged(c)) {
 		client_get_geometry(c, &c->geom);
@@ -1540,7 +1539,6 @@ mapnotify(struct wl_listener *listener, void *data)
 		}
 		goto unset_fullscreen;
 	}
-#endif
 
 	for (i = 0; i < 4; i++) {
 		c->border[i] = wlr_scene_rect_create(c->scene, 0, 0, bordercolor);
