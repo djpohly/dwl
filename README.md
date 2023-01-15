@@ -60,7 +60,7 @@ meson compile -C build
 ```
 If you wish to build against a Git version of wlroots, check out the [wlroots-next branch].
 
-To enable XWayland, you should also install xorg-xwayland and build with `-Dxwayland=enabled`.
+To enable XWayland, you should also install xorg-xwayland and build with `meson setup build -Dxwayland=enabled`.
 
 ## Configuration
 
