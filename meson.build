@@ -13,6 +13,17 @@ wlroots_dep = dependency('wlroots')
 xkbcommon_dep = dependency('xkbcommon')
 libinput_dep = dependency('libinput')
 
+c_args = [
+  '-DWLR_USE_UNSTABLE',
+  '-D_POSIX_C_SOURCE=200809L',
+  '-DXWAYLAND',
+  '-DVERSION="@0@"'.format(meson.project_version())
+]
+
+if xcb.found() and xlibs.found()
+  c_args += '-DXWAYLAND'
+ endif
+
 executable('dwl', 
   'dwl.c',
   'util.c',
@@ -27,12 +38,7 @@ executable('dwl',
     libinput_dep,
   ],
   install : true,
-  c_args : [
-    '-DWLR_USE_UNSTABLE',
-    '-D_POSIX_C_SOURCE=200809L',
-    '-DXWAYLAND',
-    '-DVERSION="@0@"'.format(meson.project_version())
-  ]
+  c_args : c_args
 )
 
 install_man('dwl.1')
