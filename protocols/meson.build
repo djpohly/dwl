@@ -7,8 +7,8 @@ wayland_scanner_code = generator(
 	arguments: ['private-code', '@INPUT@', '@OUTPUT@'])
 wayland_scanner_client = generator(
 	wayland_scanner,
-	output: '@BASENAME@-client-protocol.h',
-	arguments: ['client-header', '@INPUT@', '@OUTPUT@'])
+	output: '@BASENAME@-protocol.h',
+	arguments: ['server-header', '@INPUT@', '@OUTPUT@'])
 
 wayland_xmls = [
 	wl_protocol_dir + '/stable/xdg-shell/xdg-shell.xml',
