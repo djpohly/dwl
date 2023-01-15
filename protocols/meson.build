@@ -12,8 +12,7 @@ wayland_scanner_client = generator(
 
 wayland_xmls = [
 	wl_protocol_dir + '/stable/xdg-shell/xdg-shell.xml',
-	'wlr-layer-shell-unstable-v1.xml',
-	'net-tapesoftware-dwl-wm-unstable-v1.xml',
+	'wlr-layer-shell-unstable-v1.xml'
 ]
 wayland_sources = [
 	wayland_scanner_code.process(wayland_xmls),
