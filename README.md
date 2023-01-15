@@ -52,11 +52,15 @@ Feature *non-goals* for the main codebase include:
 dwl has only two dependencies: `wlroots` and `wayland-protocols`. 
 
 Simply install these (and their `-devel` versions if your distro has separate
-development packages) and run `make`.  If you wish to build against a Git
-version of wlroots, check out the [wlroots-next branch].
+development packages) and run
+```
+cp config.def.h config.h
+meson setup build
+meson compile -C build
+```
+If you wish to build against a Git version of wlroots, check out the [wlroots-next branch].
 
-To enable XWayland, you should also install xorg-xwayland and uncomment its flag
-in `config.mk`.
+To enable XWayland, you should also install xorg-xwayland and build with `meson setup build -Dxwayland=enabled`.
 
 ## Configuration
 
