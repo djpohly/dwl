@@ -2,6 +2,7 @@ project('dwl', ['c', 'cpp'],
   version : '0.4'
 )
 
+subproject('wlroots', default_options : 'examples=false')
 subdir('protocols')
 
 cc = meson.get_compiler('c')
