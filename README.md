@@ -54,6 +54,7 @@ dwl has only two dependencies: `wlroots` and `wayland-protocols`.
 Simply install these (and their `-devel` versions if your distro has separate
 development packages) and run
 ```
+cp config.def.h config.h
 meson setup build
 meson compile -C build
 ```
