@@ -16,7 +16,6 @@ libinput_dep = dependency('libinput')
 c_args = [
   '-DWLR_USE_UNSTABLE',
   '-D_POSIX_C_SOURCE=200809L',
-  '-DXWAYLAND',
   '-DVERSION="@0@"'.format(meson.project_version())
 ]
 
