@@ -9,7 +9,7 @@ libm = cc.find_library('m')
 xcb = dependency('xcb', required : get_option('xwayland'))
 xlibs = dependency('xcb-icccm', required : get_option('xwayland'))
 wayland_server_dep = dependency('wayland-server')
-wlroots_dep = dependency('wlroots')
+wlroots_dep = dependency('wlroots', version : ['>=0.16.0', '<0.17.0'])
 xkbcommon_dep = dependency('xkbcommon')
 libinput_dep = dependency('libinput')
 
