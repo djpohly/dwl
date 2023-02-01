@@ -69,8 +69,7 @@ toplevel_from_wlr_surface(struct wlr_surface *s, Client **pc, LayerSurface **pl)
 	root_surface = wlr_surface_get_root_surface(s);
 
 #ifdef XWAYLAND
-	if (wlr_surface_is_xwayland_surface(root_surface)
-			&& (xsurface = wlr_xwayland_surface_from_wlr_surface(root_surface))) {
+	if ((xsurface = wlr_xwayland_surface_try_from_wlr_surface(root_surface))) {
 		c = xsurface->data;
 		type = c->type;
 		goto end;
@@ -121,8 +120,7 @@ client_activate_surface(struct wlr_surface *s, int activated)
 	struct wlr_xdg_surface *surface;
 #ifdef XWAYLAND
 	struct wlr_xwayland_surface *xsurface;
-	if (wlr_surface_is_xwayland_surface(s)
-			&& (xsurface = wlr_xwayland_surface_from_wlr_surface(s))) {
+	if ((xsurface = wlr_xwayland_surface_try_from_wlr_surface(s))) {
 		wlr_xwayland_surface_activate(xsurface, activated);
 		return;
 	}
