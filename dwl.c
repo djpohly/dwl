@@ -2582,7 +2582,7 @@ xytonode(double x, double y, struct wlr_surface **psurface,
 	for (layer = focus_order; layer < END(focus_order); layer++) {
 		if ((node = wlr_scene_node_at(&layers[*layer]->node, x, y, nx, ny))) {
 			if (node->type == WLR_SCENE_NODE_BUFFER)
-				surface = wlr_scene_surface_from_buffer(
+				surface = wlr_scene_surface_try_from_buffer(
 						wlr_scene_buffer_from_node(node))->surface;
 			/* Walk the tree to find a node that knows the client */
 			for (pnode = node; pnode && !c; pnode = &pnode->parent->node)
