@@ -21,6 +21,7 @@
 #include <wlr/types/wlr_data_control_v1.h>
 #include <wlr/types/wlr_data_device.h>
 #include <wlr/types/wlr_export_dmabuf_v1.h>
+#include <wlr/types/wlr_fractional_scale_v1.h>
 #include <wlr/types/wlr_gamma_control_v1.h>
 #include <wlr/types/wlr_idle.h>
 #include <wlr/types/wlr_idle_inhibit_v1.h>
@@ -2137,6 +2138,7 @@ setup(void)
 	wlr_primary_selection_v1_device_manager_create(dpy);
 	wlr_viewporter_create(dpy);
 	wlr_single_pixel_buffer_manager_v1_create(dpy);
+	wlr_fractional_scale_manager_v1_create(dpy, 1);
 	wlr_subcompositor_create(dpy);
 
 	/* Initializes the interface used to implement urgency hints */
