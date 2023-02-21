@@ -20,6 +20,7 @@
 #include <wlr/types/wlr_cursor.h>
 #include <wlr/types/wlr_data_control_v1.h>
 #include <wlr/types/wlr_data_device.h>
+#include <wlr/types/wlr_linux_dmabuf_v1.h>
 #include <wlr/types/wlr_export_dmabuf_v1.h>
 #include <wlr/types/wlr_fractional_scale_v1.h>
 #include <wlr/types/wlr_gamma_control_v1.h>
@@ -2302,6 +2303,9 @@ setup(void)
 	wl_signal_add(&output_mgr->events.test, &output_mgr_test);
 
 	wlr_scene_set_presentation(scene, wlr_presentation_create(dpy, backend));
+	wlr_scene_set_linux_dmabuf_v1(scene,
+			wlr_linux_dmabuf_v1_create_with_renderer(dpy, 4, drw));
+
 
 #ifdef XWAYLAND
 	/*
