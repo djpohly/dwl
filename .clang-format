@@ -1,0 +1,11 @@
+BasedOnStyle: GNU
+UseTab: AlignWithSpaces
+IndentWidth: 4
+AllowShortIfStatementsOnASingleLine: false
+BreakBeforeBraces: Linux
+IndentCaseLabels: false
+ColumnLimit: 100
+AlignConsecutiveStyle: Consecutive
+AlignTrailingComments:
+	Kind: Always
+	OverEmptyLines: 2
