@@ -20,6 +20,7 @@
 #include <wlr/types/wlr_cursor.h>
 #include <wlr/types/wlr_data_control_v1.h>
 #include <wlr/types/wlr_data_device.h>
+#include <wlr/types/wlr_drm.h>
 #include <wlr/types/wlr_linux_dmabuf_v1.h>
 #include <wlr/types/wlr_export_dmabuf_v1.h>
 #include <wlr/types/wlr_fractional_scale_v1.h>
@@ -2174,7 +2175,19 @@ setup(void)
 	/* Create a renderer with the default implementation */
 	if (!(drw = wlr_renderer_autocreate(backend)))
 		die("couldn't create renderer");
-	wlr_renderer_init_wl_display(drw, dpy);
+
+	/* Create shm, drm and linux_dmabuf interfaces by ourselves.
+	 * The simplest way is call:
+	 *      wlr_renderer_init_wl_display(drw);
+	 * but we need to create manually the linux_dmabuf interface to integrate it
+	 * with wlr_scene. */
+	wlr_renderer_init_wl_shm(drw, dpy);
+
+	if (wlr_renderer_get_dmabuf_texture_formats(drw)) {
+		wlr_drm_create(dpy, drw);
+		wlr_scene_set_linux_dmabuf_v1(scene,
+				wlr_linux_dmabuf_v1_create_with_renderer(dpy, 4, drw));
+	}
 
 	/* Create a default allocator */
 	if (!(alloc = wlr_allocator_autocreate(backend, drw)))
@@ -2303,9 +2316,6 @@ setup(void)
 	wl_signal_add(&output_mgr->events.test, &output_mgr_test);
 
 	wlr_scene_set_presentation(scene, wlr_presentation_create(dpy, backend));
-	wlr_scene_set_linux_dmabuf_v1(scene,
-			wlr_linux_dmabuf_v1_create_with_renderer(dpy, 4, drw));
-
 
 #ifdef XWAYLAND
 	/*
