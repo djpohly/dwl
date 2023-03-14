@@ -2435,6 +2435,7 @@ unlocksession(struct wl_listener *listener, void *data)
 {
 	SessionLock *lock = wl_container_of(listener, lock, unlock);
 	destroylock(lock, 1);
+	arrangelayers(selmon);
 }
 
 void
