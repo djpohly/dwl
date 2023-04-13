@@ -631,13 +631,13 @@ chvt(const Arg *arg)
 void
 checkidleinhibitor(struct wlr_surface *exclude)
 {
-	int inhibited = 0;
+	int inhibited = 0, unused_lx, unused_ly;
 	struct wlr_idle_inhibitor_v1 *inhibitor;
 	wl_list_for_each(inhibitor, &idle_inhibit_mgr->inhibitors, link) {
 		struct wlr_surface *surface = wlr_surface_get_root_surface(inhibitor->surface);
 		struct wlr_scene_tree *tree = surface->data;
 		if (exclude != surface && (bypass_surface_visibility || (!tree
-				|| tree->node.enabled))) {
+				|| wlr_scene_node_coords(&tree->node, &unused_lx, &unused_ly)))) {
 			inhibited = 1;
 			break;
 		}
@@ -1201,7 +1201,7 @@ void
 focusclient(Client *c, int lift)
 {
 	struct wlr_surface *old = seat->keyboard_state.focused_surface;
-	int i;
+	int i, unused_lx, unused_ly;
 
 	if (locked)
 		return;
@@ -1236,7 +1236,7 @@ focusclient(Client *c, int lift)
 		Client *w = NULL;
 		LayerSurface *l = NULL;
 		int type = toplevel_from_wlr_surface(old, &w, &l);
-		if (type == LayerShell && l->scene->node.enabled
+		if (type == LayerShell && wlr_scene_node_coords(&l->scene->node, &unused_lx, &unused_ly)
 				&& l->layer_surface->current.layer >= ZWLR_LAYER_SHELL_V1_LAYER_TOP) {
 			return;
 		} else if (w && w == exclusive_focus && client_wants_focus(w)) {
