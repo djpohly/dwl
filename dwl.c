@@ -70,7 +70,7 @@
 #define VISIBLEON(C, M)         ((M) && (C)->mon == (M) && ((C)->tags & (M)->tagset[(M)->seltags]))
 #define LENGTH(X)               (sizeof X / sizeof X[0])
 #define END(A)                  ((A) + LENGTH(A))
-#define TAGMASK                 ((1 << LENGTH(tags)) - 1)
+#define TAGMASK                 ((1u << tagcount) - 1)
 #define LISTEN(E, L, H)         wl_signal_add((E), ((L)->notify = (H), (L)))
 #define IDLE_NOTIFY_ACTIVITY    wlr_idle_notify_activity(idle, seat), wlr_idle_notifier_v1_notify_activity(idle_notifier, seat)
 
@@ -85,7 +85,7 @@ enum { NetWMWindowTypeDialog, NetWMWindowTypeSplash, NetWMWindowTypeToolbar,
 
 typedef union {
 	int i;
-	unsigned int ui;
+	uint32_t ui;
 	float f;
 	const void *v;
 } Arg;
@@ -101,7 +101,7 @@ typedef struct Monitor Monitor;
 typedef struct {
 	/* Must keep these three elements in this order */
 	unsigned int type; /* XDGShell or X11* */
-	struct wlr_box geom;  /* layout-relative, includes border */
+	struct wlr_box geom; /* layout-relative, includes border */
 	Monitor *mon;
 	struct wlr_scene_tree *scene;
 	struct wlr_scene_rect *border[4]; /* top, bottom, left, right */
@@ -119,14 +119,14 @@ typedef struct {
 	struct wl_listener destroy;
 	struct wl_listener set_title;
 	struct wl_listener fullscreen;
-	struct wlr_box prev;  /* layout-relative, includes border */
+	struct wlr_box prev; /* layout-relative, includes border */
 #ifdef XWAYLAND
 	struct wl_listener activate;
 	struct wl_listener configure;
 	struct wl_listener set_hints;
 #endif
 	unsigned int bw;
-	unsigned int tags;
+	uint32_t tags;
 	int isfloating, isurgent, isfullscreen;
 	uint32_t resize; /* configure serial of a pending resize */
 } Client;
@@ -185,15 +185,16 @@ struct Monitor {
 	struct wl_listener request_state;
 	struct wl_listener destroy_lock_surface;
 	struct wlr_session_lock_surface_v1 *lock_surface;
-	struct wlr_box m;      /* monitor area, layout-relative */
-	struct wlr_box w;      /* window area, layout-relative */
+	struct wlr_box m; /* monitor area, layout-relative */
+	struct wlr_box w; /* window area, layout-relative */
 	struct wl_list layers[4]; /* LayerSurface::link */
 	const Layout *lt[2];
 	unsigned int seltags;
 	unsigned int sellt;
-	unsigned int tagset[2];
+	uint32_t tagset[2];
 	double mfact;
 	int nmaster;
+	char ltsymbol[16];
 };
 
 typedef struct {
@@ -209,7 +210,7 @@ typedef struct {
 typedef struct {
 	const char *id;
 	const char *title;
-	unsigned int tags;
+	uint32_t tags;
 	int isfloating;
 	int monitor;
 } Rule;
@@ -297,7 +298,7 @@ static void setfloating(Client *c, int floating);
 static void setfullscreen(Client *c, int fullscreen);
 static void setlayout(const Arg *arg);
 static void setmfact(const Arg *arg);
-static void setmon(Client *c, Monitor *m, unsigned int newtags);
+static void setmon(Client *c, Monitor *m, uint32_t newtags);
 static void setpsel(struct wl_listener *listener, void *data);
 static void setsel(struct wl_listener *listener, void *data);
 static void setup(void);
@@ -416,9 +417,6 @@ static Atom netatom[NetLast];
 /* attempt to encapsulate suck into one file */
 #include "client.h"
 
-/* compile-time check if all tags fit into an unsigned int bit array. */
-struct NumTags { char limitexceeded[LENGTH(tags) > 31 ? -1 : 1]; };
-
 /* function implementations */
 void
 applybounds(Client *c, struct wlr_box *bbox)
@@ -429,8 +427,8 @@ applybounds(Client *c, struct wlr_box *bbox)
 		/* try to set size hints */
 		c->geom.width = MAX(min.width + (2 * (int)c->bw), c->geom.width);
 		c->geom.height = MAX(min.height + (2 * (int)c->bw), c->geom.height);
-		/* Some clients set them max size to INT_MAX, which does not violates
-		 * the protocol but its innecesary, they can set them max size to zero. */
+		/* Some clients set their max size to INT_MAX, which does not violate the
+		 * protocol but it's unnecesary, as they can set their max size to zero. */
 		if (max.width > 0 && !(2 * c->bw > INT_MAX - max.width)) /* Checks for overflow */
 			c->geom.width = MIN(max.width + (2 * c->bw), c->geom.width);
 		if (max.height > 0 && !(2 * c->bw > INT_MAX - max.height)) /* Checks for overflow */
@@ -452,7 +450,7 @@ applyrules(Client *c)
 {
 	/* rule matching */
 	const char *appid, *title;
-	unsigned int i, newtags = 0;
+	uint32_t i, newtags = 0;
 	const Rule *r;
 	Monitor *mon = selmon, *m;
 
@@ -488,7 +486,9 @@ arrange(Monitor *m)
 	wlr_scene_node_set_enabled(&m->fullscreen_bg->node,
 			(c = focustop(m)) && c->isfullscreen);
 
-	if (m && m->lt[m->sellt]->arrange)
+	strncpy(m->ltsymbol, m->lt[m->sellt]->symbol, LENGTH(m->ltsymbol));
+
+	if (m->lt[m->sellt]->arrange)
 		m->lt[m->sellt]->arrange(m);
 	motionnotify(0);
 	checkidleinhibitor(NULL);
@@ -638,13 +638,13 @@ chvt(const Arg *arg)
 void
 checkidleinhibitor(struct wlr_surface *exclude)
 {
-	int inhibited = 0;
+	int inhibited = 0, unused_lx, unused_ly;
 	struct wlr_idle_inhibitor_v1 *inhibitor;
 	wl_list_for_each(inhibitor, &idle_inhibit_mgr->inhibitors, link) {
 		struct wlr_surface *surface = wlr_surface_get_root_surface(inhibitor->surface);
 		struct wlr_scene_tree *tree = surface->data;
 		if (exclude != surface && (bypass_surface_visibility || (!tree
-				|| tree->node.enabled))) {
+				|| wlr_scene_node_coords(&tree->node, &unused_lx, &unused_ly)))) {
 			inhibited = 1;
 			break;
 		}
@@ -978,6 +978,7 @@ createmon(struct wl_listener *listener, void *data)
 		wlr_output_layout_add_auto(output_layout, wlr_output);
 	else
 		wlr_output_layout_add(output_layout, wlr_output, m->m.x, m->m.y);
+	strncpy(m->ltsymbol, m->lt[m->sellt]->symbol, LENGTH(m->ltsymbol));
 }
 
 void
@@ -1028,7 +1029,7 @@ void
 createpointer(struct wlr_pointer *pointer)
 {
 	if (wlr_input_device_is_libinput(&pointer->base)) {
-		struct libinput_device *libinput_device =  (struct libinput_device*)
+		struct libinput_device *libinput_device = (struct libinput_device*)
 			wlr_libinput_get_device_handle(&pointer->base);
 
 		if (libinput_device_config_tap_get_finger_count(libinput_device)) {
@@ -1206,7 +1207,7 @@ void
 focusclient(Client *c, int lift)
 {
 	struct wlr_surface *old = seat->keyboard_state.focused_surface;
-	int i;
+	int i, unused_lx, unused_ly;
 
 	if (locked)
 		return;
@@ -1241,7 +1242,7 @@ focusclient(Client *c, int lift)
 		Client *w = NULL;
 		LayerSurface *l = NULL;
 		int type = toplevel_from_wlr_surface(old, &w, &l);
-		if (type == LayerShell && l->scene->node.enabled
+		if (type == LayerShell && wlr_scene_node_coords(&l->scene->node, &unused_lx, &unused_ly)
 				&& l->layer_surface->current.layer >= ZWLR_LAYER_SHELL_V1_LAYER_TOP) {
 			return;
 		} else if (w && w == exclusive_focus && client_wants_focus(w)) {
@@ -1294,16 +1295,16 @@ focusstack(const Arg *arg)
 	if (arg->i > 0) {
 		wl_list_for_each(c, &sel->link, link) {
 			if (&c->link == &clients)
-				continue;  /* wrap past the sentinel node */
+				continue; /* wrap past the sentinel node */
 			if (VISIBLEON(c, selmon))
-				break;  /* found it */
+				break; /* found it */
 		}
 	} else {
 		wl_list_for_each_reverse(c, &sel->link, link) {
 			if (&c->link == &clients)
-				continue;  /* wrap past the sentinel node */
+				continue; /* wrap past the sentinel node */
 			if (VISIBLEON(c, selmon))
-				break;  /* found it */
+				break; /* found it */
 		}
 	}
 	/* If only one client is visible on selmon, then c == sel */
@@ -1598,12 +1599,16 @@ void
 monocle(Monitor *m)
 {
 	Client *c;
+	int n = 0;
 
 	wl_list_for_each(c, &clients, link) {
 		if (!VISIBLEON(c, m) || c->isfloating || c->isfullscreen)
 			continue;
 		resize(c, m->w, 0);
+		n++;
 	}
+	if (n)
+		snprintf(m->ltsymbol, LENGTH(m->ltsymbol), "[%d]", n);
 	if ((c = focustop(m)))
 		wlr_scene_node_raise_to_top(&c->scene->node);
 }
@@ -1735,7 +1740,7 @@ outputmgrapplyortest(struct wlr_output_configuration_v1 *config, int test)
 {
 	/*
 	 * Called when a client such as wlr-randr requests a change in output
-	 * configuration.  This is only one way that the layout can be changed,
+	 * configuration. This is only one way that the layout can be changed,
 	 * so any Monitor information should be updated by updatemons() after an
 	 * output_layout.change event, not here.
 	 */
@@ -1826,7 +1831,7 @@ printstatus(void)
 {
 	Monitor *m = NULL;
 	Client *c;
-	unsigned int occ, urg, sel;
+	uint32_t occ, urg, sel;
 	const char *appid, *title;
 
 	wl_list_for_each(m, &mons, link) {
@@ -1857,7 +1862,7 @@ printstatus(void)
 		printf("%s selmon %u\n", m->wlr_output->name, m == selmon);
 		printf("%s tags %u %u %u %u\n", m->wlr_output->name, occ, m->tagset[m->seltags],
 				sel, urg);
-		printf("%s layout %s\n", m->wlr_output->name, m->lt[m->sellt]->symbol);
+		printf("%s layout %s\n", m->wlr_output->name, m->ltsymbol);
 	}
 	fflush(stdout);
 }
@@ -1983,7 +1988,7 @@ run(char *startup_cmd)
 	selmon = xytomon(cursor->x, cursor->y);
 
 	/* TODO hack to get cursor to display in its initial location (100, 100)
-	 * instead of (0, 0) and then jumping.  still may not be fully
+	 * instead of (0, 0) and then jumping. still may not be fully
 	 * initialized, as the image/coordinates are not transformed for the
 	 * monitor when displayed here */
 	wlr_cursor_warp_closest(cursor, NULL, cursor->x, cursor->y);
@@ -2058,7 +2063,7 @@ setlayout(const Arg *arg)
 		selmon->sellt ^= 1;
 	if (arg && arg->v)
 		selmon->lt[selmon->sellt] = (Layout *)arg->v;
-	/* TODO change layout symbol? */
+	strncpy(selmon->ltsymbol, selmon->lt[selmon->sellt]->symbol, LENGTH(selmon->ltsymbol));
 	arrange(selmon);
 	printstatus();
 }
@@ -2079,7 +2084,7 @@ setmfact(const Arg *arg)
 }
 
 void
-setmon(Client *c, Monitor *m, unsigned int newtags)
+setmon(Client *c, Monitor *m, uint32_t newtags)
 {
 	Monitor *oldmon = c->mon;
 
@@ -2431,7 +2436,7 @@ togglefullscreen(const Arg *arg)
 void
 toggletag(const Arg *arg)
 {
-	unsigned int newtags;
+	uint32_t newtags;
 	Client *sel = focustop(selmon);
 	if (!sel)
 		return;
@@ -2447,7 +2452,7 @@ toggletag(const Arg *arg)
 void
 toggleview(const Arg *arg)
 {
-	unsigned int newtagset = selmon ? selmon->tagset[selmon->seltags] ^ (arg->ui & TAGMASK) : 0;
+	uint32_t newtagset = selmon ? selmon->tagset[selmon->seltags] ^ (arg->ui & TAGMASK) : 0;
 
 	if (newtagset) {
 		selmon->tagset[selmon->seltags] = newtagset;
@@ -2514,7 +2519,7 @@ updatemons(struct wl_listener *listener, void *data)
 {
 	/*
 	 * Called whenever the output layout changes: adding or removing a
-	 * monitor, changing an output's mode or position, etc.  This is where
+	 * monitor, changing an output's mode or position, etc. This is where
 	 * the change officially happens and we update geometry, window
 	 * positions, focus, and the stored configuration in wlroots'
 	 * output-manager implementation.
@@ -2782,8 +2787,8 @@ sigchld(int unused)
 {
 	siginfo_t in;
 	/* We should be able to remove this function in favor of a simple
-	 *     struct sigaction sa = {.sa_handler = SIG_IGN};
-	 *     sigaction(SIGCHLD, &sa, NULL);
+	 *	struct sigaction sa = {.sa_handler = SIG_IGN};
+	 * 	sigaction(SIGCHLD, &sa, NULL);
 	 * but the Xwayland implementation in wlroots currently prevents us from
 	 * setting our own disposition for SIGCHLD.
 	 */
@@ -2806,7 +2811,7 @@ xwaylandready(struct wl_listener *listener, void *data)
 		return;
 	}
 
-	/* Collect atoms we are interested in.  If getatom returns 0, we will
+	/* Collect atoms we are interested in. If getatom returns 0, we will
 	 * not detect that window type. */
 	netatom[NetWMWindowTypeDialog] = getatom(xc, "_NET_WM_WINDOW_TYPE_DIALOG");
 	netatom[NetWMWindowTypeSplash] = getatom(xc, "_NET_WM_WINDOW_TYPE_SPLASH");
