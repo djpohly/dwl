@@ -6,3 +6,4 @@ dwl
 config.h
 .cache/
 compile_commands.json
+TODO.md
