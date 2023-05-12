@@ -1,0 +1,257 @@
+From 598d88c868f35444008c458ae95e0e68a10946d1 Mon Sep 17 00:00:00 2001
+From: Guido Cella <guido@guidocella.xyz>
+Date: Sun, 20 Mar 2022 21:19:29 +0100
+Subject: [PATCH 1/2] Implement the output power management protocol.
+
+I thought wlr-randr used this, but it doesn't so I don't even know what
+this is for.
+---
+ Makefile                                      |   5 +-
+ dwl.c                                         |  16 +++
+ ...lr-output-power-management-unstable-v1.xml | 128 ++++++++++++++++++
+ 3 files changed, 148 insertions(+), 1 deletion(-)
+ create mode 100644 protocols/wlr-output-power-management-unstable-v1.xml
+
+diff --git a/Makefile b/Makefile
+index ccca0794..9d0a4b04 100644
+--- a/Makefile
++++ b/Makefile
+@@ -16,7 +16,7 @@ LDLIBS    = `$(PKG_CONFIG) --libs $(PKGS)` $(LIBS)
+ all: dwl
+ dwl: dwl.o util.o
+ 	$(CC) dwl.o util.o $(LDLIBS) $(LDFLAGS) $(DWLCFLAGS) -o $@
+-dwl.o: dwl.c config.mk config.h client.h xdg-shell-protocol.h wlr-layer-shell-unstable-v1-protocol.h
++dwl.o: dwl.c config.mk config.h client.h xdg-shell-protocol.h wlr-layer-shell-unstable-v1-protocol.h wlr-output-power-management-unstable-v1-protocol.h
+ util.o: util.c util.h
+ 
+ # wayland-scanner is a tool which generates C headers and rigging for Wayland
+@@ -31,6 +31,9 @@ xdg-shell-protocol.h:
+ wlr-layer-shell-unstable-v1-protocol.h:
+ 	$(WAYLAND_SCANNER) server-header \
+ 		protocols/wlr-layer-shell-unstable-v1.xml $@
++wlr-output-power-management-unstable-v1-protocol.h:
++	$(WAYLAND_SCANNER) server-header \
++		protocols/wlr-output-power-management-unstable-v1.xml $@
+ 
+ config.h:
+ 	cp config.def.h $@
+diff --git a/dwl.c b/dwl.c
+index b7436bb4..8c7348ad 100644
+--- a/dwl.c
++++ b/dwl.c
+@@ -32,6 +32,7 @@
+ #include <wlr/types/wlr_output.h>
+ #include <wlr/types/wlr_output_layout.h>
+ #include <wlr/types/wlr_output_management_v1.h>
++#include <wlr/types/wlr_output_power_management_v1.h>
+ #include <wlr/types/wlr_pointer.h>
+ #include <wlr/types/wlr_presentation_time.h>
+ #include <wlr/types/wlr_primary_selection.h>
+@@ -282,6 +283,7 @@ static void outputmgrtest(struct wl_listener *listener, void *data);
+ static void pointerfocus(Client *c, struct wlr_surface *surface,
+ 		double sx, double sy, uint32_t time);
+ static void printstatus(void);
++static void powermgrsetmodenotify(struct wl_listener *listener, void *data);
+ static void quit(const Arg *arg);
+ static void quitsignal(int signo);
+ static void rendermon(struct wl_listener *listener, void *data);
+@@ -353,6 +355,9 @@ static struct wlr_session_lock_manager_v1 *session_lock_mgr;
+ static struct wlr_scene_rect *locked_bg;
+ static struct wlr_session_lock_v1 *cur_lock;
+ 
++static struct wlr_output_power_manager_v1 *power_mgr;
++static struct wl_listener power_mgr_set_mode = {.notify = powermgrsetmodenotify};
++
+ static struct wlr_seat *seat;
+ static struct wl_list keyboards;
+ static unsigned int cursor_mode;
+@@ -1861,6 +1866,14 @@ printstatus(void)
+ 	fflush(stdout);
+ }
+ 
++void
++powermgrsetmodenotify(struct wl_listener *listener, void *data)
++{
++	struct wlr_output_power_v1_set_mode_event *event = data;
++	wlr_output_enable(event->output, event->mode);
++	wlr_output_commit(event->output);
++}
++
+ void
+ quit(const Arg *arg)
+ {
+@@ -2193,6 +2206,9 @@ setup(void)
+ 	activation = wlr_xdg_activation_v1_create(dpy);
+ 	wl_signal_add(&activation->events.request_activate, &request_activate);
+ 
++	power_mgr = wlr_output_power_manager_v1_create(dpy);
++	wl_signal_add(&power_mgr->events.set_mode, &power_mgr_set_mode);
++
+ 	/* Creates an output layout, which a wlroots utility for working with an
+ 	 * arrangement of screens in a physical layout. */
+ 	output_layout = wlr_output_layout_create();
+diff --git a/protocols/wlr-output-power-management-unstable-v1.xml b/protocols/wlr-output-power-management-unstable-v1.xml
+new file mode 100644
+index 00000000..a9778399
+--- /dev/null
++++ b/protocols/wlr-output-power-management-unstable-v1.xml
+@@ -0,0 +1,128 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<protocol name="wlr_output_power_management_unstable_v1">
++  <copyright>
++    Copyright © 2019 Purism SPC
++
++    Permission is hereby granted, free of charge, to any person obtaining a
++    copy of this software and associated documentation files (the "Software"),
++    to deal in the Software without restriction, including without limitation
++    the rights to use, copy, modify, merge, publish, distribute, sublicense,
++    and/or sell copies of the Software, and to permit persons to whom the
++    Software is furnished to do so, subject to the following conditions:
++
++    The above copyright notice and this permission notice (including the next
++    paragraph) shall be included in all copies or substantial portions of the
++    Software.
++
++    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
++    THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
++    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
++    FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
++    DEALINGS IN THE SOFTWARE.
++  </copyright>
++
++  <description summary="Control power management modes of outputs">
++    This protocol allows clients to control power management modes
++    of outputs that are currently part of the compositor space. The
++    intent is to allow special clients like desktop shells to power
++    down outputs when the system is idle.
++
++    To modify outputs not currently part of the compositor space see
++    wlr-output-management.
++
++    Warning! The protocol described in this file is experimental and
++    backward incompatible changes may be made. Backward compatible changes
++    may be added together with the corresponding interface version bump.
++    Backward incompatible changes are done by bumping the version number in
++    the protocol and interface names and resetting the interface version.
++    Once the protocol is to be declared stable, the 'z' prefix and the
++    version number in the protocol and interface names are removed and the
++    interface version number is reset.
++  </description>
++
++  <interface name="zwlr_output_power_manager_v1" version="1">
++    <description summary="manager to create per-output power management">
++      This interface is a manager that allows creating per-output power
++      management mode controls.
++    </description>
++
++    <request name="get_output_power">
++      <description summary="get a power management for an output">
++        Create a output power management mode control that can be used to
++        adjust the power management mode for a given output.
++      </description>
++      <arg name="id" type="new_id" interface="zwlr_output_power_v1"/>
++      <arg name="output" type="object" interface="wl_output"/>
++    </request>
++
++    <request name="destroy" type="destructor">
++      <description summary="destroy the manager">
++        All objects created by the manager will still remain valid, until their
++        appropriate destroy request has been called.
++      </description>
++    </request>
++  </interface>
++
++  <interface name="zwlr_output_power_v1" version="1">
++    <description summary="adjust power management mode for an output">
++      This object offers requests to set the power management mode of
++      an output.
++    </description>
++
++    <enum name="mode">
++      <entry name="off" value="0"
++             summary="Output is turned off."/>
++      <entry name="on" value="1"
++             summary="Output is turned on, no power saving"/>
++    </enum>
++
++    <enum name="error">
++      <entry name="invalid_mode" value="1" summary="inexistent power save mode"/>
++    </enum>
++
++    <request name="set_mode">
++      <description summary="Set an outputs power save mode">
++        Set an output's power save mode to the given mode. The mode change
++        is effective immediately. If the output does not support the given
++        mode a failed event is sent.
++      </description>
++      <arg name="mode" type="uint" enum="mode" summary="the power save mode to set"/>
++    </request>
++
++    <event name="mode">
++      <description summary="Report a power management mode change">
++        Report the power management mode change of an output.
++
++        The mode event is sent after an output changed its power
++        management mode. The reason can be a client using set_mode or the
++        compositor deciding to change an output's mode.
++        This event is also sent immediately when the object is created
++        so the client is informed about the current power management mode.
++      </description>
++      <arg name="mode" type="uint" enum="mode"
++           summary="the output's new power management mode"/>
++    </event>
++
++    <event name="failed">
++      <description summary="object no longer valid">
++        This event indicates that the output power management mode control
++        is no longer valid. This can happen for a number of reasons,
++        including:
++        - The output doesn't support power management
++        - Another client already has exclusive power management mode control
++          for this output
++        - The output disappeared
++
++        Upon receiving this event, the client should destroy this object.
++      </description>
++    </event>
++
++    <request name="destroy" type="destructor">
++      <description summary="destroy this power management">
++        Destroys the output power management mode control object.
++      </description>
++    </request>
++  </interface>
++</protocol>
+
+From 66a957c61b84c2753663c5ffed78abcee8a0bca1 Mon Sep 17 00:00:00 2001
+From: Dima Krasner <dima@dimakrasner.com>
+Date: Mon, 4 Apr 2022 01:20:06 +0800
+Subject: [PATCH 2/2] damage the output after wlopm --on
+
+---
+ dwl.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/dwl.c b/dwl.c
+index 8c7348ad..c694573d 100644
+--- a/dwl.c
++++ b/dwl.c
+@@ -30,6 +30,7 @@
+ #include <wlr/types/wlr_keyboard.h>
+ #include <wlr/types/wlr_layer_shell_v1.h>
+ #include <wlr/types/wlr_output.h>
++#include <wlr/interfaces/wlr_output.h>
+ #include <wlr/types/wlr_output_layout.h>
+ #include <wlr/types/wlr_output_management_v1.h>
+ #include <wlr/types/wlr_output_power_management_v1.h>
+@@ -1871,6 +1872,8 @@ powermgrsetmodenotify(struct wl_listener *listener, void *data)
+ {
+ 	struct wlr_output_power_v1_set_mode_event *event = data;
+ 	wlr_output_enable(event->output, event->mode);
++	if (event->mode)
++		wlr_output_damage_whole(event->output);
+ 	wlr_output_commit(event->output);
+ }
+ 
