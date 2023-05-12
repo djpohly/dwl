@@ -72,7 +72,7 @@
 #define IDLE_NOTIFY_ACTIVITY    wlr_idle_notify_activity(idle, seat), wlr_idle_notifier_v1_notify_activity(idle_notifier, seat)
 
 /* enums */
-enum { CurNormal, CurPressed, CurMove, CurResize }; /* cursor */
+enum { CurNormal, CurPressed, CurMove, CurResize, Curmfact }; /* cursor */
 enum { XDGShell, LayerShell, X11Managed, X11Unmanaged }; /* client types */
 enum { LyrBg, LyrBottom, LyrTop, LyrOverlay, LyrTile, LyrFloat, LyrFS, LyrDragIcon, LyrBlock, NUM_LAYERS }; /* scene layers */
 #ifdef XWAYLAND
@@ -1738,6 +1738,9 @@ motionnotify(uint32_t time)
 		resize(grabc, (struct wlr_box){.x = grabc->geom.x, .y = grabc->geom.y,
 			.width = cursor->x - grabc->geom.x, .height = cursor->y - grabc->geom.y}, 1);
 		return;
+	} else if (cursor_mode == Curmfact) {
+		selmon->mfact = cursor->x / selmon->m.width;
+		arrange(selmon);
 	}
 
 	/* Find the client under the pointer and send the event along. */
@@ -1787,14 +1790,15 @@ moveresize(const Arg *arg)
 		return;
 
 	/* Float the window and tell motionnotify to grab it */
-	setfloating(grabc, 1);
 	switch (cursor_mode = arg->ui) {
 	case CurMove:
+		setfloating(grabc, 1);
 		grabcx = cursor->x - grabc->geom.x;
 		grabcy = cursor->y - grabc->geom.y;
 		wlr_xcursor_manager_set_cursor_image(cursor_mgr, (cursor_image = "fleur"), cursor);
 		break;
 	case CurResize:
+		setfloating(grabc, 1);
 		/* Doesn't work for X11 output - the next absolute motion event
 		 * returns the cursor to where it started */
 		wlr_cursor_warp_closest(cursor, NULL,
@@ -1803,6 +1807,9 @@ moveresize(const Arg *arg)
 		wlr_xcursor_manager_set_cursor_image(cursor_mgr,
 				(cursor_image = "bottom_right_corner"), cursor);
 		break;
+	case Curmfact:
+		selmon->mfact = cursor->x / selmon->m.width;
+		arrange(selmon);
 	}
 }
 
