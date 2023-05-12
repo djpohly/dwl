@@ -1,0 +1,72 @@
+From f58e3f234e2e4288a95c227b625aa3723a52e598 Mon Sep 17 00:00:00 2001
+From: Dmitry Zakharchenko <dmitz@disroot.org>
+Date: Sun, 22 Jan 2023 23:21:00 +0200
+Subject: [PATCH] movestack: sync with 0.4
+
+---
+ config.def.h |  2 ++
+ dwl.c        | 31 +++++++++++++++++++++++++++++++
+ 2 files changed, 33 insertions(+)
+
+diff --git a/config.def.h b/config.def.h
+index a4f7c13d..70d56b60 100644
+--- a/config.def.h
++++ b/config.def.h
+@@ -114,6 +114,8 @@ static const Key keys[] = {
+ 	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_Return,     spawn,          {.v = termcmd} },
+ 	{ MODKEY,                    XKB_KEY_j,          focusstack,     {.i = +1} },
+ 	{ MODKEY,                    XKB_KEY_k,          focusstack,     {.i = -1} },
++	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_J,          movestack,      {.i = +1} },
++	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_K,          movestack,      {.i = -1} },
+ 	{ MODKEY,                    XKB_KEY_i,          incnmaster,     {.i = +1} },
+ 	{ MODKEY,                    XKB_KEY_d,          incnmaster,     {.i = -1} },
+ 	{ MODKEY,                    XKB_KEY_h,          setmfact,       {.f = -0.05} },
+diff --git a/dwl.c b/dwl.c
+index 19bb6ce3..bcc791c1 100644
+--- a/dwl.c
++++ b/dwl.c
+@@ -264,6 +264,7 @@ static void maplayersurfacenotify(struct wl_listener *listener, void *data);
+ static void mapnotify(struct wl_listener *listener, void *data);
+ static void maximizenotify(struct wl_listener *listener, void *data);
+ static void monocle(Monitor *m);
++static void movestack(const Arg *arg);
+ static void motionabsolute(struct wl_listener *listener, void *data);
+ static void motionnotify(uint32_t time);
+ static void motionrelative(struct wl_listener *listener, void *data);
+@@ -1561,6 +1562,36 @@ monocle(Monitor *m)
+ 		wlr_scene_node_raise_to_top(&c->scene->node);
+ }
+ 
++void
++movestack(const Arg *arg)
++{
++	Client *c, *sel = focustop(selmon);
++
++	if (wl_list_length(&clients) <= 1) {
++		return;
++	}
++
++	if (arg->i > 0) {
++		wl_list_for_each(c, &sel->link, link) {
++			if (VISIBLEON(c, selmon) || &c->link == &clients) {
++				break; /* found it */
++			}
++		}
++	} else {
++		wl_list_for_each_reverse(c, &sel->link, link) {
++			if (VISIBLEON(c, selmon) || &c->link == &clients) {
++				break; /* found it */
++			}
++		}
++		/* backup one client */
++		c = wl_container_of(c->link.prev, c, link);
++	}
++
++	wl_list_remove(&sel->link);
++	wl_list_insert(&c->link, &sel->link);
++	arrange(selmon);
++}
++
+ void
+ motionabsolute(struct wl_listener *listener, void *data)
+ {
