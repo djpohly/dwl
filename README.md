@@ -1,5 +1,20 @@
 # dwl - dwm for Wayland
 
+###
+This is my personal customized branch of dwl.
+
+I have:
+	- Applied various patches
+	- Tweaked some config
+
+I want to:
+	- Port my own varcol layout from dwm to dwl
+	- Port my remember tags patch from dwm
+
+I need to find or write:
+	- A patch to prevent focus stealing
+
+###
 Join us on our [Discord server] or at [#dwl] on irc.libera.chat.
 
 dwl is a compact, hackable compositor for [Wayland] based on [wlroots]. It is
