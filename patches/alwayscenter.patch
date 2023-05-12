@@ -1,0 +1,22 @@
+From 3816b9bc60625b1d5c600e95e4e736358cfc27e6 Mon Sep 17 00:00:00 2001
+From: Dmitry Zakharchenko <dmitz@disroot.org>
+Date: Tue, 3 Jan 2023 19:52:03 +0200
+Subject: [PATCH] alwayscenter: sync with 0.4
+
+---
+ dwl.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/dwl.c b/dwl.c
+index 19bb6ce3..0b2180a4 100644
+--- a/dwl.c
++++ b/dwl.c
+@@ -460,6 +460,8 @@ applyrules(Client *c)
+ 					mon = m;
+ 		}
+ 	}
++	c->geom.x = (mon->w.width - c->geom.width) / 2 + mon->m.x;
++	c->geom.y = (mon->w.height - c->geom.height) / 2 + mon->m.y;
+ 	wlr_scene_node_reparent(&c->scene->node, layers[c->isfloating ? LyrFloat : LyrTile]);
+ 	setmon(c, mon, newtags);
+ }
