@@ -12,3 +12,5 @@ MANDIR = $(PREFIX)/share/man
 # Uncomment to build XWayland support
 XWAYLAND = -DXWAYLAND
 XLIBS = xcb xcb-icccm
+
+CFLAGS += -DMNG_LAYOUT_VARCOL=1

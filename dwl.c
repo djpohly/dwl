@@ -131,6 +131,11 @@ struct Client {
 	uint32_t resize; /* configure serial of a pending resize */
 	pid_t pid;
 	Client *swallowing, *swallowedby;
+
+#if MNG_LAYOUT_VARCOL
+	int isLeft;
+	float cfact;
+#endif // MNG_LAYOUT_VARCOL
 };
 
 typedef struct {
@@ -200,6 +205,12 @@ struct Monitor {
 	double mfact;
 	int nmaster;
 	char ltsymbol[16];
+
+#if MNG_LAYOUT_VARCOL
+	float colfact[3];     /* Relative sizes of the different column types */
+	int nmastercols;      /* The number of master columns to use */
+	int nrightcols;       /* The number of right "stack" columns to use */
+#endif // MNG_LAYOUT_VARCOL
 };
 
 typedef struct {
@@ -220,6 +231,10 @@ typedef struct {
 	int isterm;
 	int noswallow;
 	int monitor;
+
+#if MNG_LAYOUT_VARCOL
+	int isLeft;
+#endif // MNG_VARCOL
 } Rule;
 
 typedef struct {
@@ -326,6 +341,12 @@ static void startdrag(struct wl_listener *listener, void *data);
 static void tag(const Arg *arg);
 static void tagmon(const Arg *arg);
 static void tile(Monitor *m);
+#ifdef MNG_LAYOUT_VARCOL
+static void varcol(Monitor *m);
+static void pushleft(const Arg *arg);
+void incncols(const Arg *arg);
+void setcolfact(const Arg *arg);
+#endif
 static void togglefloating(const Arg *arg);
 static void togglefullscreen(const Arg *arg);
 static void togglegaps(const Arg *arg);
@@ -447,6 +468,10 @@ static Atom netatom[NetLast];
 /* attempt to encapsulate suck into one file */
 #include "client.h"
 
+#ifdef MNG_LAYOUT_VARCOL
+#include "mng-varcol.c"
+#endif
+
 /* function implementations */
 void
 applybounds(Client *c, struct wlr_box *bbox)
@@ -490,12 +515,19 @@ applyrules(Client *c)
 	if (!(title = client_get_title(c)))
 		title = broken;
 
+#if MNG_LAYOUT_VARCOL
+	c->isLeft = 0;
+#endif // MNG_LAYOUT_VARCOL
+
 	for (r = rules; r < END(rules); r++) {
 		if ((!r->title || strstr(title, r->title))
 				&& (!r->id || strstr(appid, r->id))) {
 			c->isfloating = r->isfloating;
 			c->isterm     = r->isterm;
 			c->noswallow  = r->noswallow;
+#if MNG_LAYOUT_VARCOL
+			c->isLeft = r->isLeft;
+#endif // MNG_LAYOUT_VARCOL
 			newtags |= r->tags;
 			i = 0;
 			wl_list_for_each(m, &mons, link)
@@ -958,6 +990,12 @@ createmon(struct wl_listener *listener, void *data)
 	m->gappoh = gappoh;
 	m->gappov = gappov;
 	m->tagset[0] = m->tagset[1] = 1;
+
+#if MNG_LAYOUT_VARCOL
+	m->colfact[0] = colfact[0];
+	m->colfact[1] = colfact[1];
+	m->colfact[2] = colfact[2];
+#endif // MNG_VARCOL
 	for (r = monrules; r < END(monrules); r++) {
 		if (!r->name || strstr(wlr_output->name, r->name)) {
 			m->mfact = r->mfact;
@@ -1582,6 +1620,8 @@ keybinding(uint32_t mods, xkb_keysym_t sym)
 	 */
 	int handled = 0;
 	const Key *k;
+
+	// printf("%08X %08X\n", mods, sym);
 	for (k = keys; k < END(keys); k++) {
 		if (CLEANMASK(mods) == CLEANMASK(k->mod) &&
 				sym == k->keysym && k->func) {
@@ -1759,6 +1799,8 @@ mapnotify(struct wl_listener *listener, void *data)
 	client_get_geometry(c, &c->geom);
 	c->geom.width += 2 * c->bw;
 	c->geom.height += 2 * c->bw;
+
+	c->cfact = 1.0;
 
 	/* Insert this client into client lists. */
 	wl_list_insert(&clients, &c->link);
