@@ -82,8 +82,8 @@ void varcol(Monitor *m)
 		i++;
 	}
 
-	/* Reattach th eleft clients to the main list */
-	wl_list_for_each_safe(c, tmp, &left_clients, link) {
+	/* Reattach the left clients to the main list */
+	wl_list_for_each_reverse_safe(c, tmp, &left_clients, link) {
 		wl_list_remove(&c->link);
 		wl_list_insert(clients.prev, &c->link);
 	}
