@@ -136,13 +136,44 @@ void varcol(Monitor *m)
 	masterw	= (m->w.width / colfacts) * m->colfact[1];
 	rightw	= (m->w.width / colfacts) * m->colfact[2];
 
+	/* Adjust right and left column to fit all clients */
+	wl_list_for_each(c, &clients, link) {
+		struct wlr_box min = {0}, max = {0};
+
+		if (!VISIBLEON(c, m) || c->isfloating || c->isfullscreen) {
+			continue;
+		}
+
+		/* Get client size hints */
+		client_get_size_hints(c, &max, &min);
+
+		if (i < mastern) {
+			/* Master columns */
+
+		} else if (!isleft(c)) {
+			/* Right columns */
+			x = min.width - rightw;
+			if (x > 0) {
+				rightw += x;
+				masterw -= x;
+			}
+		} else if (leftn > 0) {
+			/* left column */
+			x = min.width - leftw;
+			if (x > 0) {
+				leftw += x;
+				masterw -= x;
+			}
+		}
+	}
+
 	/* Place each client */
-	i = 0;
 	x = m->w.x;
 	if (leftn > 0) {
 		x += leftw;
 	}
 
+	i = 0;
 	wl_list_for_each(c, &clients, link) {
 		struct wlr_box min = {0}, max = {0};
 
