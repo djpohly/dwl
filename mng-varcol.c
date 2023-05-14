@@ -27,16 +27,24 @@ static const float colfact[3]			= { 0.1, 0.6, 0.3 };
 	offset	The offset of this client within the column
 	count	The number of clients in the column
 */
-static void placeClientInColumn(Monitor *m, Client *c, int w, int x, int offset, int count)
+static void placeClientInColumn(Monitor *m, Client *c, int w, int x, int offset, int count, int totaln)
 {
 	struct wlr_box geom = {0};
+	int monheight = m->w.height;
+
+	if (totaln > 1) {
+		monheight -= (2 * m->gappov);
+	}
 
 	geom.width = w;
-	geom.height = floor(m->w.height / count);
+	geom.height = floor(monheight / count);
 
 	geom.x = x;
 	geom.y = m->w.y + (offset * geom.height);
-	
+
+	/* Adjust the height to account for gapps AFTER adjusting the y position */
+	geom.height -= m->gappiv;
+
 	resize(c, geom, False);
 }
 
@@ -50,8 +58,8 @@ static void placeClientInColumn(Monitor *m, Client *c, int w, int x, int offset,
 */
 void varcol(Monitor *m)
 {
-	int				masterw, leftw, rightw, x;
-	unsigned int	i, leftn, rightn, mastern, coln, offset;
+	int				masterw, leftw, rightw, x, monwidth;
+	unsigned int	i, leftn, rightn, mastern, totaln, coln, offset;
 	float			colfacts;
 	Client			*c, *tmp;
 	int				nmastercols		= m->nmastercols;
@@ -89,7 +97,7 @@ void varcol(Monitor *m)
 	}
 
 	/* Count the windows for each column type */
-	leftn = rightn = mastern = 0;
+	totaln = leftn = rightn = mastern = 0;
 	wl_list_for_each(c, &clients, link) {
 		if (!VISIBLEON(c, m) || c->isfloating || c->isfullscreen) {
 			continue;
@@ -102,6 +110,8 @@ void varcol(Monitor *m)
 		} else {
 			rightn++;
 		}
+
+		totaln++;
 	}
 
 	nmastercols	= MAX(MIN(mastern, nmastercols), 1);
@@ -131,10 +141,27 @@ void varcol(Monitor *m)
 		}
 	}
 
+	/* Calculate the usable width, with gapps removed */
+	monwidth = m->w.width;
+
+	if (rightn > 0) {
+		/* Gap to the left of reach right column */
+		monwidth -= m->gappih * nrightcols;
+	}
+	if (leftn > 0) {
+		/* Gap on the right of the left column */
+		monwidth -= m->gappih;
+	}
+
+	if (totaln > 1) {
+		/* Outer gaps */
+		monwidth -= (2 * m->gappoh);
+	}
+
 	/* Calculate the width for each column type */
-	leftw	= (m->w.width / colfacts) * m->colfact[0];
-	masterw	= (m->w.width / colfacts) * m->colfact[1];
-	rightw	= (m->w.width / colfacts) * m->colfact[2];
+	leftw	= (monwidth / colfacts) * m->colfact[0];
+	masterw	= (monwidth / colfacts) * m->colfact[1];
+	rightw	= (monwidth / colfacts) * m->colfact[2];
 
 	/* Adjust right and left column to fit all clients */
 	wl_list_for_each(c, &clients, link) {
@@ -171,6 +198,10 @@ void varcol(Monitor *m)
 	x = m->w.x;
 	if (leftn > 0) {
 		x += leftw;
+		x += m->gappih;
+	}
+	if (totaln > 1) {
+		x += m->gappoh;
 	}
 
 	i = 0;
@@ -193,11 +224,12 @@ void varcol(Monitor *m)
 			/* Max number of items in each master column */
 			coln = ceil((float) mastern / nmastercols);
 
-			placeClientInColumn(m, c, masterw, x, offset % coln, coln);
+			placeClientInColumn(m, c, masterw, x, offset % coln, coln, totaln);
 
 			/* Only increment x if this is the last client in this column */
 			if ((++offset % coln) == 0) {
 				x += masterw;
+				x += m->gappih;
 			}
 		} else if (!isleft(c)) {
 			/* Right columns */
@@ -208,15 +240,19 @@ void varcol(Monitor *m)
 			/* Max number of items in each right column */
 			coln = ceil((float) rightn / nrightcols);
 
-			placeClientInColumn(m, c, rightw, x, offset % coln, coln);
+			placeClientInColumn(m, c, rightw, x, offset % coln, coln, totaln);
 
 			/* Only increment x if this is the last client in this column */
 			if ((++offset % coln) == 0) {
 				x += rightw;
+				x += m->gappih;
 			}
 		} else if (leftn > 0) {
 			/* left column */
 			x = m->w.x;
+			if (totaln > 1) {
+				x += m->gappoh;
+			}
 
 			/* Offset within the section */
 			offset = i - (mastern + rightn);
@@ -224,7 +260,7 @@ void varcol(Monitor *m)
 			/* There is only one left column */
 			coln = leftn;
 
-			placeClientInColumn(m, c, leftw, x, offset, leftn);
+			placeClientInColumn(m, c, leftw, x, offset, leftn, totaln);
 		}
 
 		i++;
