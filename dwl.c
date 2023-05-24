@@ -836,8 +836,10 @@ createlayersurface(struct wl_listener *listener, void *data)
 	if (!wlr_layer_surface->output)
 		wlr_layer_surface->output = selmon ? selmon->wlr_output : NULL;
 
-	if (!wlr_layer_surface->output)
+	if (!wlr_layer_surface->output) {
 		wlr_layer_surface_v1_destroy(wlr_layer_surface);
+		return;
+	}
 
 	layersurface = ecalloc(1, sizeof(LayerSurface));
 	layersurface->type = LayerShell;
