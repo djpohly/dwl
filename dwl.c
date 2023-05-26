@@ -1895,8 +1895,8 @@ rendermon(struct wl_listener *listener, void *data)
 	wl_list_for_each(c, &clients, link)
 		if (c->resize && !c->isfloating && client_is_rendered_on_mon(c, m) && !client_is_stopped(c))
 			goto skip;
-	if (!wlr_scene_output_commit(m->scene_output))
-		return;
+	wlr_scene_output_commit(m->scene_output);
+
 skip:
 	/* Let clients know a frame has been rendered */
 	clock_gettime(CLOCK_MONOTONIC, &now);
