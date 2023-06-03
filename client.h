@@ -226,16 +226,6 @@ client_is_float_type(Client *c)
 }
 
 static inline int
-client_is_mapped(Client *c)
-{
-#ifdef XWAYLAND
-	if (client_is_x11(c))
-		return c->surface.xwayland->mapped;
-#endif
-	return c->surface.xdg->mapped;
-}
-
-static inline int
 client_is_rendered_on_mon(Client *c, Monitor *m)
 {
 	/* This is needed for when you don't want to check formal assignment,

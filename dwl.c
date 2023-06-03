@@ -122,6 +122,8 @@ typedef struct {
 	struct wlr_box prev; /* layout-relative, includes border */
 #ifdef XWAYLAND
 	struct wl_listener activate;
+	struct wl_listener associate;
+	struct wl_listener dissociate;
 	struct wl_listener configure;
 	struct wl_listener set_hints;
 #endif
@@ -399,8 +401,10 @@ static struct wl_listener session_lock_mgr_destroy = {.notify = destroysessionmg
 
 #ifdef XWAYLAND
 static void activatex11(struct wl_listener *listener, void *data);
+static void associatex11(struct wl_listener *listener, void *data);
 static void configurex11(struct wl_listener *listener, void *data);
 static void createnotifyx11(struct wl_listener *listener, void *data);
+static void dissociatex11(struct wl_listener *listener, void *data);
 static Atom getatom(xcb_connection_t *xc, const char *name);
 static void sethints(struct wl_listener *listener, void *data);
 static void sigchld(int unused);
@@ -762,9 +766,9 @@ commitlayersurfacenotify(struct wl_listener *listener, void *data)
 		wlr_scene_node_reparent(&layersurface->popups->node, layers[LyrTop]);
 
 	if (wlr_layer_surface->current.committed == 0
-			&& layersurface->mapped == wlr_layer_surface->mapped)
+			&& layersurface->mapped == wlr_layer_surface->surface->mapped)
 		return;
-	layersurface->mapped = wlr_layer_surface->mapped;
+	layersurface->mapped = wlr_layer_surface->surface->mapped;
 
 	arrangelayers(layersurface->mon);
 }
@@ -854,9 +858,9 @@ createlayersurface(struct wl_listener *listener, void *data)
 			&layersurface->surface_commit, commitlayersurfacenotify);
 	LISTEN(&wlr_layer_surface->events.destroy, &layersurface->destroy,
 			destroylayersurfacenotify);
-	LISTEN(&wlr_layer_surface->events.map, &layersurface->map,
+	LISTEN(&wlr_layer_surface->surface->events.map, &layersurface->map,
 			maplayersurfacenotify);
-	LISTEN(&wlr_layer_surface->events.unmap, &layersurface->unmap,
+	LISTEN(&wlr_layer_surface->surface->events.unmap, &layersurface->unmap,
 			unmaplayersurfacenotify);
 
 	layersurface->layer_surface = wlr_layer_surface;
@@ -1017,8 +1021,8 @@ createnotify(struct wl_listener *listener, void *data)
 	c->surface.xdg = xdg_surface;
 	c->bw = borderpx;
 
-	LISTEN(&xdg_surface->events.map, &c->map, mapnotify);
-	LISTEN(&xdg_surface->events.unmap, &c->unmap, unmapnotify);
+	LISTEN(&xdg_surface->surface->events.map, &c->map, mapnotify);
+	LISTEN(&xdg_surface->surface->events.unmap, &c->unmap, unmapnotify);
 	LISTEN(&xdg_surface->events.destroy, &c->destroy, destroynotify);
 	LISTEN(&xdg_surface->toplevel->events.set_title, &c->set_title, updatetitle);
 	LISTEN(&xdg_surface->toplevel->events.request_fullscreen, &c->fullscreen,
@@ -1055,7 +1059,7 @@ createpointer(struct wlr_pointer *pointer)
 
 		if (libinput_device_config_scroll_get_methods(libinput_device) != LIBINPUT_CONFIG_SCROLL_NO_SCROLL)
 			libinput_device_config_scroll_set_method (libinput_device, scroll_method);
-		
+
 		if (libinput_device_config_click_get_methods(libinput_device) != LIBINPUT_CONFIG_CLICK_METHOD_NONE)
 			libinput_device_config_click_set_method (libinput_device, click_method);
 
@@ -1160,18 +1164,22 @@ destroynotify(struct wl_listener *listener, void *data)
 {
 	/* Called when the surface is destroyed and should never be shown again. */
 	Client *c = wl_container_of(listener, c, destroy);
-	wl_list_remove(&c->map.link);
-	wl_list_remove(&c->unmap.link);
 	wl_list_remove(&c->destroy.link);
 	wl_list_remove(&c->set_title.link);
 	wl_list_remove(&c->fullscreen.link);
 #ifdef XWAYLAND
 	if (c->type != XDGShell) {
-		wl_list_remove(&c->configure.link);
-		wl_list_remove(&c->set_hints.link);
 		wl_list_remove(&c->activate.link);
-	}
+		wl_list_remove(&c->associate.link);
+		wl_list_remove(&c->configure.link);
+		wl_list_remove(&c->dissociate.link);
+		wl_list_remove(&c->set_hints.link);
+	} else
 #endif
+	{
+		wl_list_remove(&c->map.link);
+		wl_list_remove(&c->unmap.link);
+	}
 	free(c);
 }
 
@@ -2597,7 +2605,7 @@ updatemons(struct wl_listener *listener, void *data)
 
 	if (selmon && selmon->wlr_output->enabled) {
 		wl_list_for_each(c, &clients, link)
-			if (!c->mon && client_is_mapped(c))
+			if (!c->mon && client_surface(c)->mapped)
 				setmon(c, selmon, c->tags);
 		focusclient(focustop(selmon), 1);
 		if (selmon->lock_surface) {
@@ -2735,6 +2743,15 @@ activatex11(struct wl_listener *listener, void *data)
 }
 
 void
+associatex11(struct wl_listener *listener, void *data)
+{
+	Client *c = wl_container_of(listener, c, associate);
+
+	LISTEN(&client_surface(c)->events.map, &c->map, mapnotify);
+	LISTEN(&client_surface(c)->events.unmap, &c->unmap, unmapnotify);
+}
+
+void
 configurex11(struct wl_listener *listener, void *data)
 {
 	Client *c = wl_container_of(listener, c, configure);
@@ -2761,14 +2778,22 @@ createnotifyx11(struct wl_listener *listener, void *data)
 	c->bw = borderpx;
 
 	/* Listen to the various events it can emit */
-	LISTEN(&xsurface->events.map, &c->map, mapnotify);
-	LISTEN(&xsurface->events.unmap, &c->unmap, unmapnotify);
+	LISTEN(&xsurface->events.associate, &c->associate, associatex11);
+	LISTEN(&xsurface->events.dissociate, &c->dissociate, dissociatex11);
 	LISTEN(&xsurface->events.request_activate, &c->activate, activatex11);
 	LISTEN(&xsurface->events.request_configure, &c->configure, configurex11);
 	LISTEN(&xsurface->events.set_hints, &c->set_hints, sethints);
 	LISTEN(&xsurface->events.set_title, &c->set_title, updatetitle);
 	LISTEN(&xsurface->events.destroy, &c->destroy, destroynotify);
 	LISTEN(&xsurface->events.request_fullscreen, &c->fullscreen, fullscreennotify);
+}
+
+void
+dissociatex11(struct wl_listener *listener, void *data)
+{
+	Client *c = wl_container_of(listener, c, dissociate);
+	wl_list_remove(&c->map.link);
+	wl_list_remove(&c->unmap.link);
 }
 
 Atom
