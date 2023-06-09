@@ -25,7 +25,6 @@
 #include <wlr/types/wlr_export_dmabuf_v1.h>
 #include <wlr/types/wlr_fractional_scale_v1.h>
 #include <wlr/types/wlr_gamma_control_v1.h>
-#include <wlr/types/wlr_idle.h>
 #include <wlr/types/wlr_idle_inhibit_v1.h>
 #include <wlr/types/wlr_idle_notify_v1.h>
 #include <wlr/types/wlr_input_device.h>
@@ -71,7 +70,6 @@
 #define END(A)                  ((A) + LENGTH(A))
 #define TAGMASK                 ((1u << tagcount) - 1)
 #define LISTEN(E, L, H)         wl_signal_add((E), ((L)->notify = (H), (L)))
-#define IDLE_NOTIFY_ACTIVITY    wlr_idle_notify_activity(idle, seat), wlr_idle_notifier_v1_notify_activity(idle_notifier, seat)
 
 /* enums */
 enum { CurNormal, CurPressed, CurMove, CurResize }; /* cursor */
@@ -345,7 +343,6 @@ static struct wlr_xdg_activation_v1 *activation;
 static struct wlr_xdg_decoration_manager_v1 *xdg_decoration_mgr;
 static struct wl_list clients; /* tiling order */
 static struct wl_list fstack;  /* focus order */
-static struct wlr_idle *idle;
 static struct wlr_idle_notifier_v1 *idle_notifier;
 static struct wlr_idle_inhibit_manager_v1 *idle_inhibit_mgr;
 static struct wlr_layer_shell_v1 *layer_shell;
@@ -567,7 +564,7 @@ axisnotify(struct wl_listener *listener, void *data)
 	/* This event is forwarded by the cursor when a pointer emits an axis event,
 	 * for example when you move the scroll wheel. */
 	struct wlr_pointer_axis_event *event = data;
-	IDLE_NOTIFY_ACTIVITY;
+	wlr_idle_notifier_v1_notify_activity(idle_notifier, seat);
 	/* TODO: allow usage of scroll whell for mousebindings, it can be implemented
 	 * checking the event's orientation and the delta of the event */
 	/* Notify the client with pointer focus of the axis event. */
@@ -585,7 +582,7 @@ buttonpress(struct wl_listener *listener, void *data)
 	Client *c;
 	const Button *b;
 
-	IDLE_NOTIFY_ACTIVITY;
+	wlr_idle_notifier_v1_notify_activity(idle_notifier, seat);
 
 	switch (event->state) {
 	case WLR_BUTTON_PRESSED:
@@ -651,7 +648,6 @@ checkidleinhibitor(struct wlr_surface *exclude)
 		}
 	}
 
-	wlr_idle_set_enabled(idle, NULL, !inhibited);
 	wlr_idle_notifier_v1_set_inhibited(idle_notifier, inhibited);
 }
 
@@ -1422,7 +1418,7 @@ keypress(struct wl_listener *listener, void *data)
 	int handled = 0;
 	uint32_t mods = wlr_keyboard_get_modifiers(kb->wlr_keyboard);
 
-	IDLE_NOTIFY_ACTIVITY;
+	wlr_idle_notifier_v1_notify_activity(idle_notifier, seat);
 
 	/* On _press_ if there is no active screen locker,
 	 * attempt to process a compositor keybinding. */
@@ -1647,7 +1643,7 @@ motionnotify(uint32_t time)
 
 	/* time is 0 in internal calls meant to restore pointer focus. */
 	if (time) {
-		IDLE_NOTIFY_ACTIVITY;
+		wlr_idle_notifier_v1_notify_activity(idle_notifier, seat);
 
 		/* Update selmon (even while dragging a window) */
 		if (sloppyfocus)
@@ -2275,7 +2271,6 @@ setup(void)
 	wl_list_init(&clients);
 	wl_list_init(&fstack);
 
-	idle = wlr_idle_create(dpy);
 	idle_notifier = wlr_idle_notifier_v1_create(dpy);
 
 	idle_inhibit_mgr = wlr_idle_inhibit_v1_create(dpy);
