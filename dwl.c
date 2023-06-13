@@ -2068,15 +2068,26 @@ void
 setgamma(struct wl_listener *listener, void *data)
 {
 	struct wlr_gamma_control_manager_v1_set_gamma_event *event = data;
-	if (!wlr_gamma_control_v1_apply(event->control, &event->output->pending))
+	Monitor *m = event->output->data;
+	struct wlr_output_state pending = {0};
+	if (!m)
 		return;
 
-	if (!wlr_output_test(event->output)) {
-		wlr_output_rollback(event->output);
+	if (!wlr_scene_output_build_state(m->scene_output, &pending))
+		return;
+
+	if (!wlr_gamma_control_v1_apply(event->control, &pending))
+		goto out;
+
+	if (!wlr_output_commit_state(m->wlr_output, &pending)) {
 		wlr_gamma_control_v1_send_failed_and_destroy(event->control);
+		goto out;
 	}
 
-	wlr_output_schedule_frame(event->output);
+	wlr_damage_ring_rotate(&m->scene_output->damage_ring);
+
+out:
+	wlr_output_state_finish(&pending);
 }
 
 void
