@@ -614,7 +614,7 @@ buttonpress(struct wl_listener *listener, void *data)
 		/* If you released any buttons, we exit interactive move/resize mode. */
 		/* TODO should reset to the pointer focus's current setcursor */
 		if (!locked && cursor_mode != CurNormal && cursor_mode != CurPressed) {
-			wlr_xcursor_manager_set_cursor_image(cursor_mgr, "left_ptr", cursor);
+			wlr_cursor_set_xcursor(cursor, cursor_mgr, "left_ptr");
 			cursor_mode = CurNormal;
 			/* Drop the window off on its new monitor */
 			selmon = xytomon(cursor->x, cursor->y);
@@ -928,7 +928,6 @@ createmon(struct wl_listener *listener, void *data)
 			m->mfact = r->mfact;
 			m->nmaster = r->nmaster;
 			wlr_output_set_scale(wlr_output, r->scale);
-			wlr_xcursor_manager_load(cursor_mgr, r->scale);
 			m->lt[0] = m->lt[1] = r->lt;
 			wlr_output_set_transform(wlr_output, r->rr);
 			m->m.x = r->x;
@@ -1691,7 +1690,7 @@ motionnotify(uint32_t time)
 	 * default. This is what makes the cursor image appear when you move it
 	 * off of a client or over its border. */
 	if (!surface && !seat->drag)
-		wlr_xcursor_manager_set_cursor_image(cursor_mgr, "left_ptr", cursor);
+		wlr_cursor_set_xcursor(cursor, cursor_mgr, "left_ptr");
 
 	pointerfocus(c, surface, sx, sy, time);
 }
@@ -1726,7 +1725,7 @@ moveresize(const Arg *arg)
 	case CurMove:
 		grabcx = cursor->x - grabc->geom.x;
 		grabcy = cursor->y - grabc->geom.y;
-		wlr_xcursor_manager_set_cursor_image(cursor_mgr, "fleur", cursor);
+		wlr_cursor_set_xcursor(cursor, cursor_mgr, "fleur");
 		break;
 	case CurResize:
 		/* Doesn't work for X11 output - the next absolute motion event
@@ -1734,8 +1733,7 @@ moveresize(const Arg *arg)
 		wlr_cursor_warp_closest(cursor, NULL,
 				grabc->geom.x + grabc->geom.width,
 				grabc->geom.y + grabc->geom.height);
-		wlr_xcursor_manager_set_cursor_image(cursor_mgr,
-				"bottom_right_corner", cursor);
+		wlr_cursor_set_xcursor(cursor, cursor_mgr, "bottom_right_corner");
 		break;
 	}
 }
@@ -2005,7 +2003,7 @@ run(char *startup_cmd)
 	 * initialized, as the image/coordinates are not transformed for the
 	 * monitor when displayed here */
 	wlr_cursor_warp_closest(cursor, NULL, cursor->x, cursor->y);
-	wlr_xcursor_manager_set_cursor_image(cursor_mgr, "left_ptr", cursor);
+	wlr_cursor_set_xcursor(cursor, cursor_mgr, "left_ptr");
 
 	/* Run the Wayland event loop. This does not return until you exit the
 	 * compositor. Starting the backend rigged up all of the necessary event
