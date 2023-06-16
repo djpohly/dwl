@@ -2327,6 +2327,9 @@ void
 spawn(const Arg *arg)
 {
 	if (fork() == 0) {
+		struct sigaction sa = {.sa_flags = SA_RESTART, .sa_handler = SIG_DFL};
+		sigemptyset(&sa.sa_mask);
+		sigaction(SIGCHLD, &sa, NULL);
 		dup2(STDERR_FILENO, STDOUT_FILENO);
 		setsid();
 		execvp(((char **)arg->v)[0], (char **)arg->v);
