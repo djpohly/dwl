@@ -1512,7 +1512,7 @@ void
 mapnotify(struct wl_listener *listener, void *data)
 {
 	/* Called when the surface is mapped, or ready to display on-screen. */
-	Client *p, *w, *c = wl_container_of(listener, c, map);
+	Client *p, *w, *c = wl_container_of(listener, c, map), *oldfocus = focustop(selmon);
 	Monitor *m;
 	int i;
 
@@ -1556,8 +1556,8 @@ mapnotify(struct wl_listener *listener, void *data)
 	c->geom.height += 2 * c->bw;
 
 	/* Insert this client into client lists. */
-	wl_list_insert(&clients, &c->link);
-	wl_list_insert(&fstack, &c->flink);
+	wl_list_insert(oldfocus ? oldfocus->link.prev : &clients, &c->link);
+	wl_list_insert(oldfocus ? oldfocus->flink.prev : &fstack, &c->flink);
 
 	/* Set initial monitor, tags, floating status, and focus:
 	 * we always consider floating, clients that have parent and thus
