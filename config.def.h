@@ -7,6 +7,9 @@ static const float focuscolor[]            = {1.0, 0.0, 0.0, 1.0};
 /* To conform the xdg-protocol, set the alpha to zero to restore the old behavior */
 static const float fullscreen_bg[]         = {0.1, 0.1, 0.1, 1.0};
 
+/* cursor warping */
+static const bool cursor_warp = true;
+
 /* tagging - tagcount must be no greater than 31 */
 static const int tagcount = 9;
 
