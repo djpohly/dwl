@@ -24,6 +24,8 @@ static const Layout layouts[] = {
 	{ "[]=",      tile },
 	{ "><>",      NULL },    /* no layout function means floating behavior */
 	{ "[M]",      monocle },
+	{ "[@]",      spiral },
+	{ "[\\]",      dwindle },
 };
 
 /* monitors */
