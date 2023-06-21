@@ -303,6 +303,7 @@ static void startdrag(struct wl_listener *listener, void *data);
 static void tag(const Arg *arg);
 static void tagmon(const Arg *arg);
 static void tile(Monitor *m);
+static void vertile(Monitor *m);
 static void togglefloating(const Arg *arg);
 static void togglefullscreen(const Arg *arg);
 static void toggletag(const Arg *arg);
@@ -2411,6 +2412,40 @@ tile(Monitor *m)
 		i++;
 	}
 }
+
+void
+vertile(Monitor *m)
+{
+	unsigned int i, n = 0, h, mh, my, ty;
+	Client *c;
+
+	wl_list_for_each(c, &clients, link)
+		if (VISIBLEON(c, m) && !c->isfloating)
+			n++;
+	if (n == 0)
+		return;
+
+	if (n > m->nmaster)
+    ty = mh = m->nmaster ? m->w.height * m->mfact : 0;
+	else
+		ty = mh = m->w.height;
+	i = my = 0;
+	wl_list_for_each(c, &clients, link) {
+		if (!VISIBLEON(c, m) || c->isfloating || c->isfullscreen)
+			continue;
+		if (i < m->nmaster) {
+			h = ( mh - my ) / (MIN(n, m->nmaster) - i);
+			resize(c, (struct wlr_box) { .x = m->w.x, .y = m->w.y + my, .width = m->w.width, .height = h }, 0);
+			my += c->geom.height;
+		} else {
+			h = ( m->w.height - ty ) / (n - i);
+			resize(c, (struct wlr_box) { .x = m->w.x, .y = m->w.y + ty, .width = m->w.width, .height = h }, 0);
+      ty += c->geom.height;
+		}
+		i++;
+	}
+}
+
 
 void
 togglefloating(const Arg *arg)
