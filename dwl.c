@@ -2425,8 +2425,34 @@ void
 togglefullscreen(const Arg *arg)
 {
 	Client *sel = focustop(selmon);
-	if (sel)
-		setfullscreen(sel, !sel->isfullscreen);
+	if (sel) {
+        //setfullscreen(sel, !sel->isfullscreen);     // ***does the actual work
+        //setfullscreen(Client *c, int fullscreen)
+
+        Client *c = sel;
+        int fullscreen = !sel->isfullscreen;
+
+        c->isfullscreen = fullscreen;
+
+        if (!c->mon)
+            return;
+
+        c->bw = fullscreen ? 0 : borderpx;
+        //client_set_fullscreen(c, fullscreen);   // informs the client to change to fullscreen layout
+        wlr_scene_node_reparent(&c->scene->node, layers[fullscreen
+                ? LyrFS : c->isfloating ? LyrFloat : LyrTile]);
+
+        if (fullscreen) {
+            c->prev = c->geom;
+            resize(c, c->mon->m, 0);    // resize the window, if ignored window sized doesn't change
+        } else {
+            /* restore previous size instead of arrange for floating windows since
+             * client positions are set by the user and cannot be recalculated */
+            resize(c, c->prev, 0);      // resize the window, if ignored window size doesn't change
+        }
+        arrange(c->mon);
+        printstatus();
+    }
 }
 
 void
