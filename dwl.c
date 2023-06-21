@@ -259,6 +259,7 @@ static void focusclient(Client *c, int lift);
 static void focusmon(const Arg *arg);
 static void focusstack(const Arg *arg);
 static Client *focustop(Monitor *m);
+static void grid(Monitor *m);
 static void fullscreennotify(struct wl_listener *listener, void *data);
 static void incnmaster(const Arg *arg);
 static void inputdevice(struct wl_listener *listener, void *data);
@@ -1331,6 +1332,41 @@ fullscreennotify(struct wl_listener *listener, void *data)
 {
 	Client *c = wl_container_of(listener, c, fullscreen);
 	setfullscreen(c, client_wants_fullscreen(c));
+}
+
+void
+grid(Monitor *m) {
+    unsigned int n = 0, i = 0, ch, cw, rows, cols;
+    Client *c;
+
+    wl_list_for_each(c, &clients, link)
+        if (VISIBLEON(c, m) && !c->isfloating)
+            n++;
+    if (n == 0)
+        return;
+
+    /* grid dimensions */
+    for (rows = 0; rows <= (n / 2); rows++)
+        if ((rows * rows) >= n)
+            break;
+    cols = (rows && ((rows - 1) * rows) >= n) ? rows - 1 : rows;
+
+    /* window geoms (cell height/width) */
+    ch = m->w.height / (rows ? rows : 1);
+    cw = m->w.width / (cols ? cols : 1);
+    wl_list_for_each(c, &clients, link) {
+        unsigned int cx, cy, ah, aw;
+        if (!VISIBLEON(c, m) || c->isfloating || c->isfullscreen)
+            continue;
+
+        cx = m->w.x + (i / rows) * cw;
+        cy = m->w.y + (i % rows) * ch;
+        /* adjust height/width of last row/column's windows */
+        ah = (((i + 1) % rows) == 0) ? m->w.height - ch * rows : 0;
+        aw = (i >= (rows * (cols - 1))) ? m->w.width - cw * cols : 0;
+        resize(c, (struct wlr_box) { .x =  cx, .y = cy, .width = cw - aw, .height = ch - ah }, 0);
+        i++;
+    }
 }
 
 void
