@@ -2075,6 +2075,7 @@ setgamma(struct wl_listener *listener, void *data)
 	}
 
 	wlr_output_commit_state(event->output, &state);
+	wlr_output_schedule_frame(event->output);
 }
 
 void
