@@ -18,6 +18,7 @@
 #include <wlr/render/wlr_renderer.h>
 #include <wlr/types/wlr_compositor.h>
 #include <wlr/types/wlr_cursor.h>
+#include <wlr/types/wlr_cursor_shape_v1.h>
 #include <wlr/types/wlr_data_control_v1.h>
 #include <wlr/types/wlr_data_device.h>
 #include <wlr/types/wlr_drm.h>
@@ -294,6 +295,7 @@ static void requestmonstate(struct wl_listener *listener, void *data);
 static void resize(Client *c, struct wlr_box geo, int interact);
 static void run(char *startup_cmd);
 static void setcursor(struct wl_listener *listener, void *data);
+static void setcursorshape(struct wl_listener *listener, void *data);
 static void setfloating(Client *c, int floating);
 static void setfullscreen(Client *c, int fullscreen);
 static void setgamma(struct wl_listener *listener, void *data);
@@ -353,6 +355,7 @@ static struct wlr_layer_shell_v1 *layer_shell;
 static struct wlr_output_manager_v1 *output_mgr;
 static struct wlr_gamma_control_manager_v1 *gamma_control_mgr;
 static struct wlr_virtual_keyboard_manager_v1 *virtual_keyboard_mgr;
+static struct wlr_cursor_shape_manager_v1 *cursor_shape_mgr;
 
 static struct wlr_cursor *cursor;
 static struct wlr_xcursor_manager *cursor_mgr;
@@ -2004,6 +2007,20 @@ setcursor(struct wl_listener *listener, void *data)
 }
 
 void
+setcursorshape(struct wl_listener *listener, void *data)
+{
+	struct wlr_cursor_shape_manager_v1_request_set_shape_event *event = data;
+	if (cursor_mode != CurNormal && cursor_mode != CurPressed)
+		return;
+	/* This can be sent by any client, so we check to make sure this one is
+	 * actually has pointer focus first. If so, we can tell the cursor to
+	 * use the provided cursor shape. */
+	if (event->seat_client == seat->pointer_state.focused_client)
+		wlr_cursor_set_xcursor(cursor, cursor_mgr,
+							   wlr_cursor_shape_v1_name(event->shape));
+}
+
+void
 setfloating(Client *c, int floating)
 {
 	c->isfloating = floating;
@@ -2285,6 +2302,9 @@ setup(void)
 	LISTEN_STATIC(&cursor->events.button, buttonpress);
 	LISTEN_STATIC(&cursor->events.axis, axisnotify);
 	LISTEN_STATIC(&cursor->events.frame, cursorframe);
+
+	cursor_shape_mgr = wlr_cursor_shape_manager_v1_create(dpy, 1);
+	LISTEN_STATIC(&cursor_shape_mgr->events.request_set_shape, setcursorshape);
 
 	/*
 	 * Configures a seat, which is a single "seat" at which a user sits and
