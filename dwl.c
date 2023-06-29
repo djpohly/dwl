@@ -74,7 +74,7 @@
 /* enums */
 enum { CurNormal, CurPressed, CurMove, CurResize }; /* cursor */
 enum { XDGShell, LayerShell, X11Managed, X11Unmanaged }; /* client types */
-enum { LyrBg, LyrBottom, LyrTop, LyrOverlay, LyrTile, LyrFloat, LyrFS, LyrDragIcon, LyrBlock, NUM_LAYERS }; /* scene layers */
+enum { LyrBg, LyrBottom, LyrTile, LyrFloat, LyrFS, LyrTop, LyrOverlay, LyrBlock, NUM_LAYERS }; /* scene layers */
 #ifdef XWAYLAND
 enum { NetWMWindowTypeDialog, NetWMWindowTypeSplash, NetWMWindowTypeToolbar,
 	NetWMWindowTypeUtility, NetLast }; /* EWMH atoms */
@@ -302,6 +302,7 @@ static void setmon(Client *c, Monitor *m, uint32_t newtags);
 static void setpsel(struct wl_listener *listener, void *data);
 static void setsel(struct wl_listener *listener, void *data);
 static void setup(void);
+static void sigchld(int unused);
 static void spawn(const Arg *arg);
 static void startdrag(struct wl_listener *listener, void *data);
 static void tag(const Arg *arg);
@@ -333,6 +334,8 @@ static struct wl_display *dpy;
 static struct wlr_backend *backend;
 static struct wlr_scene *scene;
 static struct wlr_scene_tree *layers[NUM_LAYERS];
+/* Map from ZWLR_LAYER_SHELL_* constants to Lyr* enum */
+static const int layermap[] = { LyrBg, LyrBottom, LyrTop, LyrOverlay };
 static struct wlr_renderer *drw;
 static struct wlr_allocator *alloc;
 static struct wlr_compositor *compositor;
@@ -404,7 +407,6 @@ static void createnotifyx11(struct wl_listener *listener, void *data);
 static void dissociatex11(struct wl_listener *listener, void *data);
 static Atom getatom(xcb_connection_t *xc, const char *name);
 static void sethints(struct wl_listener *listener, void *data);
-static void sigchld(int unused);
 static void xwaylandready(struct wl_listener *listener, void *data);
 static struct wl_listener new_xwayland_surface = {.notify = createnotifyx11};
 static struct wl_listener xwayland_ready = {.notify = xwaylandready};
@@ -740,17 +742,16 @@ commitlayersurfacenotify(struct wl_listener *listener, void *data)
 	LayerSurface *layersurface = wl_container_of(listener, layersurface, surface_commit);
 	struct wlr_layer_surface_v1 *wlr_layer_surface = layersurface->layer_surface;
 	struct wlr_output *wlr_output = wlr_layer_surface->output;
+	struct wlr_scene_tree *layer = layers[layermap[wlr_layer_surface->current.layer]];
 
 	/* For some reason this layersurface have no monitor, this can be because
 	 * its monitor has just been destroyed */
 	if (!wlr_output || !(layersurface->mon = wlr_output->data))
 		return;
 
-	if (layers[wlr_layer_surface->current.layer] != layersurface->scene->node.parent) {
-		wlr_scene_node_reparent(&layersurface->scene->node,
-				layers[wlr_layer_surface->current.layer]);
-		wlr_scene_node_reparent(&layersurface->popups->node,
-				layers[wlr_layer_surface->current.layer]);
+	if (layer != layersurface->scene->node.parent) {
+		wlr_scene_node_reparent(&layersurface->scene->node, layer);
+		wlr_scene_node_reparent(&layersurface->popups->node, layer);
 		wl_list_remove(&layersurface->link);
 		wl_list_insert(&layersurface->mon->layers[wlr_layer_surface->current.layer],
 				&layersurface->link);
@@ -836,6 +837,7 @@ createlayersurface(struct wl_listener *listener, void *data)
 	struct wlr_layer_surface_v1 *wlr_layer_surface = data;
 	LayerSurface *layersurface;
 	struct wlr_layer_surface_v1_state old_state;
+	struct wlr_scene_tree *l = layers[layermap[wlr_layer_surface->pending.layer]];
 
 	if (!wlr_layer_surface->output)
 		wlr_layer_surface->output = selmon ? selmon->wlr_output : NULL;
@@ -860,11 +862,9 @@ createlayersurface(struct wl_listener *listener, void *data)
 	layersurface->mon = wlr_layer_surface->output->data;
 	wlr_layer_surface->data = layersurface;
 
-	layersurface->scene_layer = wlr_scene_layer_surface_v1_create(
-			layers[wlr_layer_surface->pending.layer], wlr_layer_surface);
+	layersurface->scene_layer = wlr_scene_layer_surface_v1_create(l, wlr_layer_surface);
 	layersurface->scene = layersurface->scene_layer->tree;
-	layersurface->popups = wlr_layer_surface->surface->data =
-			wlr_scene_tree_create(layers[wlr_layer_surface->pending.layer]);
+	layersurface->popups = wlr_layer_surface->surface->data = wlr_scene_tree_create(l);
 
 	layersurface->scene->node.data = layersurface;
 
@@ -2157,26 +2157,20 @@ setsel(struct wl_listener *listener, void *data)
 void
 setup(void)
 {
-	struct sigaction sa_term = {.sa_flags = SA_RESTART, .sa_handler = quitsignal};
-	struct sigaction sa_sigchld = {
-#ifdef XWAYLAND
-		.sa_flags = SA_RESTART,
-		.sa_handler = sigchld,
-#else
-		.sa_flags = SA_NOCLDSTOP | SA_NOCLDWAIT | SA_RESTART,
-		.sa_handler = SIG_IGN,
-#endif
-	};
-	sigemptyset(&sa_term.sa_mask);
-	sigemptyset(&sa_sigchld.sa_mask);
+	int layer;
+
+	/* Set up signal handlers */
+	struct sigaction sa = {.sa_flags = SA_RESTART, .sa_handler = sigchld};
+	sigemptyset(&sa.sa_mask);
+	sigaction(SIGCHLD, &sa, NULL);
+
+	sa.sa_handler = quitsignal;
+	sigaction(SIGINT, &sa, NULL);
+	sigaction(SIGTERM, &sa, NULL);
+
 	/* The Wayland display is managed by libwayland. It handles accepting
 	 * clients from the Unix socket, manging Wayland globals, and so on. */
 	dpy = wl_display_create();
-
-	/* Set up signal handlers */
-	sigaction(SIGCHLD, &sa_sigchld, NULL);
-	sigaction(SIGINT, &sa_term, NULL);
-	sigaction(SIGTERM, &sa_term, NULL);
 
 	/* The backend is a wlroots feature which abstracts the underlying input and
 	 * output hardware. The autocreate option will choose the most suitable
@@ -2191,15 +2185,8 @@ setup(void)
 
 	/* Initialize the scene graph used to lay out windows */
 	scene = wlr_scene_create();
-	layers[LyrBg] = wlr_scene_tree_create(&scene->tree);
-	layers[LyrBottom] = wlr_scene_tree_create(&scene->tree);
-	layers[LyrTile] = wlr_scene_tree_create(&scene->tree);
-	layers[LyrFloat] = wlr_scene_tree_create(&scene->tree);
-	layers[LyrFS] = wlr_scene_tree_create(&scene->tree);
-	layers[LyrTop] = wlr_scene_tree_create(&scene->tree);
-	layers[LyrOverlay] = wlr_scene_tree_create(&scene->tree);
-	layers[LyrDragIcon] = wlr_scene_tree_create(&scene->tree);
-	layers[LyrBlock] = wlr_scene_tree_create(&scene->tree);
+	for (layer = 0; layer < NUM_LAYERS; layer++)
+		layers[layer] = wlr_scene_tree_create(&scene->tree);
 
 	/* Create a renderer with the default implementation */
 	if (!(drw = wlr_renderer_autocreate(backend)))
@@ -2365,6 +2352,28 @@ setup(void)
 }
 
 void
+sigchld(int unused)
+{
+#ifdef XWAYLAND
+	siginfo_t in;
+	/* We should be able to remove this function in favor of a simple
+	 *	struct sigaction sa = {.sa_handler = SIG_IGN};
+	 * 	sigaction(SIGCHLD, &sa, NULL);
+	 * but the Xwayland implementation in wlroots currently prevents us from
+	 * setting our own disposition for SIGCHLD.
+	 */
+	/* WNOWAIT leaves the child in a waitable state, in case this is the
+	 * XWayland process
+	 */
+	while (!waitid(P_ALL, 0, &in, WEXITED|WNOHANG|WNOWAIT) && in.si_pid
+			&& (!xwayland || in.si_pid != xwayland->server->pid))
+		waitpid(in.si_pid, NULL, 0);
+#else
+	while (waitpid(-1, NULL, WNOHANG) > 0);
+#endif
+}
+
+void
 spawn(const Arg *arg)
 {
 	if (fork() == 0) {
@@ -2379,11 +2388,13 @@ void
 startdrag(struct wl_listener *listener, void *data)
 {
 	struct wlr_drag *drag = data;
+	struct wlr_scene_tree *icon;
 
 	if (!drag->icon)
 		return;
 
-	drag->icon->data = wlr_scene_drag_icon_create(layers[LyrDragIcon], drag->icon);
+	drag->icon->data = icon = wlr_scene_drag_icon_create(&scene->tree, drag->icon);
+	wlr_scene_node_place_below(&icon->node, &layers[LyrBlock]->node);
 	motionnotify(0);
 	wl_signal_add(&drag->icon->events.destroy, &drag_icon_destroy);
 }
@@ -2680,24 +2691,22 @@ xytonode(double x, double y, struct wlr_surface **psurface,
 	struct wlr_surface *surface = NULL;
 	Client *c = NULL;
 	LayerSurface *l = NULL;
-	const int *layer;
-	int focus_order[] = { LyrBlock, LyrOverlay, LyrTop, LyrFS, LyrFloat, LyrTile, LyrBottom, LyrBg };
+	int layer;
 
-	for (layer = focus_order; layer < END(focus_order); layer++) {
-		if ((node = wlr_scene_node_at(&layers[*layer]->node, x, y, nx, ny))) {
-			if (node->type == WLR_SCENE_NODE_BUFFER)
-				surface = wlr_scene_surface_try_from_buffer(
-						wlr_scene_buffer_from_node(node))->surface;
-			/* Walk the tree to find a node that knows the client */
-			for (pnode = node; pnode && !c; pnode = &pnode->parent->node)
-				c = pnode->data;
-			if (c && c->type == LayerShell) {
-				c = NULL;
-				l = pnode->data;
-			}
+	for (layer = NUM_LAYERS - 1; !surface && layer >= 0; layer--) {
+		if (!(node = wlr_scene_node_at(&layers[layer]->node, x, y, nx, ny)))
+			continue;
+
+		if (node->type == WLR_SCENE_NODE_BUFFER)
+			surface = wlr_scene_surface_try_from_buffer(
+					wlr_scene_buffer_from_node(node))->surface;
+		/* Walk the tree to find a node that knows the client */
+		for (pnode = node; pnode && !c; pnode = &pnode->parent->node)
+			c = pnode->data;
+		if (c && c->type == LayerShell) {
+			c = NULL;
+			l = pnode->data;
 		}
-		if (surface)
-			break;
 	}
 
 	if (psurface) *psurface = surface;
@@ -2826,24 +2835,6 @@ sethints(struct wl_listener *listener, void *data)
 		c->isurgent = xcb_icccm_wm_hints_get_urgency(c->surface.xwayland->hints);
 		printstatus();
 	}
-}
-
-void
-sigchld(int unused)
-{
-	siginfo_t in;
-	/* We should be able to remove this function in favor of a simple
-	 *	struct sigaction sa = {.sa_handler = SIG_IGN};
-	 * 	sigaction(SIGCHLD, &sa, NULL);
-	 * but the Xwayland implementation in wlroots currently prevents us from
-	 * setting our own disposition for SIGCHLD.
-	 */
-	/* WNOWAIT leaves the child in a waitable state, in case this is the
-	 * XWayland process
-	 */
-	while (!waitid(P_ALL, 0, &in, WEXITED|WNOHANG|WNOWAIT) && in.si_pid
-			&& (!xwayland || in.si_pid != xwayland->server->pid))
-		waitpid(in.si_pid, NULL, 0);
 }
 
 void
