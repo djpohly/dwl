@@ -1,0 +1,41 @@
+From 7182343aaf6c1fed1f5802aff948cfb4f3c82e69 Mon Sep 17 00:00:00 2001
+From: 917Wolf <none>
+Date: Thu, 6 May 2021 11:04:23 +0200
+Subject: [PATCH] Found this in my old dwm config, moved it into dwl ... It
+ made my volum keys work again :)
+
+---
+ config.def.h | 9 +++++++++
+ 1 file changed, 9 insertions(+)
+
+diff --git a/config.def.h b/config.def.h
+index 089aa3795..29a6d624f 100644
+--- a/config.def.h
++++ b/config.def.h
+@@ -1,3 +1,4 @@
++#include <X11/XF86keysym.h>
+ /* appearance */
+ static const int sloppyfocus        = 1;  /* focus follows mouse */
+ static const unsigned int borderpx  = 1;  /* border pixel of windows */
+@@ -62,6 +63,11 @@ static const int natural_scrolling = 0;
+ #define SHCMD(cmd) { .v = (const char*[]){ "/bin/sh", "-c", cmd, NULL } }
+ 
+ /* commands */
++// for cahnging the volume via alsa amixer //
++static const char *upvol[] = { "amixer", "-q", "-c", "0", "set", "Master", "2+", NULL };
++static const char *downvol[] = { "amixer", "-q", "-c", "0", "set", "Master", "2-", NULL };
++// for muting/unmuting //
++static const char *mute[] = { "amixer", "-q", "set", "Master", "toggle", NULL };
+ static const char *termcmd[] = { "alacritty", NULL };
+ static const char *menucmd[] = { "bemenu-run", NULL };
+ 
+@@ -107,6 +113,9 @@ static const Key keys[] = {
+ #define CHVT(n) { WLR_MODIFIER_CTRL|WLR_MODIFIER_ALT,XKB_KEY_XF86Switch_VT_##n, chvt, {.ui = (n)} }
+ 	CHVT(1), CHVT(2), CHVT(3), CHVT(4), CHVT(5), CHVT(6),
+ 	CHVT(7), CHVT(8), CHVT(9), CHVT(10), CHVT(11), CHVT(12),
++	{ 0,XF86XK_AudioRaiseVolume, spawn,{.v = upvol } },
++	{ 0,XF86XK_AudioLowerVolume, spawn,{.v = downvol } },
++	{ 0,XF86XK_AudioMute,spawn,{.v = mute } },
+ };
+ 
+ static const Button buttons[] = {
