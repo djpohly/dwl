@@ -819,7 +819,7 @@ createlayersurface(struct wl_listener *listener, void *data)
 		return;
 	}
 
-	layersurface = ecalloc(1, sizeof(LayerSurface));
+	layersurface = wlr_layer_surface->data = ecalloc(1, sizeof(LayerSurface));
 	layersurface->type = LayerShell;
 	LISTEN(&wlr_layer_surface->surface->events.commit,
 			&layersurface->surface_commit, commitlayersurfacenotify);
@@ -832,8 +832,6 @@ createlayersurface(struct wl_listener *listener, void *data)
 
 	layersurface->layer_surface = wlr_layer_surface;
 	layersurface->mon = wlr_layer_surface->output->data;
-	wlr_layer_surface->data = layersurface;
-
 	layersurface->scene_layer = wlr_scene_layer_surface_v1_create(l, wlr_layer_surface);
 	layersurface->scene = layersurface->scene_layer->tree;
 	layersurface->popups = wlr_layer_surface->surface->data = wlr_scene_tree_create(l);
@@ -1488,13 +1486,12 @@ locksession(struct wl_listener *listener, void *data)
 		wlr_session_lock_v1_destroy(session_lock);
 		return;
 	}
-	lock = ecalloc(1, sizeof(*lock));
+	lock = session_lock->data = ecalloc(1, sizeof(*lock));
 	focusclient(NULL, 0);
 
 	lock->scene = wlr_scene_tree_create(layers[LyrBlock]);
 	cur_lock = lock->lock = session_lock;
 	locked = 1;
-	session_lock->data = lock;
 
 	LISTEN(&session_lock->events.new_surface, &lock->new_surface, createlocksurface);
 	LISTEN(&session_lock->events.destroy, &lock->destroy, destroysessionlock);
@@ -2309,7 +2306,7 @@ startdrag(struct wl_listener *listener, void *data)
 	if (!drag->icon)
 		return;
 
-	drag->icon->data = icon = wlr_scene_subsurface_tree_create(&scene->tree, drag->icon->surface);
+	icon = drag->icon->data = wlr_scene_subsurface_tree_create(&scene->tree, drag->icon->surface);
 	wlr_scene_node_place_below(&icon->node, &layers[LyrBlock]->node);
 	motionnotify(0);
 	LISTEN_STATIC(&drag->icon->events.destroy, destroydragicon);
