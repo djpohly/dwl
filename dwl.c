@@ -24,7 +24,6 @@
 #include <wlr/types/wlr_linux_dmabuf_v1.h>
 #include <wlr/types/wlr_export_dmabuf_v1.h>
 #include <wlr/types/wlr_fractional_scale_v1.h>
-#include <wlr/types/wlr_gamma_control_v1.h>
 #include <wlr/types/wlr_idle_inhibit_v1.h>
 #include <wlr/types/wlr_idle_notify_v1.h>
 #include <wlr/types/wlr_input_device.h>
@@ -295,7 +294,6 @@ static void run(char *startup_cmd);
 static void setcursor(struct wl_listener *listener, void *data);
 static void setfloating(Client *c, int floating);
 static void setfullscreen(Client *c, int fullscreen);
-static void setgamma(struct wl_listener *listener, void *data);
 static void setlayout(const Arg *arg);
 static void setmfact(const Arg *arg);
 static void setmon(Client *c, Monitor *m, uint32_t newtags);
@@ -350,7 +348,6 @@ static struct wlr_idle_notifier_v1 *idle_notifier;
 static struct wlr_idle_inhibit_manager_v1 *idle_inhibit_mgr;
 static struct wlr_layer_shell_v1 *layer_shell;
 static struct wlr_output_manager_v1 *output_mgr;
-static struct wlr_gamma_control_manager_v1 *gamma_control_mgr;
 static struct wlr_virtual_keyboard_manager_v1 *virtual_keyboard_mgr;
 
 static struct wlr_cursor *cursor;
@@ -391,7 +388,6 @@ static struct wl_listener output_mgr_apply = {.notify = outputmgrapply};
 static struct wl_listener output_mgr_test = {.notify = outputmgrtest};
 static struct wl_listener request_activate = {.notify = urgent};
 static struct wl_listener request_cursor = {.notify = setcursor};
-static struct wl_listener request_gamma = {.notify = setgamma};
 static struct wl_listener request_set_psel = {.notify = setpsel};
 static struct wl_listener request_set_sel = {.notify = setsel};
 static struct wl_listener request_start_drag = {.notify = requeststartdrag};
@@ -2054,27 +2050,6 @@ setfullscreen(Client *c, int fullscreen)
 }
 
 void
-setgamma(struct wl_listener *listener, void *data)
-{
-	struct wlr_gamma_control_manager_v1_set_gamma_event *event = data;
-	struct wlr_output_state state;
-	wlr_output_state_init(&state);
-	if (!wlr_gamma_control_v1_apply(event->control, &state)) {
-		wlr_output_state_finish(&state);
-		return;
-	}
-
-	if (!wlr_output_test_state(event->output, &state)) {
-		wlr_gamma_control_v1_send_failed_and_destroy(event->control);
-		wlr_output_state_finish(&state);
-		return;
-	}
-
-	wlr_output_commit_state(event->output, &state);
-	wlr_output_schedule_frame(event->output);
-}
-
-void
 setlayout(const Arg *arg)
 {
 	if (!selmon)
@@ -2225,9 +2200,6 @@ setup(void)
 	/* Initializes the interface used to implement urgency hints */
 	activation = wlr_xdg_activation_v1_create(dpy);
 	wl_signal_add(&activation->events.request_activate, &request_activate);
-
-	gamma_control_mgr = wlr_gamma_control_manager_v1_create(dpy);
-	wl_signal_add(&gamma_control_mgr->events.set_gamma, &request_gamma);
 
 	/* Creates an output layout, which a wlroots utility for working with an
 	 * arrangement of screens in a physical layout. */
