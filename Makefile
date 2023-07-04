@@ -1,63 +1,60 @@
+.POSIX:
+.SUFFIXES:
+
 include config.mk
 
-CFLAGS += -I. -DWLR_USE_UNSTABLE -std=c99
+# flags for compiling
+DWLCPPFLAGS = -I. -DWLR_USE_UNSTABLE -D_POSIX_C_SOURCE=200809L -DVERSION=\"$(VERSION)\" $(XWAYLAND)
+DWLDEVCFLAGS = -pedantic -Wall -Wextra -Wdeclaration-after-statement -Wno-unused-parameter -Wno-sign-compare -Wshadow -Wunused-macros\
+	-Werror=strict-prototypes -Werror=implicit -Werror=return-type -Werror=incompatible-pointer-types
 
-WAYLAND_PROTOCOLS=$(shell pkg-config --variable=pkgdatadir wayland-protocols)
-WAYLAND_SCANNER=$(shell pkg-config --variable=wayland_scanner wayland-scanner)
-
-PKGS = wlroots wayland-server xcb xkbcommon libinput
-CFLAGS += $(foreach p,$(PKGS),$(shell pkg-config --cflags $(p)))
-LDLIBS += $(foreach p,$(PKGS),$(shell pkg-config --libs $(p)))
+# CFLAGS / LDFLAGS
+PKGS      = wlroots wayland-server xkbcommon libinput $(XLIBS)
+DWLCFLAGS = `$(PKG_CONFIG) --cflags $(PKGS)` $(DWLCPPFLAGS) $(DWLDEVCFLAGS) $(CFLAGS)
+LDLIBS    = `$(PKG_CONFIG) --libs $(PKGS)` $(LIBS)
 
 all: dwl
+dwl: dwl.o util.o
+	$(CC) dwl.o util.o $(LDLIBS) $(LDFLAGS) $(DWLCFLAGS) -o $@
+dwl.o: dwl.c push.c config.mk config.h client.h xdg-shell-protocol.h wlr-layer-shell-unstable-v1-protocol.h
+util.o: util.c util.h
 
 # wayland-scanner is a tool which generates C headers and rigging for Wayland
 # protocols, which are specified in XML. wlroots requires you to rig these up
 # to your build system yourself and provide them in the include path.
+WAYLAND_SCANNER   = `$(PKG_CONFIG) --variable=wayland_scanner wayland-scanner`
+WAYLAND_PROTOCOLS = `$(PKG_CONFIG) --variable=pkgdatadir wayland-protocols`
+
 xdg-shell-protocol.h:
 	$(WAYLAND_SCANNER) server-header \
 		$(WAYLAND_PROTOCOLS)/stable/xdg-shell/xdg-shell.xml $@
-
-xdg-shell-protocol.c:
-	$(WAYLAND_SCANNER) private-code \
-		$(WAYLAND_PROTOCOLS)/stable/xdg-shell/xdg-shell.xml $@
-
-xdg-shell-protocol.o: xdg-shell-protocol.h
-
 wlr-layer-shell-unstable-v1-protocol.h:
 	$(WAYLAND_SCANNER) server-header \
 		protocols/wlr-layer-shell-unstable-v1.xml $@
 
-wlr-layer-shell-unstable-v1-protocol.c:
-	$(WAYLAND_SCANNER) private-code \
-		protocols/wlr-layer-shell-unstable-v1.xml $@
-
-wlr-layer-shell-unstable-v1-protocol.o: wlr-layer-shell-unstable-v1-protocol.h
-
-idle-protocol.h:
-	$(WAYLAND_SCANNER) server-header \
-		protocols/idle.xml $@
-
-idle-protocol.c:
-	$(WAYLAND_SCANNER) private-code \
-		protocols/idle.xml $@
-
-idle-protocol.o: idle-protocol.h
-
-config.h: | config.def.h
+config.h:
 	cp config.def.h $@
-
-dwl.o: config.h client.h xdg-shell-protocol.h wlr-layer-shell-unstable-v1-protocol.h idle-protocol.h
-
-dwl.o: push.c
-
-dwl: xdg-shell-protocol.o wlr-layer-shell-unstable-v1-protocol.o idle-protocol.o
-
 clean:
-	rm -f dwl *.o *-protocol.h *-protocol.c
+	rm -f dwl *.o *-protocol.h
+
+dist: clean
+	mkdir -p dwl-$(VERSION)
+	cp -R LICENSE* Makefile README.md client.h config.def.h\
+		config.mk protocols dwl.1 dwl.c util.c util.h\
+		dwl-$(VERSION)
+	tar -caf dwl-$(VERSION).tar.gz dwl-$(VERSION)
+	rm -rf dwl-$(VERSION)
 
 install: dwl
-	install -D dwl $(PREFIX)/bin/dwl
+	mkdir -p $(DESTDIR)$(PREFIX)/bin
+	cp -f dwl $(DESTDIR)$(PREFIX)/bin
+	chmod 755 $(DESTDIR)$(PREFIX)/bin/dwl
+	mkdir -p $(DESTDIR)$(MANDIR)/man1
+	cp -f dwl.1 $(DESTDIR)$(MANDIR)/man1
+	chmod 644 $(DESTDIR)$(MANDIR)/man1/dwl.1
+uninstall:
+	rm -f $(DESTDIR)$(PREFIX)/bin/dwl $(DESTDIR)$(MANDIR)/man1/dwl.1
 
-.DEFAULT_GOAL=dwl
-.PHONY: clean
+.SUFFIXES: .c .o
+.c.o:
+	$(CC) $(CPPFLAGS) $(DWLCFLAGS) -c $<

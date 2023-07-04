@@ -1,0 +1,151 @@
+.Dd January 8, 2021
+.Dt DWL 1
+.Os
+.Sh NAME
+.Nm dwl
+.Nd dwm for Wayland
+.Sh SYNOPSIS
+.Nm
+.Op Fl v
+.Op Fl s Ar startup command
+.Sh DESCRIPTION
+.Nm
+is a Wayland compositor based on wlroots.
+It is intended to fill the same space in the Wayland world that
+.Nm dwm
+does for X11.
+.Pp
+When given the
+.Fl v
+option,
+.Nm
+writes its name and version to standard error and exits unsuccessfully.
+.Pp
+When given the
+.Fl s
+option,
+.Nm
+starts a shell process running
+.Ar command
+when starting.
+When stopping, it sends
+.Dv SIGTERM
+to the child process and waits for it to exit.
+.Pp
+Users are encouraged to customize
+.Nm
+by editing the sources, in particular
+.Pa config.h .
+The default key bindings are as follows:
+.Bl -tag -width 20n -offset indent -compact
+.It Mod-[1-9]
+Show only all windows with a tag.
+.It Mod-Ctrl-[1-9]
+Show all windows with a tag.
+.It Mod-Shift-[1-9]
+Move window to a single tag.
+.It Mod-Ctrl-Shift-[1-9]
+Toggle tag for window.
+.It Mod-p
+Spawn
+.Nm bemenu-run .
+.It Mod-Shift-Return
+Spawn
+.Nm foot .
+.It Mod-[jk]
+Move focus down/up the stack.
+.It Mod-[id]
+Increase/decrease number of windows in master area.
+.It Mod-[hl]
+Decrease/increase master area.
+.It Mod-Return
+Move window on top of stack or switch top of stack with second window.
+.It Mod-Tab
+Show only all windows with previous tag.
+.It Mod-Shift-c
+Close window.
+.It Mod-t
+Switch to tabbed layout.
+.It Mod-f
+Switch to floating layout.
+.It Mod-m
+Switch to monocle layout.
+.It Mod-Space
+Switch to previous layout.
+.It Mod-Shift-Space
+Toggle floating state of window.
+.It Mod-e
+Toggle fullscreen state of window.
+.It Mod-0
+Show all windows.
+.It Mod-Shift-0
+Set all tags for window.
+.It Mod-,
+Move focus to previous monitor.
+.It Mod-.
+Move focus to next monitor.
+.It Mod-Shift-,
+Move window to previous monitor.
+.It Mod-Shift-.
+Move window to next monitor.
+.It Mod-Shift-q
+Quit
+.Nm .
+.El
+These might differ depending on your keyboard layout.
+.Sh ENVIRONMENT
+These environment variables are used by
+.Nm :
+.Bl -tag -width XDG_RUNTIME_DIR
+.It Ev XDG_RUNTIME_DIR
+A directory where temporary user files, such as the Wayland socket,
+are stored.
+.It Ev XDG_CONFIG_DIR
+A directory containung configuration of various programs and
+libraries, including libxkbcommon.
+.It Ev DISPLAY , WAYLAND_DISPLAY , WAYLAND_SOCKET
+Tell how to connect to an underlying X11 or Wayland server.
+.It Ev WLR_*
+Various variables specific to wlroots.
+.It Ev XKB_* , XLOCALEDIR , XCOMPOSEFILE
+Various variables specific to libxkbcommon.
+.It Ev XCURSOR_PATH
+List of directories to search for XCursor themes in.
+.It Ev HOME
+A directory where there are always dear files there for you.
+Waiting for you to clean them up.
+.El
+.Pp
+These are set by
+.Nm :
+.Bl -tag -width WAYLAND_DISPLAY
+.It Ev WAYLAND_DISPLAY
+Tell how to connect to
+.Nm .
+.It Ev DISPLAY
+If using
+.Nm Xwayland ,
+tell how to connect to the
+.Nm Xwayland
+server.
+.El
+.Sh EXAMPLES
+Start
+.Nm
+with s6 in the background:
+.Dl dwl -s 's6-svscan <&-'
+.Sh SEE ALSO
+.Xr foot 1 ,
+.Xr bemenu 1 ,
+.Xr dwm 1 ,
+.Xr xkeyboard-config 7
+.Sh CAVEATS
+The child process's standard input is connected with a pipe to
+.Nm .
+If the child process neither reads from the pipe nor closes its
+standard input,
+.Nm
+will freeze after a while due to it blocking when writing to the full
+pipe buffer.
+.Sh BUGS
+All of them.
