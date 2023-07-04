@@ -24,7 +24,7 @@ prevtiled(Client *sel) {
 
 static void
 pushup(const Arg *arg) {
-	Client *sel = selclient();
+	Client *sel = focustop(selmon);
 	Client *c;
 
 	if(!sel || sel->isfloating)
@@ -44,7 +44,7 @@ pushup(const Arg *arg) {
 
 static void
 pushdown(const Arg *arg) {
-	Client *sel = selclient();
+	Client *sel = focustop(selmon);
 	Client *c;
 
 	if(!sel || sel->isfloating)
