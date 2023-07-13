@@ -663,6 +663,7 @@ cleanup(void)
 		waitpid(child_pid, NULL, 0);
 	}
 	wlr_backend_destroy(backend);
+	wlr_scene_node_destroy(&scene->tree.node);
 	wlr_renderer_destroy(drw);
 	wlr_allocator_destroy(alloc);
 	wlr_xcursor_manager_destroy(cursor_mgr);
