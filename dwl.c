@@ -331,6 +331,7 @@ static struct wl_event_source *sighandler[4];
 static struct wlr_backend *backend;
 static struct wlr_scene *scene;
 static struct wlr_scene_tree *layers[NUM_LAYERS];
+static struct wlr_scene_tree *drag_icon;
 /* Map from ZWLR_LAYER_SHELL_* constants to Lyr* enum */
 static const int layermap[] = { LyrBg, LyrBottom, LyrTop, LyrOverlay };
 static struct wlr_renderer *drw;
@@ -1663,7 +1664,6 @@ motionnotify(uint32_t time)
 	LayerSurface *l = NULL;
 	int type;
 	struct wlr_surface *surface = NULL;
-	struct wlr_drag_icon *icon;
 
 	/* time is 0 in internal calls meant to restore pointer focus. */
 	if (time) {
@@ -1674,10 +1674,9 @@ motionnotify(uint32_t time)
 			selmon = xytomon(cursor->x, cursor->y);
 	}
 
-	/* Update drag icon's position if any */
-	if (seat->drag && (icon = seat->drag->icon))
-		wlr_scene_node_set_position(icon->data, cursor->x + icon->surface->sx,
-				cursor->y + icon->surface->sy);
+	/* Update drag icon's position */
+	wlr_scene_node_set_position(&drag_icon->node, cursor->x, cursor->y);
+
 	/* If we are currently grabbing the mouse, handle and return */
 	if (cursor_mode == CurMove) {
 		/* Move the grabbed client to the new position. */
@@ -2167,6 +2166,8 @@ setup(void)
 	scene = wlr_scene_create();
 	for (i = 0; i < NUM_LAYERS; i++)
 		layers[i] = wlr_scene_tree_create(&scene->tree);
+	drag_icon = wlr_scene_tree_create(&scene->tree);
+	wlr_scene_node_place_below(&drag_icon->node, &layers[LyrBlock]->node);
 
 	/* Create a renderer with the default implementation */
 	if (!(drw = wlr_renderer_autocreate(backend)))
@@ -2338,8 +2339,7 @@ startdrag(struct wl_listener *listener, void *data)
 	if (!drag->icon)
 		return;
 
-	drag->icon->data = icon = wlr_scene_subsurface_tree_create(&scene->tree, drag->icon->surface);
-	wlr_scene_node_place_below(&icon->node, &layers[LyrBlock]->node);
+	drag->icon->data = icon = wlr_scene_subsurface_tree_create(drag_icon, drag->icon->surface);
 	motionnotify(0);
 	wl_signal_add(&drag->icon->events.destroy, &drag_icon_destroy);
 }
