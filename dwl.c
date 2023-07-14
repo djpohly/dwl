@@ -2334,12 +2334,10 @@ void
 startdrag(struct wl_listener *listener, void *data)
 {
 	struct wlr_drag *drag = data;
-	struct wlr_scene_tree *icon;
-
 	if (!drag->icon)
 		return;
 
-	drag->icon->data = icon = wlr_scene_subsurface_tree_create(drag_icon, drag->icon->surface);
+	drag->icon->data = &wlr_scene_subsurface_tree_create(drag_icon, drag->icon->surface)->node;
 	motionnotify(0);
 	wl_signal_add(&drag->icon->events.destroy, &drag_icon_destroy);
 }
