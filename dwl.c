@@ -2338,7 +2338,6 @@ startdrag(struct wl_listener *listener, void *data)
 		return;
 
 	drag->icon->data = &wlr_scene_subsurface_tree_create(drag_icon, drag->icon->surface)->node;
-	motionnotify(0);
 	wl_signal_add(&drag->icon->events.destroy, &drag_icon_destroy);
 }
 
