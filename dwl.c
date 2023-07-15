@@ -2191,7 +2191,7 @@ setup(void)
 	 * to dig your fingers in and play with their behavior if you want. Note that
 	 * the clients cannot set the selection directly without compositor approval,
 	 * see the setsel() function. */
-	compositor = wlr_compositor_create(dpy, 5, drw);
+	compositor = wlr_compositor_create(dpy, 6, drw);
 	wlr_export_dmabuf_manager_v1_create(dpy);
 	wlr_screencopy_manager_v1_create(dpy);
 	wlr_data_control_manager_v1_create(dpy);
