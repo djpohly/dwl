@@ -279,6 +279,7 @@ static void focusmon(const Arg *arg);
 static void focusstack(const Arg *arg);
 static Client *focustop(Monitor *m);
 static void fullscreennotify(struct wl_listener *listener, void *data);
+static void handlesig(int signo);
 static void incnmaster(const Arg *arg);
 static void inputdevice(struct wl_listener *listener, void *data);
 static int keybinding(uint32_t mods, xkb_keysym_t sym);
@@ -302,7 +303,6 @@ static void pointerfocus(Client *c, struct wlr_surface *surface,
 		double sx, double sy, uint32_t time);
 static void printstatus(void);
 static void quit(const Arg *arg);
-static void quitsignal(int signo);
 static void rendermon(struct wl_listener *listener, void *data);
 static void requeststartdrag(struct wl_listener *listener, void *data);
 static void resize(Client *c, struct wlr_box geo, int interact);
@@ -316,7 +316,6 @@ static void setmon(Client *c, Monitor *m, uint32_t newtags);
 static void setpsel(struct wl_listener *listener, void *data);
 static void setsel(struct wl_listener *listener, void *data);
 static void setup(void);
-static void sigchld(int unused);
 static void spawn(const Arg *arg);
 static void startdrag(struct wl_listener *listener, void *data);
 static void tag(const Arg *arg);
@@ -350,6 +349,7 @@ static struct wl_display *dpy;
 static struct wlr_backend *backend;
 static struct wlr_scene *scene;
 static struct wlr_scene_tree *layers[NUM_LAYERS];
+static struct wlr_scene_tree *drag_icon;
 /* Map from ZWLR_LAYER_SHELL_* constants to Lyr* enum */
 static const int layermap[] = { LyrBg, LyrBottom, LyrTop, LyrOverlay };
 static struct wlr_renderer *drw;
@@ -683,6 +683,7 @@ cleanup(void)
 		waitpid(child_pid, NULL, 0);
 	}
 	wlr_backend_destroy(backend);
+	wlr_scene_node_destroy(&scene->tree.node);
 	wlr_renderer_destroy(drw);
 	wlr_allocator_destroy(alloc);
 	wlr_xcursor_manager_destroy(cursor_mgr);
@@ -1522,6 +1523,27 @@ fullscreennotify(struct wl_listener *listener, void *data)
 }
 
 void
+handlesig(int signo)
+{
+	if (signo == SIGCHLD) {
+#ifdef XWAYLAND
+		siginfo_t in;
+		/* wlroots expects to reap the XWayland process itself, so we
+		 * use WNOWAIT to keep the child waitable until we know it's not
+		 * XWayland.
+		 */
+		while (!waitid(P_ALL, 0, &in, WEXITED|WNOHANG|WNOWAIT) && in.si_pid
+				&& (!xwayland || in.si_pid != xwayland->server->pid))
+			waitpid(in.si_pid, NULL, 0);
+#else
+		while (waitpid(-1, NULL, WNOHANG) > 0);
+#endif
+	} else if (signo == SIGINT || signo == SIGTERM) {
+		quit(NULL);
+	}
+}
+
+void
 incnmaster(const Arg *arg)
 {
 	if (!arg || !selmon)
@@ -1825,7 +1847,6 @@ motionnotify(uint32_t time)
 	LayerSurface *l = NULL;
 	int type;
 	struct wlr_surface *surface = NULL;
-	struct wlr_drag_icon *icon;
 
 	/* time is 0 in internal calls meant to restore pointer focus. */
 	if (time) {
@@ -1836,10 +1857,9 @@ motionnotify(uint32_t time)
 			selmon = xytomon(cursor->x, cursor->y);
 	}
 
-	/* Update drag icon's position if any */
-	if (seat->drag && (icon = seat->drag->icon))
-		wlr_scene_node_set_position(icon->data, cursor->x + icon->surface->sx,
-				cursor->y + icon->surface->sy);
+	/* Update drag icon's position */
+	wlr_scene_node_set_position(&drag_icon->node, cursor->x, cursor->y);
+
 	/* If we are currently grabbing the mouse, handle and return */
 	if (cursor_mode == CurMove) {
 		/* Move the grabbed client to the new position. */
@@ -2065,12 +2085,6 @@ quit(const Arg *arg)
 }
 
 void
-quitsignal(int signo)
-{
-	quit(NULL);
-}
-
-void
 rendermon(struct wl_listener *listener, void *data)
 {
 	/* This function is called every time an output is ready to display a frame,
@@ -2133,8 +2147,6 @@ run(char *startup_cmd)
 {
 	/* Add a Unix socket to the Wayland display. */
 	const char *socket = wl_display_add_socket_auto(dpy);
-	struct sigaction sa = {.sa_flags = SA_RESTART, .sa_handler = SIG_IGN};
-	sigemptyset(&sa.sa_mask);
 	if (!socket)
 		die("startup: display_add_socket_auto");
 	setenv("WAYLAND_DISPLAY", socket, 1);
@@ -2162,8 +2174,6 @@ run(char *startup_cmd)
 		close(piperw[1]);
 		close(piperw[0]);
 	}
-	/* If nobody is reading the status output, don't terminate */
-	sigaction(SIGPIPE, &sa, NULL);
 	printstatus();
 
 	/* At this point the outputs are initialized, choose initial selmon based on
@@ -2316,16 +2326,12 @@ setsel(struct wl_listener *listener, void *data)
 void
 setup(void)
 {
-	int layer;
-
-	/* Set up signal handlers */
-	struct sigaction sa = {.sa_flags = SA_RESTART, .sa_handler = sigchld};
+	int i, sig[] = {SIGCHLD, SIGINT, SIGTERM, SIGPIPE};
+	struct sigaction sa = {.sa_flags = SA_RESTART, .sa_handler = handlesig};
 	sigemptyset(&sa.sa_mask);
-	sigaction(SIGCHLD, &sa, NULL);
 
-	sa.sa_handler = quitsignal;
-	sigaction(SIGINT, &sa, NULL);
-	sigaction(SIGTERM, &sa, NULL);
+	for (i = 0; i < LENGTH(sig); i++)
+		sigaction(sig[i], &sa, NULL);
 
 	/* The Wayland display is managed by libwayland. It handles accepting
 	 * clients from the Unix socket, manging Wayland globals, and so on. */
@@ -2344,8 +2350,10 @@ setup(void)
 
 	/* Initialize the scene graph used to lay out windows */
 	scene = wlr_scene_create();
-	for (layer = 0; layer < NUM_LAYERS; layer++)
-		layers[layer] = wlr_scene_tree_create(&scene->tree);
+	for (i = 0; i < NUM_LAYERS; i++)
+		layers[i] = wlr_scene_tree_create(&scene->tree);
+	drag_icon = wlr_scene_tree_create(&scene->tree);
+	wlr_scene_node_place_below(&drag_icon->node, &layers[LyrBlock]->node);
 
 	/* Create a renderer with the default implementation */
 	if (!(drw = wlr_renderer_autocreate(backend)))
@@ -2499,28 +2507,6 @@ setup(void)
 }
 
 void
-sigchld(int unused)
-{
-#ifdef XWAYLAND
-	siginfo_t in;
-	/* We should be able to remove this function in favor of a simple
-	 *	struct sigaction sa = {.sa_handler = SIG_IGN};
-	 * 	sigaction(SIGCHLD, &sa, NULL);
-	 * but the Xwayland implementation in wlroots currently prevents us from
-	 * setting our own disposition for SIGCHLD.
-	 */
-	/* WNOWAIT leaves the child in a waitable state, in case this is the
-	 * XWayland process
-	 */
-	while (!waitid(P_ALL, 0, &in, WEXITED|WNOHANG|WNOWAIT) && in.si_pid
-			&& (!xwayland || in.si_pid != xwayland->server->pid))
-		waitpid(in.si_pid, NULL, 0);
-#else
-	while (waitpid(-1, NULL, WNOHANG) > 0);
-#endif
-}
-
-void
 spawn(const Arg *arg)
 {
 	if (fork() == 0) {
@@ -2535,14 +2521,10 @@ void
 startdrag(struct wl_listener *listener, void *data)
 {
 	struct wlr_drag *drag = data;
-	struct wlr_scene_tree *icon;
-
 	if (!drag->icon)
 		return;
 
-	drag->icon->data = icon = wlr_scene_subsurface_tree_create(&scene->tree, drag->icon->surface);
-	wlr_scene_node_place_below(&icon->node, &layers[LyrBlock]->node);
-	motionnotify(0);
+	drag->icon->data = &wlr_scene_subsurface_tree_create(drag_icon, drag->icon->surface)->node;
 	wl_signal_add(&drag->icon->events.destroy, &drag_icon_destroy);
 }
 
