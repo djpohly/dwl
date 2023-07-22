@@ -1132,15 +1132,16 @@ destroylocksurface(struct wl_listener *listener, void *data)
 	m->lock_surface = NULL;
 	wl_list_remove(&m->destroy_lock_surface.link);
 
-	if (lock_surface->surface == seat->keyboard_state.focused_surface) {
-		if (locked && cur_lock && !wl_list_empty(&cur_lock->surfaces)) {
-			surface = wl_container_of(cur_lock->surfaces.next, surface, link);
-			client_notify_enter(surface->surface, wlr_seat_get_keyboard(seat));
-		} else if (!locked) {
-			focusclient(focustop(selmon), 1);
-		} else {
-			wlr_seat_keyboard_clear_focus(seat);
-		}
+	if (lock_surface->surface != seat->keyboard_state.focused_surface)
+		return;
+
+	if (locked && cur_lock && !wl_list_empty(&cur_lock->surfaces)) {
+		surface = wl_container_of(cur_lock->surfaces.next, surface, link);
+		client_notify_enter(surface->surface, wlr_seat_get_keyboard(seat));
+	} else if (!locked) {
+		focusclient(focustop(selmon), 1);
+	} else {
+		wlr_seat_keyboard_clear_focus(seat);
 	}
 }
 
@@ -1446,12 +1447,13 @@ keypress(struct wl_listener *listener, void *data)
 		wl_event_source_timer_update(kb->key_repeat_source, 0);
 	}
 
-	if (!handled) {
-		/* Pass unhandled keycodes along to the client. */
-		wlr_seat_set_keyboard(seat, kb->wlr_keyboard);
-		wlr_seat_keyboard_notify_key(seat, event->time_msec,
-			event->keycode, event->state);
-	}
+	if (handled)
+		return;
+
+	/* Pass unhandled keycodes along to the client. */
+	wlr_seat_set_keyboard(seat, kb->wlr_keyboard);
+	wlr_seat_keyboard_notify_key(seat, event->time_msec,
+		event->keycode, event->state);
 }
 
 void
@@ -1477,13 +1479,14 @@ keyrepeat(void *data)
 {
 	Keyboard *kb = data;
 	int i;
-	if (kb->nsyms && kb->wlr_keyboard->repeat_info.rate > 0) {
-		wl_event_source_timer_update(kb->key_repeat_source,
-				1000 / kb->wlr_keyboard->repeat_info.rate);
+	if (!kb->nsyms || kb->wlr_keyboard->repeat_info.rate <= 0)
+		return 0;
 
-		for (i = 0; i < kb->nsyms; i++)
-			keybinding(kb->mods, kb->keysyms[i]);
-	}
+	wl_event_source_timer_update(kb->key_repeat_source,
+			1000 / kb->wlr_keyboard->repeat_info.rate);
+
+	for (i = 0; i < kb->nsyms; i++)
+		keybinding(kb->mods, kb->keysyms[i]);
 
 	return 0;
 }
@@ -2332,11 +2335,12 @@ void
 tag(const Arg *arg)
 {
 	Client *sel = focustop(selmon);
-	if (sel && arg->ui & TAGMASK) {
-		sel->tags = arg->ui & TAGMASK;
-		focusclient(focustop(selmon), 1);
-		arrange(selmon);
-	}
+	if (!sel || (arg->ui & TAGMASK) == 0)
+		return;
+
+	sel->tags = arg->ui & TAGMASK;
+	focusclient(focustop(selmon), 1);
+	arrange(selmon);
 	printstatus();
 }
 
@@ -2406,11 +2410,12 @@ toggletag(const Arg *arg)
 	if (!sel)
 		return;
 	newtags = sel->tags ^ (arg->ui & TAGMASK);
-	if (newtags) {
-		sel->tags = newtags;
-		focusclient(focustop(selmon), 1);
-		arrange(selmon);
-	}
+	if (!newtags)
+		return;
+
+	sel->tags = newtags;
+	focusclient(focustop(selmon), 1);
+	arrange(selmon);
 	printstatus();
 }
 
@@ -2419,11 +2424,12 @@ toggleview(const Arg *arg)
 {
 	uint32_t newtagset = selmon ? selmon->tagset[selmon->seltags] ^ (arg->ui & TAGMASK) : 0;
 
-	if (newtagset) {
-		selmon->tagset[selmon->seltags] = newtagset;
-		focusclient(focustop(selmon), 1);
-		arrange(selmon);
-	}
+	if (!newtagset)
+		return;
+
+	selmon->tagset[selmon->seltags] = newtagset;
+	focusclient(focustop(selmon), 1);
+	arrange(selmon);
 	printstatus();
 }
 
@@ -2580,10 +2586,11 @@ urgent(struct wl_listener *listener, void *data)
 	struct wlr_xdg_activation_v1_request_activate_event *event = data;
 	Client *c = NULL;
 	toplevel_from_wlr_surface(event->surface, &c, NULL);
-	if (c && c != focustop(selmon)) {
-		c->isurgent = 1;
-		printstatus();
-	}
+	if (!c || c == focustop(selmon))
+		return;
+
+	c->isurgent = 1;
+	printstatus();
 }
 
 void
@@ -2742,10 +2749,11 @@ void
 sethints(struct wl_listener *listener, void *data)
 {
 	Client *c = wl_container_of(listener, c, set_hints);
-	if (c != focustop(selmon)) {
-		c->isurgent = xcb_icccm_wm_hints_get_urgency(c->surface.xwayland->hints);
-		printstatus();
-	}
+	if (c == focustop(selmon))
+		return;
+
+	c->isurgent = xcb_icccm_wm_hints_get_urgency(c->surface.xwayland->hints);
+	printstatus();
 }
 
 void
