@@ -457,9 +457,12 @@ void
 arrange(Monitor *m)
 {
 	Client *c;
-	wl_list_for_each(c, &clients, link)
-		if (c->mon == m)
+	wl_list_for_each(c, &clients, link) {
+		if (c->mon == m) {
 			wlr_scene_node_set_enabled(&c->scene->node, VISIBLEON(c, m));
+			client_set_suspended(c, !VISIBLEON(c, m));
+		}
+	}
 
 	wlr_scene_node_set_enabled(&m->fullscreen_bg->node,
 			(c = focustop(m)) && c->isfullscreen);
@@ -2257,7 +2260,7 @@ setup(void)
 	layer_shell = wlr_layer_shell_v1_create(dpy, 3);
 	LISTEN_STATIC(&layer_shell->events.new_surface, createlayersurface);
 
-	xdg_shell = wlr_xdg_shell_create(dpy, 5);
+	xdg_shell = wlr_xdg_shell_create(dpy, 6);
 	LISTEN_STATIC(&xdg_shell->events.new_surface, createnotify);
 
 	session_lock_mgr = wlr_session_lock_manager_v1_create(dpy);

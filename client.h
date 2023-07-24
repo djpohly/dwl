@@ -346,6 +346,17 @@ client_set_tiled(Client *c, uint32_t edges)
 	wlr_xdg_toplevel_set_tiled(c->surface.xdg->toplevel, edges);
 }
 
+static inline void
+client_set_suspended(Client *c, int suspended)
+{
+#ifdef XWAYLAND
+	if (client_is_x11(c))
+		return;
+#endif
+
+	wlr_xdg_toplevel_set_suspended(c->surface.xdg->toplevel, suspended);
+}
+
 static inline struct wlr_surface *
 client_surface_at(Client *c, double cx, double cy, double *sx, double *sy)
 {
