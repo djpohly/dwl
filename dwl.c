@@ -987,6 +987,9 @@ createnotify(struct wl_listener *listener, void *data)
 	c->surface.xdg = xdg_surface;
 	c->bw = borderpx;
 
+	wlr_xdg_toplevel_set_wm_capabilities(xdg_surface->toplevel,
+			WLR_XDG_TOPLEVEL_WM_CAPABILITIES_FULLSCREEN);
+
 	LISTEN(&xdg_surface->surface->events.commit, &c->commit, commitnotify);
 	LISTEN(&xdg_surface->surface->events.map, &c->map, mapnotify);
 	LISTEN(&xdg_surface->surface->events.unmap, &c->unmap, unmapnotify);
@@ -2254,7 +2257,7 @@ setup(void)
 	layer_shell = wlr_layer_shell_v1_create(dpy, 3);
 	LISTEN_STATIC(&layer_shell->events.new_surface, createlayersurface);
 
-	xdg_shell = wlr_xdg_shell_create(dpy, 4);
+	xdg_shell = wlr_xdg_shell_create(dpy, 5);
 	LISTEN_STATIC(&xdg_shell->events.new_surface, createnotify);
 
 	session_lock_mgr = wlr_session_lock_manager_v1_create(dpy);
