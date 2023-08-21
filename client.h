@@ -54,7 +54,7 @@ client_surface(Client *c)
 static inline int
 toplevel_from_wlr_surface(struct wlr_surface *s, Client **pc, LayerSurface **pl)
 {
-	struct wlr_xdg_surface *xdg_surface;
+	struct wlr_xdg_surface *xdg_surface, *tmp_xdg_surface;
 	struct wlr_surface *root_surface;
 	struct wlr_layer_surface_v1 *layer_surface;
 	Client *c = NULL;
@@ -82,24 +82,27 @@ toplevel_from_wlr_surface(struct wlr_surface *s, Client **pc, LayerSurface **pl)
 		goto end;
 	}
 
-	if ((xdg_surface = wlr_xdg_surface_try_from_wlr_surface(root_surface))) {
-		while (1) {
-			switch (xdg_surface->role) {
-			case WLR_XDG_SURFACE_ROLE_POPUP:
-				if (!xdg_surface->popup->parent)
-					return -1;
-				else if (!wlr_xdg_surface_try_from_wlr_surface(xdg_surface->popup->parent))
-					return toplevel_from_wlr_surface(xdg_surface->popup->parent, pc, pl);
-
-				xdg_surface = wlr_xdg_surface_try_from_wlr_surface(xdg_surface->popup->parent);
-				break;
-			case WLR_XDG_SURFACE_ROLE_TOPLEVEL:
-				c = xdg_surface->data;
-				type = c->type;
-				goto end;
-			case WLR_XDG_SURFACE_ROLE_NONE:
+	xdg_surface = wlr_xdg_surface_try_from_wlr_surface(root_surface);
+	while (xdg_surface) {
+		tmp_xdg_surface = NULL;
+		switch (xdg_surface->role) {
+		case WLR_XDG_SURFACE_ROLE_POPUP:
+			if (!xdg_surface->popup || !xdg_surface->popup->parent)
 				return -1;
-			}
+
+			tmp_xdg_surface = wlr_xdg_surface_try_from_wlr_surface(xdg_surface->popup->parent);
+
+			if (!tmp_xdg_surface)
+				return toplevel_from_wlr_surface(xdg_surface->popup->parent, pc, pl);
+
+			xdg_surface = tmp_xdg_surface;
+			break;
+		case WLR_XDG_SURFACE_ROLE_TOPLEVEL:
+			c = xdg_surface->data;
+			type = c->type;
+			goto end;
+		case WLR_XDG_SURFACE_ROLE_NONE:
+			return -1;
 		}
 	}
 
