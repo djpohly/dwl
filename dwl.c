@@ -2638,8 +2638,11 @@ xytonode(double x, double y, struct wlr_surface **psurface,
 			surface = wlr_scene_surface_from_buffer(
 					wlr_scene_buffer_from_node(node))->surface;
 		/* Walk the tree to find a node that knows the client */
-		for (pnode = node; pnode && !c; pnode = &pnode->parent->node)
+		for (pnode = node; pnode && !c; pnode = &pnode->parent->node) {
 			c = pnode->data;
+			if (!pnode->parent)
+				break;
+		}
 		if (c && c->type == LayerShell) {
 			c = NULL;
 			l = pnode->data;
