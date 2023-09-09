@@ -584,6 +584,9 @@ buttonpress(struct wl_listener *listener, void *data)
 		cursor_mode = CurPressed;
 		if (locked)
 			break;
+/*
+SOMETHING BROKEN HERE. 
+Eliminate this part of code solved the problems described in issue #476.
 
 		/* Change focus if the button was _pressed_ over a client */
 		xytonode(cursor->x, cursor->y, NULL, &c, NULL, NULL, NULL);
@@ -600,6 +603,7 @@ buttonpress(struct wl_listener *listener, void *data)
 			}
 		}
 		break;
+*/
 	case WLR_BUTTON_RELEASED:
 		/* If you released any buttons, we exit interactive move/resize mode. */
 		if (!locked && cursor_mode != CurNormal && cursor_mode != CurPressed) {
