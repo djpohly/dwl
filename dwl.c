@@ -585,7 +585,7 @@ buttonpress(struct wl_listener *listener, void *data)
 		if (locked)
 			break;
 
-        Change focus if the button was _pressed_ over a client
+                /* Change focus if the button was _pressed_ over a client */
 		xytonode(cursor->x, cursor->y, NULL, &c, NULL, NULL, NULL);
 		if (c && (!client_is_unmanaged(c) || client_wants_focus(c)))
 			focusclient(c, 1);
