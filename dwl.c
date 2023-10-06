@@ -1199,7 +1199,7 @@ void
 focusclient(Client *c, int lift)
 {
 	struct wlr_surface *old = seat->keyboard_state.focused_surface;
-	int i, unused_lx, unused_ly, old_client_type;
+	int unused_lx, unused_ly, old_client_type;
 	Client *old_c = NULL;
 	LayerSurface *old_l = NULL;
 
@@ -1230,8 +1230,7 @@ focusclient(Client *c, int lift)
 		/* Don't change border color if there is an exclusive focus or we are
 		 * handling a drag operation */
 		if (!exclusive_focus && !seat->drag)
-			for (i = 0; i < 4; i++)
-				wlr_scene_rect_set_color(c->border[i], focuscolor);
+			client_set_border_color(c, focuscolor);
 	}
 
 	/* Deactivate old client if focus is changing */
@@ -1248,8 +1247,7 @@ focusclient(Client *c, int lift)
 		/* Don't deactivate old client if the new one wants focus, as this causes issues with winecfg
 		 * and probably other clients */
 		} else if (old_c && !client_is_unmanaged(old_c) && (!c || !client_wants_focus(c))) {
-			for (i = 0; i < 4; i++)
-				wlr_scene_rect_set_color(old_c->border[i], bordercolor);
+			client_set_border_color(old_c, bordercolor);
 
 			client_activate_surface(old, 0);
 		}
@@ -2589,14 +2587,11 @@ urgent(struct wl_listener *listener, void *data)
 {
 	struct wlr_xdg_activation_v1_request_activate_event *event = data;
 	Client *c = NULL;
-	int i;
 	toplevel_from_wlr_surface(event->surface, &c, NULL);
 	if (!c || c == focustop(selmon))
 		return;
 
-	for (i = 0; i < 4; i++)
-		wlr_scene_rect_set_color(c->border[i], urgentcolor);
-
+	client_set_border_color(c, urgentcolor);
 	c->isurgent = 1;
 	printstatus();
 }
@@ -2756,13 +2751,10 @@ void
 sethints(struct wl_listener *listener, void *data)
 {
 	Client *c = wl_container_of(listener, c, set_hints);
-	int i;
 	if (c == focustop(selmon))
 		return;
 
-	for (i = 0; i < 4; i++)
-		wlr_scene_rect_set_color(c->border[i], urgentcolor);
-
+	client_set_border_color(c, urgentcolor);
 	c->isurgent = xcb_icccm_wm_hints_get_urgency(c->surface.xwayland->hints);
 	printstatus();
 }
