@@ -2589,9 +2589,13 @@ urgent(struct wl_listener *listener, void *data)
 {
 	struct wlr_xdg_activation_v1_request_activate_event *event = data;
 	Client *c = NULL;
+	int i;
 	toplevel_from_wlr_surface(event->surface, &c, NULL);
 	if (!c || c == focustop(selmon))
 		return;
+
+	for (i = 0; i < 4; i++)
+		wlr_scene_rect_set_color(c->border[i], urgentcolor);
 
 	c->isurgent = 1;
 	printstatus();
@@ -2752,8 +2756,12 @@ void
 sethints(struct wl_listener *listener, void *data)
 {
 	Client *c = wl_container_of(listener, c, set_hints);
+	int i;
 	if (c == focustop(selmon))
 		return;
+
+	for (i = 0; i < 4; i++)
+		wlr_scene_rect_set_color(c->border[i], urgentcolor);
 
 	c->isurgent = xcb_icccm_wm_hints_get_urgency(c->surface.xwayland->hints);
 	printstatus();
