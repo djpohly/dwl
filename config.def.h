@@ -17,6 +17,9 @@ static const float fullscreen_bg[]         = {0.1, 0.1, 0.1, 1.0}; /* You can al
 #define TAGCOUNT (9)
 static const int tagcount = TAGCOUNT;
 
+/* logging */
+static int log_level = WLR_ERROR;
+
 static const Rule rules[] = {
 	/* app_id     title       tags mask     isfloating   monitor */
 	/* examples:
