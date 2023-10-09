@@ -69,7 +69,7 @@
 #define VISIBLEON(C, M)         ((M) && (C)->mon == (M) && ((C)->tags & (M)->tagset[(M)->seltags]))
 #define LENGTH(X)               (sizeof X / sizeof X[0])
 #define END(A)                  ((A) + LENGTH(A))
-#define TAGMASK                 ((1u << tagcount) - 1)
+#define TAGMASK                 ((1u << TAGCOUNT) - 1)
 #define LISTEN(E, L, H)         wl_signal_add((E), ((L)->notify = (H), (L)))
 #define LISTEN_STATIC(E, H)     do { static struct wl_listener _l = {.notify = (H)}; wl_signal_add((E), &_l); } while (0)
 
@@ -1186,7 +1186,7 @@ void
 focusclient(Client *c, int lift)
 {
 	struct wlr_surface *old = seat->keyboard_state.focused_surface;
-	int i, unused_lx, unused_ly, old_client_type;
+	int unused_lx, unused_ly, old_client_type;
 	Client *old_c = NULL;
 	LayerSurface *old_l = NULL;
 
@@ -1217,8 +1217,7 @@ focusclient(Client *c, int lift)
 		/* Don't change border color if there is an exclusive focus or we are
 		 * handling a drag operation */
 		if (!exclusive_focus && !seat->drag)
-			for (i = 0; i < 4; i++)
-				wlr_scene_rect_set_color(c->border[i], focuscolor);
+			client_set_border_color(c, focuscolor);
 	}
 
 	/* Deactivate old client if focus is changing */
@@ -1235,8 +1234,7 @@ focusclient(Client *c, int lift)
 		/* Don't deactivate old client if the new one wants focus, as this causes issues with winecfg
 		 * and probably other clients */
 		} else if (old_c && !client_is_unmanaged(old_c) && (!c || !client_wants_focus(c))) {
-			for (i = 0; i < 4; i++)
-				wlr_scene_rect_set_color(old_c->border[i], bordercolor);
+			client_set_border_color(old_c, bordercolor);
 
 			client_activate_surface(old, 0);
 		}
@@ -2028,7 +2026,8 @@ setfloating(Client *c, int floating)
 	c->isfloating = floating;
 	if (!c->mon)
 		return;
-	wlr_scene_node_reparent(&c->scene->node, layers[c->isfloating ? LyrFloat : LyrTile]);
+	wlr_scene_node_reparent(&c->scene->node, layers[c->isfullscreen
+			? LyrFS : c->isfloating ? LyrFloat : LyrTile]);
 	arrange(c->mon);
 	printstatus();
 }
@@ -2041,7 +2040,7 @@ setfullscreen(Client *c, int fullscreen)
 		return;
 	c->bw = fullscreen ? 0 : borderpx;
 	client_set_fullscreen(c, fullscreen);
-	wlr_scene_node_reparent(&c->scene->node, layers[fullscreen
+	wlr_scene_node_reparent(&c->scene->node, layers[c->isfullscreen
 			? LyrFS : c->isfloating ? LyrFloat : LyrTile]);
 
 	if (fullscreen) {
@@ -2160,6 +2159,8 @@ setup(void)
 
 	for (i = 0; i < LENGTH(sig); i++)
 		sigaction(sig[i], &sa, NULL);
+
+	wlr_log_init(log_level, NULL);
 
 	/* The Wayland display is managed by libwayland. It handles accepting
 	 * clients from the Unix socket, manging Wayland globals, and so on. */
@@ -2627,6 +2628,7 @@ urgent(struct wl_listener *listener, void *data)
 	if (!c || c == focustop(selmon))
 		return;
 
+	client_set_border_color(c, urgentcolor);
 	c->isurgent = 1;
 	printstatus();
 }
@@ -2808,6 +2810,7 @@ sethints(struct wl_listener *listener, void *data)
 	if (c == focustop(selmon))
 		return;
 
+	client_set_border_color(c, urgentcolor);
 	c->isurgent = xcb_icccm_wm_hints_get_urgency(c->surface.xwayland->hints);
 	printstatus();
 }
@@ -2850,9 +2853,11 @@ main(int argc, char *argv[])
 	char *startup_cmd = NULL;
 	int c;
 
-	while ((c = getopt(argc, argv, "s:hv")) != -1) {
+	while ((c = getopt(argc, argv, "s:hdv")) != -1) {
 		if (c == 's')
 			startup_cmd = optarg;
+		else if (c == 'd')
+			log_level = WLR_DEBUG;
 		else if (c == 'v')
 			die("dwl " VERSION);
 		else
@@ -2870,5 +2875,5 @@ main(int argc, char *argv[])
 	return EXIT_SUCCESS;
 
 usage:
-	die("Usage: %s [-v] [-s startup command]", argv[0]);
+	die("Usage: %s [-v] [-d] [-s startup command]", argv[0]);
 }

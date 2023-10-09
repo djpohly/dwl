@@ -7,6 +7,7 @@
 .Sh SYNOPSIS
 .Nm
 .Op Fl v
+.Op Fl d
 .Op Fl s Ar startup command
 .Sh DESCRIPTION
 .Nm
@@ -20,6 +21,12 @@ When given the
 option,
 .Nm
 writes its name and version to standard error and exits unsuccessfully.
+.Pp
+When given the
+.Fl d
+option,
+.Nm
+enables full wlroots logging, including debug information.
 .Pp
 When given the
 .Fl s
