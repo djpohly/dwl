@@ -13,9 +13,8 @@ static const float urgentcolor[]           = COLOR(0xff0000ff);
 /* To conform the xdg-protocol, set the alpha to zero to restore the old behavior */
 static const float fullscreen_bg[]         = {0.1, 0.1, 0.1, 1.0}; /* You can also use glsl colors */
 
-/* tagging - tagcount must be no greater than 31 */
+/* tagging - TAGCOUNT must be no greater than 31 */
 #define TAGCOUNT (9)
-static const int tagcount = TAGCOUNT;
 
 /* logging */
 static int log_level = WLR_ERROR;
