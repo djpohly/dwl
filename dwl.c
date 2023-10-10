@@ -2756,8 +2756,11 @@ sethints(struct wl_listener *listener, void *data)
 	if (c == focustop(selmon))
 		return;
 
-	client_set_border_color(c, urgentcolor);
 	c->isurgent = xcb_icccm_wm_hints_get_urgency(c->surface.xwayland->hints);
+
+	if (c->isurgent && client_is_mapped(c))
+		client_set_border_color(c, urgentcolor);
+
 	printstatus();
 }
 
