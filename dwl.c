@@ -54,7 +54,7 @@
 #include <xkbcommon/xkbcommon.h>
 #ifdef XWAYLAND
 #include <wlr/xwayland.h>
-#include <X11/Xlib.h>
+#include <xcb/xcb.h>
 #include <xcb/xcb_icccm.h>
 #endif
 
@@ -398,13 +398,13 @@ static struct wl_listener session_lock_mgr_destroy = {.notify = destroysessionmg
 static void activatex11(struct wl_listener *listener, void *data);
 static void configurex11(struct wl_listener *listener, void *data);
 static void createnotifyx11(struct wl_listener *listener, void *data);
-static Atom getatom(xcb_connection_t *xc, const char *name);
+static xcb_atom_t getatom(xcb_connection_t *xc, const char *name);
 static void sethints(struct wl_listener *listener, void *data);
 static void xwaylandready(struct wl_listener *listener, void *data);
 static struct wl_listener new_xwayland_surface = {.notify = createnotifyx11};
 static struct wl_listener xwayland_ready = {.notify = xwaylandready};
 static struct wlr_xwayland *xwayland;
-static Atom netatom[NetLast];
+static xcb_atom_t netatom[NetLast];
 #endif
 
 /* configuration, allows nested code to access above variables */
@@ -2736,10 +2736,10 @@ createnotifyx11(struct wl_listener *listener, void *data)
 	LISTEN(&xsurface->events.request_fullscreen, &c->fullscreen, fullscreennotify);
 }
 
-Atom
+xcb_atom_t
 getatom(xcb_connection_t *xc, const char *name)
 {
-	Atom atom = 0;
+	xcb_atom_t atom = 0;
 	xcb_intern_atom_reply_t *reply;
 	xcb_intern_atom_cookie_t cookie = xcb_intern_atom(xc, 0, strlen(name), name);
 	if ((reply = xcb_intern_atom_reply(xc, cookie, NULL)))
