@@ -50,14 +50,28 @@ Feature *non-goals* for the main codebase include:
 
 ## Building dwl
 
-dwl has only two dependencies: `wlroots` and `wayland-protocols`. 
+dwl has the following dependencies:
+```
+libinput
+wayland
+wlroots (compiled with the libinput backend)
+xkbcommon
+wayland-protocols (compile-time only)
+pkg-config (compile-time only)
+```
+If you enable X11 support:
+```
+libxcb
+libxcb-wm
+wlroots (compiled with X11 support)
+Xwayland (runtime only)
+```
 
 Simply install these (and their `-devel` versions if your distro has separate
 development packages) and run `make`.  If you wish to build against a Git
 version of wlroots, check out the [wlroots-next branch].
 
-To enable XWayland, you should also install xorg-xwayland and uncomment its flag
-in `config.mk`.
+To enable XWayland, you should uncomment its flags in `config.mk`.
 
 ## Configuration
 
