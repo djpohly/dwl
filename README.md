@@ -5,7 +5,7 @@ Or on our [Discord server].
 
 dwl is a compact, hackable compositor for [Wayland] based on [wlroots]. It is
 intended to fill the same space in the Wayland world that dwm does in X11,
-primarily in terms of philosophy, and secondarily in terms of functionality.
+primarily in terms of functionality, and secondarily in terms of philosophy.
 Like dwm, dwl is:
 
 - Easy to understand, hack on, and extend with patches
