@@ -10,7 +10,6 @@ Like dwm, dwl is:
 
 - Easy to understand, hack on, and extend with patches
 - One C source file (or a very small number) configurable via `config.h`
-- Limited to 2200 SLOC to promote hackability
 - Tied to as few external dependencies as possible
 
 dwl is not meant to provide every feature under the sun. Instead, like dwm, it
@@ -33,6 +32,10 @@ given the base on which it is built. Implemented default features are:
 - Zero flickering - Wayland users naturally expect that "every frame is perfect"
 - Layer shell popups (used by Waybar)
 - Damage tracking provided by scenegraph API
+
+Given the Wayland architecture, dwl has to implement features from dwm **and**
+the xorg-server, because of this, it is impossible to maintain the goal of 2000
+SLOC and have all features that dwm had.
 
 Features under consideration (possibly as patches) are:
 
