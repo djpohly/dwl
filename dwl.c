@@ -2628,7 +2628,8 @@ urgent(struct wl_listener *listener, void *data)
 	if (!c || c == focustop(selmon))
 		return;
 
-	client_set_border_color(c, urgentcolor);
+	if (client_surface(c)->mapped)
+		client_set_border_color(c, urgentcolor);
 	c->isurgent = 1;
 	printstatus();
 }
