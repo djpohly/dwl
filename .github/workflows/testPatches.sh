@@ -24,17 +24,18 @@ for file in "$wikiDirectory"/*.md; do
                 extractedURL=${BASH_REMATCH[0]}
                 patchAccessResult=$(curl -s -w "%{http_code}" -o /dev/null "$extractedURL")
                 if [ "$patchAccessResult" -ne 200 ]; then
+                    echo "⚠️ - $extractedURL"
                     update_line "$line" "inaccessible"
                     continue
                 fi
 
-                git -C $dwlSrcDirectory apply --check <(curl -s "$extractedURL") > /dev/null 2>&1
+                git -C "$dwlSrcDirectory" apply --check <(curl -s "$extractedURL") > /dev/null 2>&1
                 patchApplicationExitCode=$?
                 if [ $patchApplicationExitCode -eq 0 ]; then
-                    printf "\e[32m[PASS]\e[0m %-40s\n" "$extractedURL"
+                    echo "✅ - $extractedURL"
                     update_line "$line" "pass"
                 else
-                    printf "\e[31m[FAIL]\e[0m %-40s\n" "$extractedURL"
+                    echo "❌ - $extractedURL"
                     update_line "$line" "fail"
                 fi
 
