@@ -26,4 +26,4 @@ jobs:
           ls 
 
       - name: Run Tests
-        run: ./testPatches.sh ./src-dir ./wiki-dir
+        run: ./src-dir/.github/workflows/testPatches.sh ./src-dir ./wiki-dir
