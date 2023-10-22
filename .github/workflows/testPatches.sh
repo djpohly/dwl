@@ -4,11 +4,11 @@ update_line() {
     local line="$1"         # line from opened file is passed in
     local testResult="$2"   # result from git diff
 
-    echo "Processing line: $line with additional argument: $additional_argument"
+    echo "Processing line: $line with additional argument: $testResult"
 }
 
-wikiDirectory=./dwl.wiki
-dwlSrcDirectory=./dwl
+dwlSrcDirectory="$1"
+wikiDirectory="$2"
 patchRE="https://github\.com/[^/]+/[^/]+/compare/[^/]+\.patch"
 
 for file in "$wikiDirectory"/*.md; do
