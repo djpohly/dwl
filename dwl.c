@@ -589,7 +589,7 @@ buttonpress(struct wl_listener *listener, void *data)
 		/* If you released any buttons, we exit interactive move/resize mode. */
 		/* TODO should reset to the pointer focus's current setcursor */
 		if (!locked && cursor_mode != CurNormal && cursor_mode != CurPressed) {
-			wlr_cursor_set_xcursor(cursor, cursor_mgr, "left_ptr");
+			wlr_cursor_set_xcursor(cursor, cursor_mgr, "default");
 			cursor_mode = CurNormal;
 			/* Drop the window off on its new monitor */
 			selmon = xytomon(cursor->x, cursor->y);
@@ -1679,7 +1679,7 @@ motionnotify(uint32_t time)
 	 * default. This is what makes the cursor image appear when you move it
 	 * off of a client or over its border. */
 	if (!surface && !seat->drag)
-		wlr_cursor_set_xcursor(cursor, cursor_mgr, "left_ptr");
+		wlr_cursor_set_xcursor(cursor, cursor_mgr, "default");
 
 	pointerfocus(c, surface, sx, sy, time);
 }
@@ -1722,7 +1722,7 @@ moveresize(const Arg *arg)
 		wlr_cursor_warp_closest(cursor, NULL,
 				grabc->geom.x + grabc->geom.width,
 				grabc->geom.y + grabc->geom.height);
-		wlr_cursor_set_xcursor(cursor, cursor_mgr, "bottom_right_corner");
+		wlr_cursor_set_xcursor(cursor, cursor_mgr, "se-resize");
 		break;
 	}
 }
@@ -1982,7 +1982,7 @@ run(char *startup_cmd)
 	 * initialized, as the image/coordinates are not transformed for the
 	 * monitor when displayed here */
 	wlr_cursor_warp_closest(cursor, NULL, cursor->x, cursor->y);
-	wlr_cursor_set_xcursor(cursor, cursor_mgr, "left_ptr");
+	wlr_cursor_set_xcursor(cursor, cursor_mgr, "default");
 
 	/* Run the Wayland event loop. This does not return until you exit the
 	 * compositor. Starting the backend rigged up all of the necessary event
@@ -2847,7 +2847,7 @@ xwaylandready(struct wl_listener *listener, void *data)
 	wlr_xwayland_set_seat(xwayland, seat);
 
 	/* Set the default XWayland cursor to match the rest of dwl. */
-	if ((xcursor = wlr_xcursor_manager_get_xcursor(cursor_mgr, "left_ptr", 1)))
+	if ((xcursor = wlr_xcursor_manager_get_xcursor(cursor_mgr, "default", 1)))
 		wlr_xwayland_set_cursor(xwayland,
 				xcursor->images[0]->buffer, xcursor->images[0]->width * 4,
 				xcursor->images[0]->width, xcursor->images[0]->height,
