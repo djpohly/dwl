@@ -30,4 +30,5 @@ jobs:
         run: |
           cd ./wiki-dir
           git add .
+          git commit -m "automatic wiki update from github actions"
           git push
