@@ -29,4 +29,5 @@ jobs:
       - name: Push Changes to Wiki
         run: |
           cd ./wiki-dir
+          git add .
           git push
