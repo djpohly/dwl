@@ -1,8 +1,6 @@
 name: Test all Patches
 run-name: Test all Patches due to a ${{ github.event_name }} from @${{ github.actor }}
-on:
-  push:
-  gollum: # on wiki edit
+on: [push, gollum] # on push or wiki edit
 jobs:
   start-action:
     runs-on: ubuntu-latest
