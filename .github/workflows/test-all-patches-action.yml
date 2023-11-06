@@ -29,6 +29,8 @@ jobs:
       - name: Push Changes to Wiki
         run: |
           cd ./wiki-dir
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
           git add .
           git commit -m "automatic wiki update from github actions"
           git push
