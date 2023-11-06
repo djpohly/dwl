@@ -21,11 +21,12 @@ jobs:
       - name: Run Tests
         run: ./src-dir/.github/workflows/testPatches.sh ./src-dir ./wiki-dir
 
-      - name: Change to Wiki Directory
-        run: cd ./wiki-dir
-
       - name: See Wiki Changes
-        run: git diff
+        run: |
+          cd ./wiki-dir
+          git diff
 
       - name: Push Changes to Wiki
-        run: git push
+        run: |
+          cd ./wiki-dir
+          git push
