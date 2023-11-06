@@ -1,5 +1,5 @@
 name: Test all Patches
-run-name: Test all Patches for ${{ github.event.repository.updated_at }}
+run-name: Test all Patches due to a ${{ github.event_name }} from @${{ github.actor }}
 on:
   push:
   gollum: # on wiki edit
@@ -7,8 +7,6 @@ jobs:
   start-action:
     runs-on: ubuntu-latest
     steps:
-      - run: echo "This was automatically triggered by a ${{ github.event_name }} event."
-
       - name: Check out main
         uses: actions/checkout@v4
         with:
@@ -19,11 +17,6 @@ jobs:
         with:
           repository: ${{ github.repository }}.wiki
           path: wiki-dir
-
-      - name: List files in the repository
-        run: |
-          ls ${{ github.workspace }}
-          ls 
 
       - name: Run Tests
         run: ./src-dir/.github/workflows/testPatches.sh ./src-dir ./wiki-dir
