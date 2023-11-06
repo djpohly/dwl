@@ -22,4 +22,6 @@ jobs:
         run: ./src-dir/.github/workflows/testPatches.sh ./src-dir ./wiki-dir
 
       - name: See wiki diff
-        run: git diff main ./wiki-dir
+        run: |
+          cd ./wiki-dir
+          git diff
