@@ -7,7 +7,7 @@ jobs:
   start-action:
     runs-on: ubuntu-latest
     steps:
-      - name: Check out main
+      - name: Check out Main
         uses: actions/checkout@v4
         with:
           path: src-dir
@@ -21,7 +21,11 @@ jobs:
       - name: Run Tests
         run: ./src-dir/.github/workflows/testPatches.sh ./src-dir ./wiki-dir
 
-      - name: See wiki diff
-        run: |
-          cd ./wiki-dir
-          git diff
+      - name: Change to Wiki Directory
+        run: cd ./wiki-dir
+
+      - name: See Wiki Changes
+        run: git diff
+
+      - name: Push Changes to Wiki
+        run: git push
