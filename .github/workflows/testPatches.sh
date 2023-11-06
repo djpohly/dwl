@@ -5,7 +5,7 @@
 dwlSrcDirectory="$1"
 wikiDirectory="$2"
 patchLinkPattern="https://github\.com/[^/]+/[^/]+/compare/[^/]+\.patch"
-emojiReplacePattern="\(\[[❔⚠️❌✅]\]\)"
+emojiReplacePattern="\[[❔⚠️❌✅]\]"
 
 for file in "$wikiDirectory"/*.md; do
 
@@ -39,7 +39,7 @@ for file in "$wikiDirectory"/*.md; do
 
         if [ "$http_status_code" -ne 200 ] || [ -z "$patchContent" ]; then
             echo "[⚠️] -- $extractedURL"
-            echo "$line" | sed "s/$emojiReplacePattern/[⚠️]/1" >> "$tempFile"
+            echo "${line/${emojiReplacePattern}/[⚠️]}" >> "$tempFile"
             continue
         fi
 
@@ -48,10 +48,10 @@ for file in "$wikiDirectory"/*.md; do
 
         if [ $patchApplicationExitCode -eq 0 ]; then
             echo "[✅] -- $extractedURL"
-            echo "$line" | sed "s/$emojiReplacePattern/[✅]/1" >> "$tempFile"
+            echo "${line/${emojiReplacePattern}/[✅]}" >> "$tempFile"
         else
             echo "[❌] -- $extractedURL"
-            echo "$line" | sed "s/$emojiReplacePattern/[❌]/1" >> "$tempFile"
+            echo "${line/${emojiReplacePattern}/[❌]}" >> "$tempFile"
         fi
     done < "$file"
 
