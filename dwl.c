@@ -3,7 +3,6 @@
  */
 #include <getopt.h>
 #include <libinput.h>
-#include <limits.h>
 #include <linux/input-event-codes.h>
 #include <signal.h>
 #include <stdio.h>
