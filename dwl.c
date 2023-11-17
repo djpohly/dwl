@@ -2586,8 +2586,8 @@ updatemons(struct wl_listener *listener, void *data)
 		config_head = wlr_output_configuration_head_v1_create(config, m->wlr_output);
 
 		/* Get the effective monitor geometry to use for surfaces */
-		wlr_output_layout_get_box(output_layout, m->wlr_output, &(m->m));
-		wlr_output_layout_get_box(output_layout, m->wlr_output, &(m->w));
+		wlr_output_layout_get_box(output_layout, m->wlr_output, &m->m);
+		m->w = m->m;
 		wlr_scene_output_set_position(m->scene_output, m->m.x, m->m.y);
 
 		wlr_scene_node_set_position(&m->fullscreen_bg->node, m->m.x, m->m.y);
