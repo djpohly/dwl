@@ -2185,11 +2185,7 @@ setup(void)
 	/* The backend is a wlroots feature which abstracts the underlying input and
 	 * output hardware. The autocreate option will choose the most suitable
 	 * backend based on the current environment, such as opening an X11 window
-	 * if an X11 server is running. The NULL argument here optionally allows you
-	 * to pass in a custom renderer if wlr_renderer doesn't meet your needs. The
-	 * backend uses the renderer, for example, to fall back to software cursors
-	 * if the backend does not support hardware cursors (some older GPUs
-	 * don't). */
+	 * if an X11 server is running. */
 	if (!(backend = wlr_backend_autocreate(dpy, &session)))
 		die("couldn't create backend");
 
@@ -2200,7 +2196,10 @@ setup(void)
 	drag_icon = wlr_scene_tree_create(&scene->tree);
 	wlr_scene_node_place_below(&drag_icon->node, &layers[LyrBlock]->node);
 
-	/* Create a renderer with the default implementation */
+	/* Autocreates a renderer, either Pixman, GLES2 or Vulkan for us. The user
+	 * can also specify a renderer using the WLR_RENDERER env var.
+	 * The renderer is responsible for defining the various pixel formats it
+	 * supports for shared memory, this configures that for clients. */
 	if (!(drw = wlr_renderer_autocreate(backend)))
 		die("couldn't create renderer");
 
@@ -2217,7 +2216,10 @@ setup(void)
 				wlr_linux_dmabuf_v1_create_with_renderer(dpy, 4, drw));
 	}
 
-	/* Create a default allocator */
+	/* Autocreates an allocator for us.
+	 * The allocator is the bridge between the renderer and the backend. It
+	 * handles the buffer creation, allowing wlroots to render onto the
+	 * screen */
 	if (!(alloc = wlr_allocator_autocreate(backend, drw)))
 		die("couldn't create allocator");
 
@@ -2228,15 +2230,15 @@ setup(void)
 	 * the clients cannot set the selection directly without compositor approval,
 	 * see the setsel() function. */
 	compositor = wlr_compositor_create(dpy, 6, drw);
+	wlr_subcompositor_create(dpy);
+	wlr_data_device_manager_create(dpy);
 	wlr_export_dmabuf_manager_v1_create(dpy);
 	wlr_screencopy_manager_v1_create(dpy);
 	wlr_data_control_manager_v1_create(dpy);
-	wlr_data_device_manager_create(dpy);
 	wlr_primary_selection_v1_device_manager_create(dpy);
 	wlr_viewporter_create(dpy);
 	wlr_single_pixel_buffer_manager_v1_create(dpy);
 	wlr_fractional_scale_manager_v1_create(dpy, 1);
-	wlr_subcompositor_create(dpy);
 
 	/* Initializes the interface used to implement urgency hints */
 	activation = wlr_xdg_activation_v1_create(dpy);
@@ -2256,7 +2258,7 @@ setup(void)
 	wl_list_init(&mons);
 	LISTEN_STATIC(&backend->events.new_output, createmon);
 
-	/* Set up our client lists and the xdg-shell. The xdg-shell is a
+	/* Set up our client lists, the xdg-shell and the layer-shell. The xdg-shell is a
 	 * Wayland protocol which is used for application windows. For more
 	 * detail on shells, refer to the article:
 	 *
@@ -2265,16 +2267,16 @@ setup(void)
 	wl_list_init(&clients);
 	wl_list_init(&fstack);
 
-	idle_notifier = wlr_idle_notifier_v1_create(dpy);
-
-	idle_inhibit_mgr = wlr_idle_inhibit_v1_create(dpy);
-	LISTEN_STATIC(&idle_inhibit_mgr->events.new_inhibitor, createidleinhibitor);
+	xdg_shell = wlr_xdg_shell_create(dpy, 6);
+	LISTEN_STATIC(&xdg_shell->events.new_surface, createnotify);
 
 	layer_shell = wlr_layer_shell_v1_create(dpy, 3);
 	LISTEN_STATIC(&layer_shell->events.new_surface, createlayersurface);
 
-	xdg_shell = wlr_xdg_shell_create(dpy, 6);
-	LISTEN_STATIC(&xdg_shell->events.new_surface, createnotify);
+	idle_notifier = wlr_idle_notifier_v1_create(dpy);
+
+	idle_inhibit_mgr = wlr_idle_inhibit_v1_create(dpy);
+	LISTEN_STATIC(&idle_inhibit_mgr->events.new_inhibitor, createidleinhibitor);
 
 	session_lock_mgr = wlr_session_lock_manager_v1_create(dpy);
 	wl_signal_add(&session_lock_mgr->events.new_lock, &lock_listener);
@@ -2309,9 +2311,7 @@ setup(void)
 	 * when the pointer moves. However, we can attach input devices to it, and
 	 * it will generate aggregate events for all of them. In these events, we
 	 * can choose how we want to process them, forwarding them to clients and
-	 * moving the cursor around. More detail on this process is described in my
-	 * input handling blog post:
-	 *
+	 * moving the cursor around. More detail on this process is described in
 	 * https://drewdevault.com/2018/07/17/Input-handling-in-wlroots.html
 	 *
 	 * And more comments are sprinkled throughout the notify functions above.
