@@ -634,15 +634,12 @@ cleanup(void)
 		kill(child_pid, SIGTERM);
 		waitpid(child_pid, NULL, 0);
 	}
-	wlr_backend_destroy(backend);
-	wlr_scene_node_destroy(&scene->tree.node);
-	wlr_renderer_destroy(drw);
-	wlr_allocator_destroy(alloc);
 	wlr_xcursor_manager_destroy(cursor_mgr);
-	wlr_cursor_destroy(cursor);
 	wlr_output_layout_destroy(output_layout);
-	wlr_seat_destroy(seat);
 	wl_display_destroy(dpy);
+	/* Destroy after the wayland display (when the monitors are already destroyed)
+	   to avoid destroying them with an invalid scene output. */
+	wlr_scene_node_destroy(&scene->tree.node);
 }
 
 void
