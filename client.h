@@ -92,7 +92,7 @@ end:
 static inline void
 client_activate_surface(struct wlr_surface *s, int activated)
 {
-	struct wlr_xdg_surface *surface;
+	struct wlr_xdg_toplevel *toplevel;
 #ifdef XWAYLAND
 	struct wlr_xwayland_surface *xsurface;
 	if ((xsurface = wlr_xwayland_surface_try_from_wlr_surface(s))) {
@@ -100,9 +100,8 @@ client_activate_surface(struct wlr_surface *s, int activated)
 		return;
 	}
 #endif
-	if ((surface = wlr_xdg_surface_try_from_wlr_surface(s))
-			&& surface->role == WLR_XDG_SURFACE_ROLE_TOPLEVEL)
-		wlr_xdg_toplevel_set_activated(surface->toplevel, activated);
+	if ((toplevel = wlr_xdg_toplevel_try_from_wlr_surface(s)))
+		wlr_xdg_toplevel_set_activated(toplevel, activated);
 }
 
 static inline uint32_t
