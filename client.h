@@ -119,17 +119,6 @@ client_set_bounds(Client *c, int32_t width, int32_t height)
 	return 0;
 }
 
-static inline void
-client_for_each_surface(Client *c, wlr_surface_iterator_func_t fn, void *data)
-{
-	wlr_surface_for_each_surface(client_surface(c), fn, data);
-#ifdef XWAYLAND
-	if (client_is_x11(c))
-		return;
-#endif
-	wlr_xdg_surface_for_each_popup_surface(c->surface.xdg, fn, data);
-}
-
 static inline const char *
 client_get_appid(Client *c)
 {
@@ -379,17 +368,6 @@ client_set_suspended(Client *c, int suspended)
 #endif
 
 	wlr_xdg_toplevel_set_suspended(c->surface.xdg->toplevel, suspended);
-}
-
-static inline struct wlr_surface *
-client_surface_at(Client *c, double cx, double cy, double *sx, double *sy)
-{
-#ifdef XWAYLAND
-	if (client_is_x11(c))
-		return wlr_surface_surface_at(c->surface.xwayland->surface,
-				cx, cy, sx, sy);
-#endif
-	return wlr_xdg_surface_surface_at(c->surface.xdg, cx, cy, sx, sy);
 }
 
 static inline int
