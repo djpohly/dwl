@@ -143,23 +143,22 @@ client_get_appid(Client *c)
 static inline void
 client_get_clip(Client *c, struct wlr_box *clip)
 {
+	struct wlr_box xdg_geom = {0};
+	*clip = (struct wlr_box){
+		.x = 0,
+		.y = 0,
+		.width = c->geom.width - c->bw,
+		.height = c->geom.height - c->bw,
+	};
+
 #ifdef XWAYLAND
-	if (client_is_x11(c)) {
-		*clip = (struct wlr_box){
-			.x = 0,
-			.y = 0,
-			.width = c->geom.width - c->bw,
-			.height = c->geom.height - c->bw};
+	if (client_is_x11(c))
 		return;
-	}
 #endif
 
-	*clip = (struct wlr_box){
-		.x = c->surface.xdg->pending.geometry.x,
-		.y = c->surface.xdg->pending.geometry.y,
-		.width = c->geom.width - c->bw,
-		.height = c->geom.height - c->bw};
-
+	wlr_xdg_surface_get_geometry(c->surface.xdg, &xdg_geom);
+	clip->x = xdg_geom.x;
+	clip->y = xdg_geom.y;
 }
 
 static inline void
