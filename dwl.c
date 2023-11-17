@@ -627,6 +627,7 @@ cleanup(void)
 {
 #ifdef XWAYLAND
 	wlr_xwayland_destroy(xwayland);
+	xwayland = NULL;
 #endif
 	wl_display_destroy_clients(dpy);
 	if (child_pid > 0) {
