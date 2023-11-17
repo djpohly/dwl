@@ -600,8 +600,7 @@ buttonpress(struct wl_listener *listener, void *data)
 void
 chvt(const Arg *arg)
 {
-	if (session)
-		wlr_session_change_vt(session, arg->ui);
+	wlr_session_change_vt(session, arg->ui);
 }
 
 void
