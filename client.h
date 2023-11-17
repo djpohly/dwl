@@ -11,9 +11,8 @@ client_is_x11(Client *c)
 {
 #ifdef XWAYLAND
 	return c->type == X11Managed || c->type == X11Unmanaged;
-#else
-	return 0;
 #endif
+	return 0;
 }
 
 static inline struct wlr_surface *
