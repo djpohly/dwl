@@ -194,6 +194,7 @@ struct Monitor {
 	unsigned int sellt;
 	uint32_t tagset[2];
 	double mfact;
+	int gamma_lut_changed;
 	int nmaster;
 	char ltsymbol[16];
 };
@@ -1870,6 +1871,8 @@ rendermon(struct wl_listener *listener, void *data)
 	 * generally at the output's refresh rate (e.g. 60Hz). */
 	Monitor *m = wl_container_of(listener, m, frame);
 	Client *c;
+	struct wlr_output_state pending = {0};
+	struct wlr_gamma_control_v1 *gamma_control;
 	struct timespec now;
 
 	/* Render if no XDG clients have an outstanding resize and are visible on
@@ -1877,12 +1880,38 @@ rendermon(struct wl_listener *listener, void *data)
 	wl_list_for_each(c, &clients, link)
 		if (c->resize && !c->isfloating && client_is_rendered_on_mon(c, m) && !client_is_stopped(c))
 			goto skip;
+
+	/*
+	 * HACK: The "correct" way to set the gamma is to commit it together with
+	 * the rest of the state in one go, but to do that we would need to rewrite
+	 * wlr_scene_output_commit() in order to add the gamma to the pending
+	 * state before committing, instead try to commit the gamma in one frame,
+	 * and commit the rest of the state in the next one (or in the same frame if
+	 * the gamma can not be committed).
+	 */
+	if (m->gamma_lut_changed) {
+		gamma_control = wlr_gamma_control_manager_v1_get_control(gamma_control_mgr, m->wlr_output);
+		m->gamma_lut_changed = 0;
+
+		if (!wlr_gamma_control_v1_apply(gamma_control, &pending))
+			goto commit;
+
+		if (!wlr_output_test_state(m->wlr_output, &pending)) {
+			wlr_gamma_control_v1_send_failed_and_destroy(gamma_control);
+			goto commit;
+		}
+		wlr_output_commit_state(m->wlr_output, &pending);
+		wlr_output_schedule_frame(m->wlr_output);
+	} else {
+commit:
 		wlr_scene_output_commit(m->scene_output, NULL);
+	}
 
 skip:
 	/* Let clients know a frame has been rendered */
 	clock_gettime(CLOCK_MONOTONIC, &now);
 	wlr_scene_output_send_frame_done(m->scene_output, &now);
+	wlr_output_state_finish(&pending);
 }
 
 void
@@ -2057,21 +2086,9 @@ void
 setgamma(struct wl_listener *listener, void *data)
 {
 	struct wlr_gamma_control_manager_v1_set_gamma_event *event = data;
-	struct wlr_output_state state;
-	wlr_output_state_init(&state);
-	if (!wlr_gamma_control_v1_apply(event->control, &state)) {
-		wlr_output_state_finish(&state);
-		return;
-	}
-
-	if (!wlr_output_test_state(event->output, &state)) {
-		wlr_gamma_control_v1_send_failed_and_destroy(event->control);
-		wlr_output_state_finish(&state);
-		return;
-	}
-
-	wlr_output_commit_state(event->output, &state);
-	wlr_output_schedule_frame(event->output);
+	Monitor *m = event->output->data;
+	m->gamma_lut_changed = 1;
+	wlr_output_schedule_frame(m->wlr_output);
 }
 
 void
