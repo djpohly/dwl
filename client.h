@@ -39,7 +39,7 @@ toplevel_from_wlr_surface(struct wlr_surface *s, Client **pc, LayerSurface **pl)
 #endif
 
 	if (!s)
-		return type;
+		return -1;
 	root_surface = wlr_surface_get_root_surface(s);
 
 #ifdef XWAYLAND
