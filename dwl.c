@@ -2604,6 +2604,9 @@ updatemons(struct wl_listener *listener, void *data)
 		arrangelayers(m);
 		/* Don't move clients to the left output when plugging monitors */
 		arrange(m);
+		/* make sure fullscreen clients have the right size */
+		if ((c = focustop(m)) && c->isfullscreen)
+			resize(c, m->m, 0);
 
 		config_head->state.enabled = 1;
 		config_head->state.mode = m->wlr_output->current_mode;
