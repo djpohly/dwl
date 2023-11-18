@@ -2622,6 +2622,13 @@ updatemons(struct wl_listener *listener, void *data)
 		}
 	}
 
+	/* FIXME: figure out why the cursor image is at 0,0 after turning all
+	 * the monitors on.
+	 * Move the cursor image where it used to be. It does not generate a
+	 * wl_pointer.motion event for the clients, it's only the image what it's
+	 * at the wrong position after all. */
+	wlr_cursor_move(cursor, NULL, 0, 0);
+
 	wlr_output_manager_v1_set_configuration(output_mgr, config);
 }
 
