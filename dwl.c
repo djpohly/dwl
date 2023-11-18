@@ -903,11 +903,6 @@ createmon(struct wl_listener *listener, void *data)
 	if (!wlr_output_commit(wlr_output))
 		return;
 
-	/* Try to enable adaptive sync, note that not all monitors support it.
-	 * wlr_output_commit() will deactivate it in case it cannot be enabled */
-	wlr_output_enable_adaptive_sync(wlr_output, 1);
-	wlr_output_commit(wlr_output);
-
 	wl_list_insert(&mons, &m->link);
 	printstatus();
 
