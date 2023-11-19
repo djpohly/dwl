@@ -802,6 +802,8 @@ createkeyboard(struct wlr_keyboard *keyboard)
 	context = xkb_context_new(XKB_CONTEXT_NO_FLAGS);
 	keymap = xkb_keymap_new_from_names(context, &xkb_rules,
 		XKB_KEYMAP_COMPILE_NO_FLAGS);
+	if (!keymap)
+		die("createkeyboard: failed to compile keymap");
 
 	wlr_keyboard_set_keymap(keyboard, keymap);
 	xkb_keymap_unref(keymap);
