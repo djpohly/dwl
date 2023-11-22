@@ -118,6 +118,7 @@ typedef struct {
 	struct wl_listener set_title;
 	struct wl_listener fullscreen;
 	struct wlr_box prev; /* layout-relative, includes border */
+	struct wlr_box bounds;
 #ifdef XWAYLAND
 	struct wl_listener activate;
 	struct wl_listener associate;
