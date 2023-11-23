@@ -835,15 +835,6 @@ createlayersurface(struct wl_listener *listener, void *data)
 
 	wl_list_insert(&layersurface->mon->layers[wlr_layer_surface->pending.layer],
 			&layersurface->link);
-
-	/* Temporarily set the layer's current state to pending
-	 * so that we can easily arrange it
-	 */
-	old_state = wlr_layer_surface->current;
-	wlr_layer_surface->current = wlr_layer_surface->pending;
-	layersurface->mapped = 1;
-	arrangelayers(layersurface->mon);
-	wlr_layer_surface->current = old_state;
 }
 
 void
@@ -1496,6 +1487,16 @@ void
 maplayersurfacenotify(struct wl_listener *listener, void *data)
 {
 	LayerSurface *l = wl_container_of(listener, l, map);
+	struct wlr_layer_surface_v1_state old_state;
+
+	/* Temporarily set the layer's current state to pending
+	 * so that we can easily arrange it
+	 */
+	old_state = l->layer_surface->current;
+	l->layer_surface->current = l->layer_surface->pending;
+	l->mapped = 1;
+	arrangelayers(l->mon);
+	l->layer_surface->current = old_state;
 	motionnotify(0);
 }
 
