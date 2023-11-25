@@ -1,8 +1,9 @@
 # Changelog
 
-* [Unreleased](#unreleased)
+* [0.5](#0.5)
 
-## Unreleased
+## 0.5
+
 ### Added
 
 * Allow configure x and y position of outputs ([#301][301])
@@ -50,7 +51,6 @@
 [494]: https://github.com/djpohly/dwl/pull/494
 
 
-### Deprecated
 ### Removed
 
 * Remove unused `rootcolor` option ([#401][401])
@@ -79,7 +79,6 @@
 [518]: https://github.com/djpohly/dwl/pull/518
 
 
-### Security
 ### Contributors
 
 * A Frederick Christensen
