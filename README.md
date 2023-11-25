@@ -1,5 +1,10 @@
 # dwl - dwm for Wayland
 
+> ### ⚠️ Migrated to Codeberg
+>
+> This project has [migrated to Codeberg](https://codeberg.org/dwl/dwl).
+
+
 Join us on our IRC channel: [#dwl on Libera Chat]  
 Or on our [Discord server].
 

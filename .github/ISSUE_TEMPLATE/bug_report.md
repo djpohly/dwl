@@ -7,11 +7,7 @@ assignees: ''
 
 ---
 
-## Info
-dwl version:
-wlroots version:
-## Description
-<!--
-Only report bugs that can be reproduced on the main line
-Report patch issues to their respective authors
--->
+### ⚠️ Migrated to Codeberg
+
+This project has [migrated to Codeberg](https://codeberg.org/dwl/dwl).
+
