@@ -1773,9 +1773,6 @@ apply_or_test:
 	else
 		wlr_output_configuration_v1_send_failed(config);
 	wlr_output_configuration_v1_destroy(config);
-
-	/* TODO: use a wrapper function? */
-	updatemons(NULL, NULL);
 }
 
 void
