@@ -124,6 +124,7 @@ typedef struct {
 	struct wl_listener associate;
 	struct wl_listener dissociate;
 	struct wl_listener configure;
+	struct wl_listener override_redirect;
 	struct wl_listener set_hints;
 #endif
 	unsigned int bw;
@@ -385,6 +386,7 @@ static void createnotifyx11(struct wl_listener *listener, void *data);
 static void dissociatex11(struct wl_listener *listener, void *data);
 static xcb_atom_t getatom(xcb_connection_t *xc, const char *name);
 static void sethints(struct wl_listener *listener, void *data);
+static void setoverrideredirect(struct wl_listener *listener, void *data);
 static void xwaylandready(struct wl_listener *listener, void *data);
 static struct wlr_xwayland *xwayland;
 static xcb_atom_t netatom[NetLast];
@@ -1128,6 +1130,7 @@ destroynotify(struct wl_listener *listener, void *data)
 		wl_list_remove(&c->configure.link);
 		wl_list_remove(&c->dissociate.link);
 		wl_list_remove(&c->set_hints.link);
+		wl_list_remove(&c->override_redirect.link);
 	} else
 #endif
 	{
@@ -2792,6 +2795,8 @@ createnotifyx11(struct wl_listener *listener, void *data)
 
 	/* Listen to the various events it can emit */
 	LISTEN(&xsurface->events.associate, &c->associate, associatex11);
+	LISTEN(&xsurface->events.set_override_redirect, &c->override_redirect,
+			setoverrideredirect);
 	LISTEN(&xsurface->events.dissociate, &c->dissociate, dissociatex11);
 	LISTEN(&xsurface->events.request_activate, &c->activate, activatex11);
 	LISTEN(&xsurface->events.request_configure, &c->configure, configurex11);
@@ -2836,6 +2841,23 @@ sethints(struct wl_listener *listener, void *data)
 		client_set_border_color(c, urgentcolor);
 
 	printstatus();
+}
+
+void
+setoverrideredirect(struct wl_listener *listener, void *data)
+{
+	Client *c = wl_container_of(listener, c, override_redirect);
+	int type = c->surface.xwayland->override_redirect ? X11Unmanaged : X11Managed;
+	if (!client_surface(c) || !client_surface(c)->mapped) {
+		c->type = type;
+		return;
+	}
+	/* We already check that this client is mapped */
+	if (type != c->type) {
+		wl_signal_emit_mutable(&client_surface(c)->events.unmap, NULL);
+		c->type = type;
+		wl_signal_emit_mutable(&client_surface(c)->events.map, NULL);
+	}
 }
 
 void
